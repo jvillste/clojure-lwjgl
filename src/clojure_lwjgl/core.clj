@@ -50,7 +50,7 @@
     int-buffer))
 
 
-(defn draw-triangles [color-buffer-key vertex-buffer-key index-buffer-key count]
+(defn draw-triangles [color-buffer-key vertex-buffer-key index-buffer-key triangle-count]
 
   (GL11/glEnableClientState GL11/GL_VERTEX_ARRAY)
   (bind-buffer vertex-buffer-key)
@@ -61,7 +61,7 @@
   (GL11/glColorPointer 4 GL11/GL_FLOAT 0 (long 0))
 
   (bind-element-buffer index-buffer-key)
-  (GL12/glDrawRangeElements GL11/GL_TRIANGLES 0 (* 3 4 count) count GL11/GL_UNSIGNED_INT 0))
+  (GL12/glDrawRangeElements GL11/GL_TRIANGLES 0 (- (* 3 4 triangle-count) 1) (* 3 triangle-count) GL11/GL_UNSIGNED_INT 0))
 
 
 (def width 500)
@@ -79,7 +79,7 @@
   (GL11/glEnd)
 
   (GL11/glColor3f (float 0) (float 1) (float 0))
-  (draw-triangles :color-buffer :vertex-buffer :index-buffer 3))
+  (draw-triangles :color-buffer :vertex-buffer :index-buffer 1))
 
 
 (Display/setDisplayMode (DisplayMode. 500 500))
@@ -100,19 +100,19 @@
      (println "create vertex buffer")
      (create-buffer :vertex-buffer)
      (load-buffer :vertex-buffer (create-float-buffer [0 0 0
-                                                             100 0 0
-                                                             50 100 0]))
+                                                       100 0 0
+                                                       50 100 0]))
 
      (println "create index buffer")
      (create-buffer :index-buffer)
      (load-element-buffer :index-buffer (create-int-buffer [0 1 2]))
 
-     (catch Exception e (println (str e (.getStackTrace e)))))
+     (catch Exception e (println e)))
 
 
 (while (not (Display/isCloseRequested))
   (try (render)
-       (catch Exception e (println (str e (.getStackTrace e)))))
+       (catch Exception e (println e)))
   (Display/update)
   (Display/sync 1))
 
