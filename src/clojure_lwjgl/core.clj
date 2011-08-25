@@ -1,7 +1,10 @@
 (ns clojure-lwjgl.core
-  (:import [org.lwjgl.opengl Display DisplayMode GL11 GL12  ARBVertexBufferObject]
+  (:import [org.lwjgl.opengl GLContext PixelFormat Display DisplayMode GL11 GL12  GL30 ARBVertexBufferObject]
            [org.lwjgl.input Mouse]
            [org.lwjgl BufferUtils]
+           [java.awt Frame Canvas]
+           [java.awt.event WindowAdapter]
+           [javax.swing JFrame]
            [java.nio IntBuffer FloatBuffer]))
 
 (def *buffer-ids* (atom {}))
@@ -65,28 +68,44 @@
   (GL12/glDrawRangeElements GL11/GL_TRIANGLES 0 (- (* 3 4 triangle-count) 1) (* 3 triangle-count) GL11/GL_UNSIGNED_INT 0))
 
 
-(def width 800)
-(def height 600)
+(def width 300)
+(def height 300)
 
 
 (defn render []
   (GL11/glClear GL11/GL_COLOR_BUFFER_BIT)
 
   (GL11/glLoadIdentity)
-
+   (GL11/glTranslatef (float 0.5) 0.5 0)
   (GL11/glScalef 0.2 0.2 1)
-  (GL11/glRotatef (* (/ (System/nanoTime) 1000000000) (float 10)) 0 0 1)
 
-  (dotimes [n 200]
 
-    (GL11/glTranslatef (* n (float 0.08)) 0 0)
+  (dotimes [n 35]
     (GL11/glRotatef (* (/ (System/nanoTime) 1000000000) (float 10)) 0 0 1)
+    (GL11/glTranslatef (* n (float 0.04)) 0 0)
+
     (draw-triangles :color-buffer :vertex-buffer :index-buffer 1))
 
   )
 
+(def running (atom true))
 
-(Display/setDisplayMode (DisplayMode. width height))
+(def canvas (Canvas.))
+(.setSize canvas 400 400)
+(def frame (doto (new Frame)
+             (.add canvas)
+             (.addWindowListener
+              (proxy [WindowAdapter] []
+                (windowClosing [e]
+                  (println "Frame closed")
+                  (Display/destroy)
+                  (.dispose frame))))
+             .pack
+             .show))
+(Display/setParent canvas)
+
+;(Display/setDisplayMode (DisplayMode. width height))
+
 (Display/create)
 
 (GL11/glMatrixMode GL11/GL_PROJECTION)
@@ -113,11 +132,10 @@
 
      (catch Exception e (println e)))
 
-
 (defn loop []
   (try (render)
        (Display/update)
-       (Display/sync 60)
+       (Display/sync 30)
        (catch Exception e (println e))))
 
 (while (not (Display/isCloseRequested))
