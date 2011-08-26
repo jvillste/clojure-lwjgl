@@ -80,9 +80,10 @@
   (GL11/glScalef 0.2 0.2 1)
 
 
-  (dotimes [n 35]
-    (GL11/glRotatef (* (/ (System/nanoTime) 1000000000) (float 10)) 0 0 1)
-    (GL11/glTranslatef (* n (float 0.04)) 0 0)
+  (dotimes [n 55]
+    (GL11/glRotatef (* (/ (System/nanoTime) 1000000000) (float 14)) 0 0 1)
+    (GL11/glTranslatef (* n (float 0.24)) 0 0)
+        (GL11/glRotatef (* (/ (System/nanoTime) 1000000000) (float 2)) 0 0 1)
 
     (draw-triangles :color-buffer :vertex-buffer :index-buffer 1))
 
@@ -135,7 +136,7 @@
 (defn loop []
   (try (render)
        (Display/update)
-       (Display/sync 30)
+       (Display/sync 60)
        (catch Exception e (println e))))
 
 (while (not (Display/isCloseRequested))
