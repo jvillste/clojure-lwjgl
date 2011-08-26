@@ -3,8 +3,7 @@
            [org.lwjgl.input Mouse]
            [org.lwjgl BufferUtils]
            [java.awt Frame Canvas]
-           [java.awt.event WindowAdapter]
-           [javax.swing JFrame]
+           [java.awt.event WindowAdapter ComponentAdapter]
            [java.nio IntBuffer FloatBuffer]))
 
 (def *buffer-ids* (atom {}))
@@ -68,15 +67,21 @@
   (GL12/glDrawRangeElements GL11/GL_TRIANGLES 0 (- (* 3 4 triangle-count) 1) (* 3 triangle-count) GL11/GL_UNSIGNED_INT 0))
 
 
-(def width 300)
-(def height 300)
+(def width (atom 0))
+(def height (atom 0))
 
 
 (defn render []
   (GL11/glClear GL11/GL_COLOR_BUFFER_BIT)
 
+  (GL11/glMatrixMode GL11/GL_PROJECTION)
   (GL11/glLoadIdentity)
-   (GL11/glTranslatef (float 0.5) 0.5 0)
+  (GL11/glOrtho -1, 2, -1, 2, -1, 1)
+  (GL11/glMatrixMode GL11/GL_MODELVIEW)
+
+
+  (GL11/glLoadIdentity)
+  (GL11/glTranslatef (float 0.5) 0.5 0)
   (GL11/glScalef 0.2 0.2 1)
 
 
@@ -89,30 +94,31 @@
 
   )
 
-(def running (atom true))
+(def closeRequested (atom false))
 
-(def canvas (Canvas.))
-(.setSize canvas 400 400)
+(def canvas (doto (Canvas.)
+              (.addComponentListener
+               (proxy [ComponentAdapter] []
+                 (componentResized [e]
+                   (println "Resizing")
+                   (reset! width (-> canvas .getSize .getWidth))
+                   (reset! height (-> canvas .getSize .getHeight)))))
+              ))
+
 (def frame (doto (new Frame)
              (.add canvas)
              (.addWindowListener
               (proxy [WindowAdapter] []
                 (windowClosing [e]
                   (println "Frame closed")
-                  (Display/destroy)
-                  (.dispose frame))))
-             .pack
+                  (reset! closeRequested true))))
+             (.setSize 800 800)
              .show))
 (Display/setParent canvas)
 
-;(Display/setDisplayMode (DisplayMode. width height))
 
 (Display/create)
 
-(GL11/glMatrixMode GL11/GL_PROJECTION)
-(GL11/glLoadIdentity)
-(GL11/glOrtho -1, 2, -1, 2, -100, 100)
-(GL11/glMatrixMode GL11/GL_MODELVIEW)
 
 
 (try (println "create color buffer")
@@ -133,14 +139,17 @@
 
      (catch Exception e (println e)))
 
-(defn loop []
+(defn do-loop []
   (try (render)
        (Display/update)
-       (Display/sync 60)
+
+       (Display/sync 40)
+
        (catch Exception e (println e))))
 
-(while (not (Display/isCloseRequested))
-  (loop))
+(while (not @closeRequested)
+  (do-loop))
 
 (println "Destroying")
 (Display/destroy)
+(.dispose frame)
