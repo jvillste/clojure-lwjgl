@@ -67,13 +67,14 @@
   (GL12/glDrawRangeElements GL11/GL_TRIANGLES 0 (- (* 3 4 triangle-count) 1) (* 3 triangle-count) GL11/GL_UNSIGNED_INT 0))
 
 
-(def width (atom 0))
-(def height (atom 0))
+(def width (atom 300))
+(def height (atom 300))
 
 
 (defn render []
   (GL11/glClear GL11/GL_COLOR_BUFFER_BIT)
 
+  (GL11/glViewport 0 0 @width @height)
   (GL11/glMatrixMode GL11/GL_PROJECTION)
   (GL11/glLoadIdentity)
   (GL11/glOrtho -1, 2, -1, 2, -1, 1)
@@ -112,7 +113,7 @@
                 (windowClosing [e]
                   (println "Frame closed")
                   (reset! closeRequested true))))
-             (.setSize 800 800)
+             (.setSize 400 400)
              .show))
 (Display/setParent canvas)
 
