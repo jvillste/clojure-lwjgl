@@ -4,7 +4,8 @@
            [org.lwjgl BufferUtils]
            [java.awt Frame Canvas]
            [java.awt.event WindowAdapter ComponentAdapter]
-           [java.nio IntBuffer FloatBuffer]))
+           [java.nio IntBuffer FloatBuffer])
+  (:use clojure-lwjgl.text))
 
 (def *buffer-ids* (atom {}))
 
@@ -82,14 +83,16 @@
 
 
   (GL11/glLoadIdentity)
+
+  (draw-texture :text)
+  
   (GL11/glTranslatef (float 0.5) 0.5 0)
   (GL11/glScalef 0.2 0.2 1)
 
-
-  (dotimes [n 55]
+  (dotimes [n 2]
     (GL11/glRotatef (* (/ (System/nanoTime) 1000000000) (float 14)) 0 0 1)
     (GL11/glTranslatef (* n (float 0.24)) 0 0)
-        (GL11/glRotatef (* (/ (System/nanoTime) 1000000000) (float 2)) 0 0 1)
+    (GL11/glRotatef (* (/ (System/nanoTime) 1000000000) (float 2)) 0 0 1)
 
     (draw-triangles :color-buffer :vertex-buffer :index-buffer 1))
 
@@ -138,6 +141,7 @@
      (create-buffer :index-buffer)
      (load-element-buffer :index-buffer (create-int-buffer [0 1 2]))
 
+     (create-text-texture :text "Foo")
      (catch Exception e (println e)))
 
 (defn do-loop []
