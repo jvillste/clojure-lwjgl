@@ -7,6 +7,10 @@
            [java.nio IntBuffer FloatBuffer])
   (:use clojure-lwjgl.text))
 
+(defprotocol Component
+  (render [component])
+  (dispose [component]))
+
 (def *buffer-ids* (atom {}))
 
 (defn get-buffer [key] (key @*buffer-ids*))
@@ -70,18 +74,29 @@
 
 (def width (atom 300))
 (def height (atom 300))
+(def resize-requested (atom false))
 
+(defn resize []
+  (when resize-requested
+    (GL11/glViewport 0 0 @width @height)
+    (GL11/glMatrixMode GL11/GL_PROJECTION)
+    (GL11/glLoadIdentity)
+    (GL11/glOrtho 0, @width, 0, @height, -1, 1)
+    (GL11/glMatrixMode GL11/GL_MODELVIEW)
+    (reset! resize-requested false)))
 
 (defn render []
+  (resize)
+
   (GL11/glClear GL11/GL_COLOR_BUFFER_BIT)
 
-  (GL11/glViewport 0 0 @width @height)
-  (GL11/glMatrixMode GL11/GL_PROJECTION)
   (GL11/glLoadIdentity)
-  (GL11/glOrtho -1, 2, -1, 2, -1, 1)
-  (GL11/glMatrixMode GL11/GL_MODELVIEW)
 
-  (GL11/glLoadIdentity)
+  (create-text-texture :text "Foo")
+  (draw-texture :text 128 128)
+  (delete-texture :text)
+
+
   (GL11/glTranslatef (float 0.5) 0.5 0)
   (GL11/glScalef 0.2 0.2 1)
 
@@ -90,12 +105,8 @@
     (GL11/glTranslatef (* n (float 0.24)) 0 0)
     (GL11/glRotatef (* (/ (System/nanoTime) 1000000000) (float 2)) 0 0 1)
 
-    (draw-triangles :color-buffer :vertex-buffer :index-buffer 1))
-
-  (create-text-texture :text "Foo")
-  (draw-texture :text)
-  (delete-texture :text)
-
+                                        ;    (draw-triangles :color-buffer :vertex-buffer :index-buffer 1)
+    )
   )
 
 (def closeRequested (atom false))
@@ -138,7 +149,6 @@
 (println "create index buffer")
 (create-buffer :index-buffer)
 (load-element-buffer :index-buffer (create-int-buffer [0 1 2]))
-
 
 (GL11/glEnable GL11/GL_BLEND)
 (GL11/glColorMask true, true, true, true)
