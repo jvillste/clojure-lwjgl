@@ -81,11 +81,7 @@
   (GL11/glOrtho -1, 2, -1, 2, -1, 1)
   (GL11/glMatrixMode GL11/GL_MODELVIEW)
 
-
   (GL11/glLoadIdentity)
-
-  (draw-texture :text)
-  
   (GL11/glTranslatef (float 0.5) 0.5 0)
   (GL11/glScalef 0.2 0.2 1)
 
@@ -95,6 +91,10 @@
     (GL11/glRotatef (* (/ (System/nanoTime) 1000000000) (float 2)) 0 0 1)
 
     (draw-triangles :color-buffer :vertex-buffer :index-buffer 1))
+
+  (create-text-texture :text "Foo")
+  (draw-texture :text)
+  (delete-texture :text)
 
   )
 
@@ -123,32 +123,34 @@
 
 (Display/create)
 
+(println "create color buffer")
+(create-buffer :color-buffer)
+(load-buffer :color-buffer (create-float-buffer [1 0 0 1
+                                                 1 1 0 1
+                                                 1 0 0 1]))
+
+(println "create vertex buffer")
+(create-buffer :vertex-buffer)
+(load-buffer :vertex-buffer (create-float-buffer [0 1 0
+                                                  0 0 0
+                                                  1 0 0]))
+
+(println "create index buffer")
+(create-buffer :index-buffer)
+(load-element-buffer :index-buffer (create-int-buffer [0 1 2]))
 
 
-(try (println "create color buffer")
-     (create-buffer :color-buffer)
-     (load-buffer :color-buffer (create-float-buffer [1 0 0 1
-                                                      1 1 0 1
-                                                      1 0 0 1]))
+(GL11/glEnable GL11/GL_BLEND)
+(GL11/glColorMask true, true, true, true)
+(GL11/glBlendFunc GL11/GL_SRC_ALPHA GL11/GL_ONE_MINUS_SRC_ALPHA)
 
-     (println "create vertex buffer")
-     (create-buffer :vertex-buffer)
-     (load-buffer :vertex-buffer (create-float-buffer [0 1 0
-                                                       0 0 0
-                                                       1 0 0]))
-
-     (println "create index buffer")
-     (create-buffer :index-buffer)
-     (load-element-buffer :index-buffer (create-int-buffer [0 1 2]))
-
-     (create-text-texture :text "Foo")
-     (catch Exception e (println e)))
+;;(try  (catch Exception e (println e)))
 
 (defn do-loop []
   (try (render)
        (Display/update)
 
-       (Display/sync 40)
+       (Display/sync 1)
 
        (catch Exception e (println e))))
 
