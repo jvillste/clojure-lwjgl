@@ -5,11 +5,9 @@
            [java.awt Frame Canvas]
            [java.awt.event WindowAdapter ComponentAdapter]
            [java.nio IntBuffer FloatBuffer])
-  (:use clojure-lwjgl.text))
+  (:use clojure-lwjgl.text)
+  (:use clojure-lwjgl.component))
 
-(defprotocol Component
-  (render [component])
-  (dispose [component]))
 
 (def *buffer-ids* (atom {}))
 
@@ -85,17 +83,16 @@
     (GL11/glMatrixMode GL11/GL_MODELVIEW)
     (reset! resize-requested false)))
 
-(defn render []
+(defn render-all []
   (resize)
 
   (GL11/glClear GL11/GL_COLOR_BUFFER_BIT)
 
   (GL11/glLoadIdentity)
 
-  (create-text-texture :text "Foo")
-  (draw-texture :text 128 128)
-  (delete-texture :text)
-
+  (let [text (create-text "Foo")]
+    (render text)
+    (dispose text))
 
   (GL11/glTranslatef (float 0.5) 0.5 0)
   (GL11/glScalef 0.2 0.2 1)
@@ -150,6 +147,7 @@
 (create-buffer :index-buffer)
 (load-element-buffer :index-buffer (create-int-buffer [0 1 2]))
 
+(GL11/glClearColor 1 1 1 0)
 (GL11/glEnable GL11/GL_BLEND)
 (GL11/glColorMask true, true, true, true)
 (GL11/glBlendFunc GL11/GL_SRC_ALPHA GL11/GL_ONE_MINUS_SRC_ALPHA)
@@ -157,7 +155,7 @@
 ;;(try  (catch Exception e (println e)))
 
 (defn do-loop []
-  (try (render)
+  (try (render-all)
        (Display/update)
 
        (Display/sync 1)
