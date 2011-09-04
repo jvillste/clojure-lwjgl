@@ -1,0 +1,1 @@
+buffereille recordi jossa on opengl buffer id ja databuffer

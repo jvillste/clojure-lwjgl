@@ -6,55 +6,21 @@
            [java.awt.event WindowAdapter ComponentAdapter]
            [java.nio IntBuffer FloatBuffer])
   (:use clojure-lwjgl.text)
-  (:use clojure-lwjgl.component))
+  (:use clojure-lwjgl.component)
+  (:use clojure-lwjgl.buffer))
 
+(defn draw-quads [vertex-buffer-id texture-coordinate-buffer-id index-buffer-id index-count]
+  
+  (GL11/glEnableClientState GL11/GL_TEXTURE_COORD_ARRAY)
+  (bind-buffer texture-coordinate-buffer-id)
+  (GL11/glTexCoordPointer 2 GL11/GL_FLOAT 0 (long 0))
 
-(def *buffer-ids* (atom {}))
+  (GL11/glEnableClientState GL11/GL_VERTEX_ARRAY)
+  (bind-buffer vertex-buffer-key)
+  (GL11/glVertexPointer 3 GL11/GL_FLOAT 0 (long 0))
 
-(defn get-buffer [key] (key @*buffer-ids*))
-(defn set-buffer [key id]
-  (swap! *buffer-ids* #(assoc % key id)))
-
-(defn create-buffer [key]
-  (let [id (ARBVertexBufferObject/glGenBuffersARB)]
-    (set-buffer key id)
-    (println (str "generated buffer " key " " (get-buffer key)))
-    id))
-
-(defn bind-buffer [key]
-  ;;  (println (str "Binding buffer " key " " (get-buffer key)))
-  (ARBVertexBufferObject/glBindBufferARB ARBVertexBufferObject/GL_ARRAY_BUFFER_ARB
-                                         (get-buffer key)))
-
-(defn bind-element-buffer [key]
-  ;;  (println (str "Binding element buffer " key " " (get-buffer key)))
-  (ARBVertexBufferObject/glBindBufferARB ARBVertexBufferObject/GL_ELEMENT_ARRAY_BUFFER_ARB
-                                         (get-buffer key)))
-
-
-(defn load-buffer [key buffer]
-  (bind-buffer key)
-  (ARBVertexBufferObject/glBufferDataARB ARBVertexBufferObject/GL_ARRAY_BUFFER_ARB
-                                         buffer
-                                         ARBVertexBufferObject/GL_STATIC_DRAW_ARB))
-
-(defn load-element-buffer [key buffer]
-  (bind-element-buffer key)
-  (ARBVertexBufferObject/glBufferDataARB ARBVertexBufferObject/GL_ELEMENT_ARRAY_BUFFER_ARB
-                                         buffer
-                                         ARBVertexBufferObject/GL_STATIC_DRAW_ARB))
-
-(defn create-float-buffer [values]
-  (let [float-buffer (BufferUtils/createFloatBuffer (count values))]
-    (.put float-buffer (float-array values))
-    (.rewind float-buffer)
-    float-buffer))
-
-(defn create-int-buffer [values]
-  (let [int-buffer (BufferUtils/createIntBuffer (count values))]
-    (.put int-buffer (int-array values))
-    (.rewind int-buffer)
-    int-buffer))
+  (bind-element-buffer index-buffer-id)
+  (GL12/glDrawArrays GL11/GL_QUADS 0 index-count)
 
 (defn draw-triangles [color-buffer-key vertex-buffer-key index-buffer-key triangle-count]
 
@@ -68,7 +34,6 @@
 
   (bind-element-buffer index-buffer-key)
   (GL12/glDrawRangeElements GL11/GL_TRIANGLES 0 (- (* 3 4 triangle-count) 1) (* 3 triangle-count) GL11/GL_UNSIGNED_INT 0))
-
 
 (def width (atom 300))
 (def height (atom 300))
@@ -94,17 +59,15 @@
     (render text)
     (dispose text))
 
-  (GL11/glTranslatef (float 0.5) 0.5 0)
-  (GL11/glScalef 0.2 0.2 1)
+  (GL11/glTranslatef 100 100 0)
+  (GL11/glScalef 40 40 1)
 
-  (dotimes [n 2]
+  (dotimes [n 20]
     (GL11/glRotatef (* (/ (System/nanoTime) 1000000000) (float 14)) 0 0 1)
     (GL11/glTranslatef (* n (float 0.24)) 0 0)
     (GL11/glRotatef (* (/ (System/nanoTime) 1000000000) (float 2)) 0 0 1)
 
-                                        ;    (draw-triangles :color-buffer :vertex-buffer :index-buffer 1)
-    )
-  )
+    (draw-triangles :color-buffer :vertex-buffer :index-buffer 1)))
 
 (def closeRequested (atom false))
 
@@ -128,7 +91,6 @@
              .show))
 (Display/setParent canvas)
 
-
 (Display/create)
 
 (println "create color buffer")
@@ -149,6 +111,7 @@
 
 (GL11/glClearColor 1 1 1 0)
 (GL11/glEnable GL11/GL_BLEND)
+(GL11/glEnable GL11/GL_TEXTURE_2d)
 (GL11/glColorMask true, true, true, true)
 (GL11/glBlendFunc GL11/GL_SRC_ALPHA GL11/GL_ONE_MINUS_SRC_ALPHA)
 
@@ -158,7 +121,7 @@
   (try (render-all)
        (Display/update)
 
-       (Display/sync 1)
+       (Display/sync 30)
 
        (catch Exception e (println e))))
 
