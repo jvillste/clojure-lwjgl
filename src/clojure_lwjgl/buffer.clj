@@ -28,17 +28,9 @@
                                          buffer
                                          ARBVertexBufferObject/GL_STATIC_DRAW_ARB))
 
-(defn create-float-buffer [values]
-  (let [float-buffer (BufferUtils/createFloatBuffer (count values))]
-    (.put float-buffer (float-array values))
-    (.rewind float-buffer)
-    float-buffer))
+(defn create-float-buffer [size] (BufferUtils/createFloatBuffer size))
 
-(defn create-int-buffer [values]
-  (let [int-buffer (BufferUtils/createIntBuffer (count values))]
-    (.put int-buffer (int-array values))
-    (.rewind int-buffer)
-    int-buffer))
+(defn create-int-buffer [size] (BufferUtils/createIntBuffer size))
 
 
 (defn draw-quads [vertex-buffer-id
