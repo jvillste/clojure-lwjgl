@@ -1,8 +1,10 @@
 (ns clojure-lwjgl.buffer
   (:import [org.lwjgl.opengl GL11 GL12 ARBVertexBufferObject]
-           [org.lwjgl BufferUtils]))
+           [org.lwjgl BufferUtils]
+           [java.nio FloatBuffer]))
 
 (defrecord Buffer [id data])
+
 (defn create-buffer [])
 
 (defn create-gl-buffer [] (ARBVertexBufferObject/glGenBuffersARB))
@@ -29,6 +31,18 @@
                                          ARBVertexBufferObject/GL_STATIC_DRAW_ARB))
 
 (defn create-float-buffer [size] (BufferUtils/createFloatBuffer size))
+
+(defn update-buffer [buffer start-index values]
+  (.position buffer start-index)
+  (doseq [value values]
+    (.put buffer value))
+  buffer)
+
+(defn float-buffer-to-array [^FloatBuffer float-buffer]
+  (let [result (float-array (.limit float-buffer))]
+    (.rewind float-buffer)
+    (.get float-buffer result)
+    result))
 
 (defn create-float-buffer-from-values [values]
   (let [float-buffer (BufferUtils/createFloatBuffer (count values))]

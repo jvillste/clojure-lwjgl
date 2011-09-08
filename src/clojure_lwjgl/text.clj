@@ -1,6 +1,7 @@
 (ns clojure-lwjgl.text
   (:import [org.lwjgl.opengl GL11]
            [org.lwjgl BufferUtils]
+           [java.awt.image BufferedImage]
            [java.awt Color Font FontMetrics RenderingHints])
   (:use clojure-lwjgl.component
         clojure-lwjgl.texture))

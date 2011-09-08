@@ -54,6 +54,8 @@
                     false
                     (Hashtable.))))
 
+(defn create-child-buffered-image [parent x y width height])
+
 (defn create-byte-buffer-for-image [buffered-image]
   (let [bytes (-> buffered-image (.getRaster) (.getDataBuffer) (.getData))
         byte-buffer (ByteBuffer/allocateDirect (alength bytes))]
@@ -63,16 +65,19 @@
 
 (defn texture-dimension [value] value)
 
+(defn create-gl-texture [] (GL11/glGenTextures))
+
 (defn create-texture
-  [min-width min-height]
-  (let [width (texture-dimension min-width)
-        height (texture-dimension min-height)
-        id (GL11/glGenTextures)
-        buffered-image (create-buffered-image width height)
-        byte-buffer (create-byte-buffer-for-image buffered-image)]
-    (Texture. id width height buffered-image byte-buffer))
+  ([min-width min-height]
+     (let [width (texture-dimension min-width)
+           height (texture-dimension min-height)
+           id (create-gl-texture)
+           buffered-image (create-buffered-image width height)
+           byte-buffer (create-byte-buffer-for-image buffered-image)]
+       (Texture. id width height buffered-image byte-buffer)))
 
-  []
-  (create-texture 128 128))
+  ([]
+     (create-texture 128 128)))
 
-(defn create-child-texture [texture x y width height])
+(defn create-child-texture [texture x y width height]
+  )

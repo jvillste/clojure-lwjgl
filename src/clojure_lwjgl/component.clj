@@ -21,12 +21,12 @@
                          (buffer/create-gl-buffer)
                          (buffer/create-int-buffer (* maximum-number-of-components 4))
                          (buffer/create-gl-buffer)
-                         (texture/create-texture texture-size))))
+                         (texture/create-texture texture-size texture-size))))
 
 (defn maximum-allocated-y [texture-coordinate-buffer]
-  )
+  (apply max (map second (partition 2 (buffer/float-buffer-to-array texture-coordinate-buffer)))))
 
-(defn update-buffer [buffer start-index values])
+
 
 (defn new-texture-coordinates [component-container index width height]
   (let [max-x (:width (:texture component-container))
@@ -69,3 +69,6 @@
   (get-x [component])
   (get-y [component])
   (dispose [component]))
+
+(defn bar [] "this is bar")
+(defn foo [] (bar))

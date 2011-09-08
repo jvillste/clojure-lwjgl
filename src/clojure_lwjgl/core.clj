@@ -5,7 +5,7 @@
            [java.awt Frame Canvas]
            [java.awt.event WindowAdapter ComponentAdapter]
            [java.nio IntBuffer FloatBuffer])
-  (:use clojure-lwjgl.text)
+  (:use [clojure-lwjgl.text :as text])
   (:use clojure-lwjgl.component)
   (:use clojure-lwjgl.buffer))
 
@@ -29,10 +29,6 @@
   (GL11/glClear GL11/GL_COLOR_BUFFER_BIT)
 
   (GL11/glLoadIdentity)
-
-  (let [text (create-text "Foo")]
-    (render text)
-    (dispose text))
 
   (GL11/glTranslatef 100 100 0)
   (GL11/glScalef 40 40 1)
