@@ -23,7 +23,8 @@
                          (buffer/create-gl-buffer)
                          (texture/create-texture texture-size))))
 
-(defn maximum-allocated-y [texture-coordinate-buffer])
+(defn maximum-allocated-y [texture-coordinate-buffer]
+  )
 
 (defn update-buffer [buffer start-index values])
 

@@ -30,6 +30,12 @@
 
 (defn create-float-buffer [size] (BufferUtils/createFloatBuffer size))
 
+(defn create-float-buffer-from-values [values]
+  (let [float-buffer (BufferUtils/createFloatBuffer (count values))]
+    (.put float-buffer (float-array values))
+    (.rewind float-buffer)
+    float-buffer))
+
 (defn create-int-buffer [size] (BufferUtils/createIntBuffer size))
 
 
