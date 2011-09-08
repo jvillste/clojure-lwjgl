@@ -68,9 +68,9 @@
 (defn create-gl-texture [] (GL11/glGenTextures))
 
 (defn create-texture
-  ([min-width min-height]
-     (let [width (texture-dimension min-width)
-           height (texture-dimension min-height)
+  ([minimum-size]
+     (let [width (texture-dimension minimum-size)
+           height (texture-dimension minimum-size)
            id (create-gl-texture)
            buffered-image (create-buffered-image width height)
            byte-buffer (create-byte-buffer-for-image buffered-image)]
@@ -79,5 +79,4 @@
   ([]
      (create-texture 128 128)))
 
-(defn create-child-texture [texture x y width height]
-  )
+(defn create-child-texture [texture x y width height])
