@@ -1,7 +1,7 @@
 (ns clojure-lwjgl.component
-  (:use [clojure-lwjgl.texture :as texture])
-  (:use [clojure-lwjgl.buffer :as buffer])
-  (:use [clojure-lwjgl.texture-atlas :as texture-atlas]))
+  (:require [clojure-lwjgl.texture :as texture]
+            [clojure-lwjgl.buffer :as buffer]
+            [clojure-lwjgl.texture-atlas :as texture-atlas]))
 
 (defrecord ComponentContainer [components
                                vertex-buffer
@@ -9,6 +9,14 @@
                                index-buffer
                                index-buffer-id
                                texture-atlas])
+
+(defprotocol Component
+  (render [component graphics])
+  (get-width [component])
+  (get-height [component])
+  (get-x [component])
+  (get-y [component])
+  (dispose [component]))
 
 (defn create-component-container []
   (let [maximum-number-of-components 2]
@@ -28,8 +36,8 @@
 
 (defn add-component [component-container component x1 y1]
   (let [component-index (next-component-index component-container)
-        x2 (+ x (get-width component))
-        y2 (+ y (get-height component))
+        x2 (+ x1 (get-width component))
+        y2 (+ y1 (get-height component))
         first-index-buffer-index (component-index-to-index-buffer-index component-index)]
 
     (buffer/update-buffer (:vertex-buffer component-container)
@@ -53,10 +61,4 @@
                                                                            (get-width component)
                                                                            (get-height component)))))))
 
-(defprotocol Component
-  (render [component graphics])
-  (get-width [component])
-  (get-height [component])
-  (get-x [component])
-  (get-y [component])
-  (dispose [component]))
+

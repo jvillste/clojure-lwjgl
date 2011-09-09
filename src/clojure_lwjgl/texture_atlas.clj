@@ -1,6 +1,6 @@
 (ns clojure-lwjgl.texture-atlas
-  (:use [clojure-lwjgl.texture :as texture])
-  (:use [clojure-lwjgl.buffer :as buffer]))
+  (:require [clojure-lwjgl.texture :as texture]
+            [clojure-lwjgl.buffer :as buffer]))
 
 (defrecord TextureAtlas [texture-coordinate-buffer
                          texture-coordinate-buffer-id
@@ -9,18 +9,17 @@
 (defn create-texture-atlas []
   (let [initial-number-of-textures 2
         initial-base-texture-size 128]
-  (TextureAtlas. (buffer/create-float-buffer (* initial-number-of-textures 4 2))
-                 (buffer/create-gl-buffer)
-                 (texture/create-texture initial-base-texture-size))))
+    (TextureAtlas. (buffer/create-float-buffer (* initial-number-of-textures 4 2))
+                   (buffer/create-gl-buffer)
+                   (texture/create initial-base-texture-size))))
 
-(defn maximum-y [coordinate-buffer]
+(defn- maximum-y [coordinate-buffer]
   (apply max (map second (partition 2 (buffer/float-buffer-to-array coordinate-buffer)))))
-
 
 (defn new-texture-coordinates [texture-atlas index width height]
   (let [max-x (:width (:texture texture-atlas))
         max-y (:height (:texture texture-atlas))
-        y1 (/ (maximum-allocated-y (:texture-coordinate-buffer texture-atlas))
+        y1 (/ (maximum-y (:texture-coordinate-buffer texture-atlas))
               max-y)]
     {:x1 0
      :y1 y1
@@ -43,10 +42,10 @@
                            x2 y2
                            x1 y2])
 
-    (texture/create-child-texture (:texture texture-atlas)
-                                  x1
-                                  y1
-                                  width
-                                  height)))
+    (texture/create-child (:texture texture-atlas)
+                          x1
+                          y1
+                          width
+                          height)))
 
 (defn dispose-texture [texture-atlas index])

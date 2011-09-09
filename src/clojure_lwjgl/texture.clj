@@ -1,4 +1,5 @@
 (ns clojure-lwjgl.texture
+  (:refer-clojure :exclude (load))
   (:import [org.lwjgl.opengl GL11]
            [java.awt.image BufferedImage Raster DataBuffer ComponentColorModel]
            [java.awt.color ColorSpace]
@@ -9,7 +10,7 @@
 (defn- texture-dimension [value] value)
 (defn- create-gl-texture [] (GL11/glGenTextures))
 
-(defrecord Texture [id width height buffered-image byte-buffer])
+(defrecord Texture [id width height buffered-image])
 
 (defn delete [texture] (GL11/glDeleteTextures (:id texture)))
 
@@ -76,9 +77,8 @@
      (let [width (texture-dimension minimum-size)
            height (texture-dimension minimum-size)
            id (create-gl-texture)
-           buffered-image (buffered-image/create width height)
-           byte-buffer (buffered-image/create-byte-buffer buffered-image)]
-       (Texture. id width height buffered-image byte-buffer)))
+           buffered-image (buffered-image/create width height)]
+       (Texture. id width height buffered-image)))
 
   ([]
      (create 128 128)))
