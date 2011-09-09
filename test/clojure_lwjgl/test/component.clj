@@ -1,7 +1,7 @@
 (ns test.clojure-lwjgl.component
-  (:use clojure.test)
-  (:use [clojure-lwjgl.component :as component])
-  (:use [clojure-lwjgl.buffer :as buffer]))
+  (:use [clojure.test :only (deftest is)])
+  (:require [clojure-lwjgl.component :as component])
+  (:require [clojure-lwjgl.buffer :as buffer]))
 
 (deftest new-texture-coordinates-test
   (is (= (component/new-texture-coordinates {:texture {:width 128 :height 128}} 0 100 10)
