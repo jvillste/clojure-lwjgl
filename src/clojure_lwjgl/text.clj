@@ -13,18 +13,24 @@
     (.setFont graphics font)
     (.getFontMetrics graphics)))
 
-(defrecord TextLine [text]
-  Component
+(defn render [text-line graphics]
+  (doto graphics
+    (.setColor Color/BLACK)
+    (.setFont font)
+    (.setRenderingHint RenderingHints/KEY_TEXT_ANTIALIASING RenderingHints/VALUE_TEXT_ANTIALIAS_LCD_HBGR )
+    (.drawString (:text text-line) 0 (component/get-height text-line))))
 
-  (render [text-line graphics]
-    (doto graphics
-      (.setColor Color/BLACK)
-      (.setFont font)
-      (.setRenderingHint RenderingHints/KEY_TEXT_ANTIALIASING RenderingHints/VALUE_TEXT_ANTIALIAS_LCD_HBGR )
-      (.drawString (:text text-line) 0 (get-height text-line))))
+(defn get-width [text-line] (.stringWidth (get-font-metrics font) (:text text-line)))
 
-  (get-width [text-line] (.stringWidth (get-font-metrics font) (:text text-line)))
+(defn get-height [text-line] (.getHeight (get-font-metrics font)))
 
-  (get-height [text-line] (.getHeight (get-font-metrics font)))
+(defn dispose [text-line] (texture/delete (:texture text-line)))
 
-  (dispose [text-line] (delete-texture (:texture-id text-line))))
+(defrecord TextLine [text])
+
+(extend TextLine
+  component/Component
+  {:render render
+   :get-width get-width
+   :get-height get-height
+   :dispose dispose})
