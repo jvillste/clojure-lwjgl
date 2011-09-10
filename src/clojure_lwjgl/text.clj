@@ -18,7 +18,9 @@
     (.setColor Color/BLACK)
     (.setFont font)
     (.setRenderingHint RenderingHints/KEY_TEXT_ANTIALIASING RenderingHints/VALUE_TEXT_ANTIALIAS_LCD_HBGR )
-    (.drawString (:content text) 0 (component/get-height text))))
+     (.drawString (:content text) 0 (component/get-height text))
+    )
+  )
 
 (defn get-width [text] (.stringWidth (get-font-metrics font) (:content text)))
 

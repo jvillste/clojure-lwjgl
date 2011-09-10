@@ -21,15 +21,16 @@
     (reset! resize-requested false)))
 
 (defn render [renderer]
-  (try
-    (resize)
-    (renderer)
-    (Display/update)
 
-    (Display/sync 30)
+  ;;  (try
+  (resize)
+  (@renderer)
+  (Display/update)
 
-    (catch Exception e (println e))))
+  (Display/sync 1)
 
+  ;;    (catch Exception e (println e)))
+  )
 
 (defn open [renderer initializer]
   (let [canvas (Canvas.)
@@ -44,13 +45,13 @@
 
     (doto frame
       (.add canvas)
-          (.addWindowListener
-           (proxy [WindowAdapter] []
-             (windowClosing [e]
-               (println "Frame closed")
-               (reset! closeRequested true))))
-          (.setSize 400 400)
-          .show)
+      (.addWindowListener
+       (proxy [WindowAdapter] []
+         (windowClosing [e]
+           (println "Frame closed")
+           (reset! closeRequested true))))
+      (.setSize 400 400)
+      .show)
 
     (Display/setParent canvas)
 
@@ -63,7 +64,7 @@
     (GL11/glBlendFunc GL11/GL_SRC_ALPHA GL11/GL_ONE_MINUS_SRC_ALPHA)
 
     (initializer)
-    
+
     (while (not @closeRequested)
       (render renderer))
 
