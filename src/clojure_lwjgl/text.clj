@@ -13,6 +13,10 @@
     (.setFont graphics font)
     (.getFontMetrics graphics)))
 
+(defn get-width [text] (.stringWidth (get-font-metrics font) (:content text)))
+
+(defn get-height [text] (.getHeight (get-font-metrics font)))
+
 (defn render [text graphics]
   (doto graphics
     (.setColor Color/GREEN)
@@ -20,15 +24,7 @@
     (.setColor Color/BLACK)
     (.setFont font)
     (.setRenderingHint RenderingHints/KEY_TEXT_ANTIALIASING RenderingHints/VALUE_TEXT_ANTIALIAS_LCD_HBGR )
-     (.drawString (:content text) 0 (get-height text))
-    )
-  )
-
-(defn get-width [text] (.stringWidth (get-font-metrics font) (:content text)))
-
-(defn get-height [text] (.getHeight (get-font-metrics font)))
-
-(defn dispose [text] (texture/delete (:texture text)))
+    (.drawString (:content text) 0 (get-height text))))
 
 (defrecord Text [content])
 
@@ -37,6 +33,6 @@
 (extend Text
   component/Component
   {:render render
-   :get-width get-width
-   :get-height get-height
-   :dispose dispose})
+   :preferred-width get-width
+   :preferred-height get-height
+   :dispose #()})

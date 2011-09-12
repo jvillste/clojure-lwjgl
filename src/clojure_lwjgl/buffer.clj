@@ -1,7 +1,7 @@
 (ns clojure-lwjgl.buffer
   (:import [org.lwjgl.opengl GL11 GL12 ARBVertexBufferObject]
            [org.lwjgl BufferUtils]
-           [java.nio FloatBuffer]))
+           [java.nio FloatBuffer IntBuffer]))
 
 (defrecord Buffer [id data])
 
@@ -10,21 +10,36 @@
 (defn create-gl-buffer [] (ARBVertexBufferObject/glGenBuffersARB))
 
 (defn bind-buffer [id]
-  ;;  (println (str "Binding buffer " key " " (get-buffer key)))
   (ARBVertexBufferObject/glBindBufferARB ARBVertexBufferObject/GL_ARRAY_BUFFER_ARB id))
 
 (defn bind-element-buffer [id]
-  ;;  (println (str "Binding element buffer " key " " (get-buffer key)))
   (ARBVertexBufferObject/glBindBufferARB ARBVertexBufferObject/GL_ELEMENT_ARRAY_BUFFER_ARB id))
 
+(defn float-buffer-to-array [^FloatBuffer float-buffer]
+  (let [result (float-array (.limit float-buffer))]
+    (.rewind float-buffer)
+    (.get float-buffer result)
+    result))
+
+(defn int-buffer-to-array [^IntBuffer int-buffer]
+  (let [result (int-array (.limit int-buffer))]
+    (.rewind int-buffer)
+    (.get int-buffer result)
+    result))
 
 (defn load-buffer [id buffer]
+;;  (println "------")
+;;  (println (partition 2 (into [] (float-buffer-to-array buffer))))
+  (.rewind buffer)
   (bind-buffer id)
   (ARBVertexBufferObject/glBufferDataARB ARBVertexBufferObject/GL_ARRAY_BUFFER_ARB
                                          buffer
                                          ARBVertexBufferObject/GL_STATIC_DRAW_ARB))
 
 (defn load-element-buffer [id buffer]
+;;  (println (into [] (int-buffer-to-array buffer)))  
+  (.rewind buffer)
+
   (bind-element-buffer id)
   (ARBVertexBufferObject/glBufferDataARB ARBVertexBufferObject/GL_ELEMENT_ARRAY_BUFFER_ARB
                                          buffer
@@ -38,11 +53,6 @@
     (.put buffer value))
   buffer)
 
-(defn float-buffer-to-array [^FloatBuffer float-buffer]
-  (let [result (float-array (.limit float-buffer))]
-    (.rewind float-buffer)
-    (.get float-buffer result)
-    result))
 
 (defn create-float-buffer-from-values [values]
   (let [float-buffer (BufferUtils/createFloatBuffer (count values))]

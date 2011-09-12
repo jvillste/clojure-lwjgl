@@ -26,7 +26,9 @@
 
   (try
     (@renderer)
-    (catch Exception e (println e)))
+    (catch Exception e
+      (println e)
+      (.printStackTrace e)))
   
   (Display/update)
 
