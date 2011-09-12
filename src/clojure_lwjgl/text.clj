@@ -15,10 +15,12 @@
 
 (defn render [text graphics]
   (doto graphics
+    (.setColor Color/GREEN)
+    (.fillRect 0 0 (get-width text) (get-height text))
     (.setColor Color/BLACK)
     (.setFont font)
     (.setRenderingHint RenderingHints/KEY_TEXT_ANTIALIASING RenderingHints/VALUE_TEXT_ANTIALIAS_LCD_HBGR )
-     (.drawString (:content text) 0 (component/get-height text))
+     (.drawString (:content text) 0 (get-height text))
     )
   )
 

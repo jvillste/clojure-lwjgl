@@ -20,14 +20,19 @@
 
   (let [text (text/create "Foo ja muuta tekstia")
         texture (texture/create 128 128)
-        child-image (buffered-image/create-child (:buffered-image texture) 10 10 50 10)]
-    (text/render text (texture/get-graphics child-image))
+        child-image (buffered-image/create-child (:buffered-image texture)
+                                                 10
+                                                 10
+                                                 (text/get-width text)
+                                                 (text/get-height text))]
+
+    (text/render text (buffered-image/get-graphics child-image))
     (texture/load texture)
     (texture/draw texture)
+;;    (println (:id texture))
     (texture/delete texture))
 
   ))
-
 
 (window/open render initialize)
 
