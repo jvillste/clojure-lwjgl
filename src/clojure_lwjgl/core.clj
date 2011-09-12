@@ -1,14 +1,12 @@
 (ns clojure-lwjgl.core
   (:require [clojure-lwjgl.text :as text]
             [clojure-lwjgl.texture :as texture]
-            [clojure-lwjgl.window :as window])
+            [clojure-lwjgl.window :as window]
+            [clojure-lwjgl.buffered-image :as buffered-image])
   (:import [org.lwjgl.opengl GL11]))
 
 (defn initialize []
-  (println "initialize")
-  (def text (text/create "Foo"))
-  (def texture (texture/create 128))
-  (text/render text (texture/get-graphics texture)))
+  (println "initialize"))
 
 (def render (atom (fn [])))
 
@@ -21,14 +19,17 @@
 ;;  (GL11/glScalef 1 1 1)
 
   (let [text (text/create "Foo ja muuta tekstia")
-        texture (texture/create 128)]
-    (text/render text (texture/get-graphics texture))
+        texture (texture/create 128 128)
+        child-image (buffered-image/create-child (:buffered-image texture) 10 10 50 10)]
+    (text/render text (texture/get-graphics child-image))
     (texture/load texture)
-    (texture/draw texture))
+    (texture/draw texture)
+    (texture/delete texture))
 
   ))
 
 
 (window/open render initialize)
+
 
 

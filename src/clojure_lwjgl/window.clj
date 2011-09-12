@@ -22,14 +22,17 @@
 
 (defn render [renderer]
 
-  ;;  (try
   (resize)
-  (@renderer)
+
+  (try
+    (@renderer)
+    (catch Exception e (println e)))
+  
   (Display/update)
 
   (Display/sync 1)
 
-  ;;    (catch Exception e (println e)))
+
   )
 
 (defn open [renderer initializer]
@@ -63,7 +66,10 @@
     (GL11/glColorMask true, true, true, true)
     (GL11/glBlendFunc GL11/GL_SRC_ALPHA GL11/GL_ONE_MINUS_SRC_ALPHA)
 
-    (initializer)
+    (try
+      (initializer)
+      (catch Exception e
+        (println e)))
 
     (while (not @closeRequested)
       (render renderer))

@@ -12,13 +12,8 @@
     (.put byte-buffer bytes 0 (alength bytes))
     (.flip byte-buffer)))
 
-(defn create [width height]
-  (let [raster (Raster/createInterleavedRaster DataBuffer/TYPE_BYTE
-                                               width
-                                               height
-                                               4
-                                               nil)
-        component-color-model (ComponentColorModel. (ColorSpace/getInstance ColorSpace/CS_sRGB)
+(defn- create-from-raster [raster]
+  (let [component-color-model (ComponentColorModel. (ColorSpace/getInstance ColorSpace/CS_sRGB)
                                                     (int-array [8 8 8 8])
                                                     true
                                                     false
@@ -29,4 +24,19 @@
                     false
                     (Hashtable.))))
 
-(defn create-child [parent x y width height])
+(defn create [width height]
+  (let [raster (Raster/createInterleavedRaster DataBuffer/TYPE_BYTE
+                                               width
+                                               height
+                                               4
+                                               nil)]
+  (create-from-raster raster)))
+
+(defn get-graphics [buffered-image]
+  (.createGraphics buffered-image))
+
+(defn create-child [parent x y width height]
+  (-> parent
+      (.getRaster)
+      (.createWritableChild x y width height 0 0 nil)
+      (create-from-raster)))

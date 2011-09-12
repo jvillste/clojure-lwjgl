@@ -27,60 +27,52 @@
                      GL11/GL_RGBA
                      GL11/GL_UNSIGNED_BYTE
                      (buffered-image/create-byte-buffer (:buffered-image texture)))
-  
-  ;; (GL11/glTexParameterf GL11/GL_TEXTURE_2D
-  ;;                       GL11/GL_TEXTURE_WRAP_S
-  ;;                       GL11/GL_CLAMP)
-  
-  ;; (GL11/glTexParameterf GL11/GL_TEXTURE_2D
-  ;;                       GL11/GL_TEXTURE_WRAP_T
-  ;;                       GL11/GL_CLAMP)
 
   (GL11/glTexParameterf GL11/GL_TEXTURE_2D
                         GL11/GL_TEXTURE_MAG_FILTER
                         GL11/GL_LINEAR)
-  
+
   (GL11/glTexParameterf GL11/GL_TEXTURE_2D
                         GL11/GL_TEXTURE_MIN_FILTER
-                        GL11/GL_LINEAR)
-  
-  ;; (GL11/glTexEnvi GL11/GL_TEXTURE_ENV
-  ;;                 GL11/GL_TEXTURE_ENV_MODE
-  ;;                 GL11/GL_DECAL)
-  )
+                        GL11/GL_LINEAR))
 
 (defn draw [texture]
   (let [width (:width texture)
         height (:height texture)]
     (bind texture)
 
-  (GL11/glBegin GL11/GL_QUADS)
-  (GL11/glTexCoord2f (float 0) (float 1))
-  (GL11/glVertex3f (float 0) (float 0) (float 0))
+    (GL11/glBegin GL11/GL_QUADS)
+    (GL11/glTexCoord2f (float 0) (float 1))
+    (GL11/glVertex3f (float 0) (float 0) (float 0))
 
-  (GL11/glTexCoord2f (float 0) (float 0))
-  (GL11/glVertex3f (float 0) (float height) (float 0))
+    (GL11/glTexCoord2f (float 0) (float 0))
+    (GL11/glVertex3f (float 0) (float height) (float 0))
 
-  (GL11/glTexCoord2f (float 1) (float 0))
-  (GL11/glVertex3f (float width) (float height) (float 0))
+    (GL11/glTexCoord2f (float 1) (float 0))
+    (GL11/glVertex3f (float width) (float height) (float 0))
 
-  (GL11/glTexCoord2f (float 1) (float 1))
-  (GL11/glVertex3f (float width) (float 0) (float 0))
-  (GL11/glEnd)))
+    (GL11/glTexCoord2f (float 1) (float 1))
+    (GL11/glVertex3f (float width) (float 0) (float 0))
+    (GL11/glEnd)))
 
 
 (defn get-graphics [texture]
-  (.createGraphics (:buffered-image texture)))
+  (buffered-image/get-graphics (:buffered-image texture)))
+
+(defn- create-for-buffered-image [buffered-image]
+  (Texture. (create-gl-texture)
+            (.getWidth buffered-image)
+            (.getHeight buffered-image)
+            buffered-image))
 
 (defn create
-  ([minimum-size]
-     (let [width (texture-dimension minimum-size)
-           height (texture-dimension minimum-size)
-           id (create-gl-texture)
-           buffered-image (buffered-image/create width height)]
-       (Texture. id width height buffered-image)))
+  ([minimum-width minimum-height]
+     (create-for-buffered-image (buffered-image/create (texture-dimension minimum-width)
+                                                       (texture-dimension minimum-height))))
 
   ([]
      (create 128 128)))
 
-(defn create-child [texture x y width height])
+
+(defn create-child [texture x y width height]
+  (create-for-buffered-image (buffered-image/create-child (:buffered-image texture) x y width height)))
