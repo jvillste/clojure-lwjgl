@@ -19,7 +19,7 @@
                                texture-atlas])
 
 (defn create []
-  (let [maximum-number-of-components 2]
+  (let [maximum-number-of-components 10]
     (ComponentContainer. (list)
                          (buffer/create-float-buffer (* maximum-number-of-components 3 4))
                          (buffer/create-gl-buffer)

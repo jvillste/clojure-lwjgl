@@ -8,7 +8,7 @@
                          texture])
 
 (defn create []
-  (let [initial-number-of-textures 2
+  (let [initial-number-of-textures 10
         initial-base-texture-size 500]
     (TextureAtlas. (buffer/create-float-buffer (* initial-number-of-textures 4 2))
                    (buffer/create-gl-buffer)
@@ -29,7 +29,7 @@
             (/ height
                max-y))}))
 
-(defn texture-index-to-texture-coordinate-index [texture-index] (* texture-index 4 * 2))
+(defn texture-index-to-texture-coordinate-index [texture-index] (* texture-index 4 2))
 
 (defn allocate-texture [texture-atlas index width height]
   (let [{:keys [x1 y1 x2 y2]} (new-texture-coordinates texture-atlas

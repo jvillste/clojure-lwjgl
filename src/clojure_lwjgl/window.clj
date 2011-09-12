@@ -62,7 +62,7 @@
 
     (Display/create)
 
-    (GL11/glClearColor 1 1 0 0)
+    (GL11/glClearColor 1 1 1 0)
     (GL11/glEnable GL11/GL_BLEND)
     (GL11/glEnable GL11/GL_TEXTURE_2D)
     (GL11/glColorMask true, true, true, true)
