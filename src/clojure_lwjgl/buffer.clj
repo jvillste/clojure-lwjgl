@@ -3,14 +3,13 @@
            [org.lwjgl BufferUtils]
            [java.nio FloatBuffer IntBuffer]))
 
-(defrecord Buffer [id data])
-
-(defn create-buffer [])
-
 (defn create-gl-buffer [] (ARBVertexBufferObject/glGenBuffersARB))
 
 (defn bind-buffer [id]
   (ARBVertexBufferObject/glBindBufferARB ARBVertexBufferObject/GL_ARRAY_BUFFER_ARB id))
+
+(defn delete [id]
+  (ARBVertexBufferObject/glDeleteBuffersARB id))
 
 (defn bind-element-buffer [id]
   (ARBVertexBufferObject/glBindBufferARB ARBVertexBufferObject/GL_ELEMENT_ARRAY_BUFFER_ARB id))
@@ -28,8 +27,6 @@
     result))
 
 (defn load-buffer [id buffer]
-;;  (println "------")
-;;  (println (partition 2 (into [] (float-buffer-to-array buffer))))
   (.rewind buffer)
   (bind-buffer id)
   (ARBVertexBufferObject/glBufferDataARB ARBVertexBufferObject/GL_ARRAY_BUFFER_ARB
@@ -37,7 +34,6 @@
                                          ARBVertexBufferObject/GL_STATIC_DRAW_ARB))
 
 (defn load-element-buffer [id buffer]
-;;  (println (into [] (int-buffer-to-array buffer)))  
   (.rewind buffer)
 
   (bind-element-buffer id)

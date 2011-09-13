@@ -56,5 +56,6 @@
   (texture/load (:texture texture-atlas)))
 
 (defn dispose [texture-atlas]
-  (texture/delete (:texture texture-atlas)))
+  (texture/delete (:texture texture-atlas))
+  (buffer/delete (:texture-coordinate-buffer)))
 

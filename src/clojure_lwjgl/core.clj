@@ -12,6 +12,8 @@
 
 (def render (atom (fn [])))
 
+
+
 (reset! render
         (fn []
 
@@ -19,14 +21,14 @@
           (GL11/glLoadIdentity)
 
           ;;  (GL11/glTranslatef 100 100 0)
-;;            (GL11/glScalef 3 3 1)
+          ;;            (GL11/glScalef 3 3 1)
           (let [component-container (-> (component-container/create)
                                         (component-container/add-component (component/free-layout (text/create "Foo ja muuta tekstia")
                                                                                                   10
                                                                                                   200))
 
                                         (component-container/add-component (component/free-layout (text/create "Foo") 10 100))
-                                        
+
                                         (component-container/add-component (component/free-layout (text/create "Foo4")
                                                                                                   100
                                                                                                   100)))]
@@ -35,8 +37,11 @@
               (component-container/render-components)
               (component-container/draw))
 
-
-;;            (texture/draw (:texture (:texture-atlas component-container)))
+            ;;            (texture/draw (:texture (:texture-atlas component-container)))
             (component-container/dispose component-container))))
 
-(window/open render initialize)
+(defn handle-input [input-state]
+  (println input-state))
+
+(window/open render initialize handle-input)
+

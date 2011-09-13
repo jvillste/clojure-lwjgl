@@ -4,7 +4,8 @@
            [org.lwjgl BufferUtils]
            [java.awt Frame Canvas]
            [java.awt.event WindowAdapter ComponentAdapter]
-           [java.nio IntBuffer FloatBuffer]))
+           [java.nio IntBuffer FloatBuffer])
+  (:require [clojure-lwjgl.input :as input]))
 
 (def width (atom 300))
 (def height (atom 300))
@@ -29,17 +30,15 @@
     (catch Exception e
       (println e)
       (.printStackTrace e)))
-  
+
   (Display/update)
 
-  (Display/sync 1)
+  (Display/sync 1))
 
-
-  )
-
-(defn open [renderer initializer]
+(defn open [renderer initializer input-listener]
   (let [canvas (Canvas.)
-        frame (new Frame)]
+        frame (new Frame)
+        input (input/create input-listener)]
 
     (.addComponentListener canvas
                            (proxy [ComponentAdapter] []
@@ -47,6 +46,11 @@
                                (println "Resizing")
                                (reset! width (-> canvas .getSize .getWidth))
                                (reset! height (-> canvas .getSize .getHeight)))))
+
+
+    (.addMouseListener canvas (input/create-mouse-input-handler input))
+    (.addMouseMotionListener canvas (input/create-mouse-input-handler input))
+    (.addKeyListener canvas (input/create-keyboard-input-handler input))
 
     (doto frame
       (.add canvas)
