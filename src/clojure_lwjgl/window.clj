@@ -62,6 +62,8 @@
       (.setSize 400 400)
       .show)
 
+    (.requestFocusInWindow canvas)
+    
     (Display/setParent canvas)
 
     (Display/create)

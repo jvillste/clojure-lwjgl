@@ -25,7 +25,7 @@
 
 (defn create-mouse-input-handler [input]
   (proxy [MouseAdapter] []
-    (mousePressed  [e]  (case (.getButton e)
+    (mousePressed  [e] (println "pressed") (case (.getButton e)
                               1 (handle-input input
                                               [:left-mouse-button-down true]
                                               {:type :left-mouse-button-down})
@@ -52,14 +52,14 @@
                                              {:type :right-mouse-button-up})))
     (mouseEntered [e] )
     (mouseExited [e] )
-    (mouseMoved [e] (handle-input input
+    (mouseMoved [e] (println "mouse moved") (handle-input input
                                   [:mouse-x (.getX e) :mouse-y (.getY e)]
                                   {:type :mouse-moved}))
     (mouseDragged [e] )))
 
 (defn create-keyboard-input-handler [input]
   (proxy [KeyAdapter] []
-    (keyPressed [e] (handle-input input
+    (keyPressed [e] (println "key pressed") (handle-input input
                                   [:keys-down (conj (:keys-down @(:input-state input)) (.getKeyCode e))]
                                   {:type :key-pressed
                                    :key-code (.getKeyCode e)
