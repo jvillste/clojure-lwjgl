@@ -1,5 +1,6 @@
 pom.xml
 /classes/
 /lib/
+/native/
 .lein-failures
 .lein-deps-sum
