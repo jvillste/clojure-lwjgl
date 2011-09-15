@@ -75,16 +75,16 @@
 
 (defn read-input [input]
   (while (Mouse/next)
-    (let [button (Mouse/getEventButton)]
-      (case button
-            0 (handle-input input
+    (case [(Mouse/getEventButton) (Mouse/getEventButtonState)] 
+            [0 true] (handle-input input
                             [:left-mouse-button-down true]
                             {:type :left-mouse-button-down})
 
-            1 (handle-input input
+            [1 true] (handle-input input
                             [:middle-mouse-button-down true]
                             {:type :middle-mouse-button-down})
 
-            2 (handle-input input
+            [2 true] (handle-input input
                             [:right-mouse-button-down true]
-                            {:type :right-mouse-button-down})))))
+                            {:type :right-mouse-button-down})
+            nil)))
