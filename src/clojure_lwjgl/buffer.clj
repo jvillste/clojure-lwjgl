@@ -9,6 +9,7 @@
   (ARBVertexBufferObject/glBindBufferARB ARBVertexBufferObject/GL_ARRAY_BUFFER_ARB id))
 
 (defn delete [id]
+
   (ARBVertexBufferObject/glDeleteBuffersARB id))
 
 (defn bind-element-buffer [id]

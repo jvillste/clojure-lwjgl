@@ -1,6 +1,7 @@
 (ns clojure-lwjgl.input
   (:import
-   (java.awt.event KeyListener MouseAdapter KeyAdapter WindowAdapter)))
+   (java.awt.event KeyListener MouseAdapter KeyAdapter WindowAdapter)
+   (org.lwjgl.input Mouse Keyboard)))
 
 (defrecord Input [listener input-state])
 
@@ -14,7 +15,7 @@
                   :mouse-x 0
                   :mouse-y 0})))
 
-(defn handle-input [input state-changes event]
+(defn- handle-input [input state-changes event]
   (send-off (:input-state input) (fn [input-state]
                                    (let [new-input-state (apply assoc input-state
                                                                 (concat state-changes
@@ -26,17 +27,17 @@
 (defn create-mouse-input-handler [input]
   (proxy [MouseAdapter] []
     (mousePressed  [e] (println "pressed") (case (.getButton e)
-                              1 (handle-input input
-                                              [:left-mouse-button-down true]
-                                              {:type :left-mouse-button-down})
+                                                 1 (handle-input input
+                                                                 [:left-mouse-button-down true]
+                                                                 {:type :left-mouse-button-down})
 
-                              2 (handle-input input
-                                              [:middle-mouse-button-down true]
-                                              {:type :middle-mouse-button-down})
+                                                 2 (handle-input input
+                                                                 [:middle-mouse-button-down true]
+                                                                 {:type :middle-mouse-button-down})
 
-                              3 (handle-input input
-                                              [:right-mouse-button-down true]
-                                              {:type :right-mouse-button-down})))
+                                                 3 (handle-input input
+                                                                 [:right-mouse-button-down true]
+                                                                 {:type :right-mouse-button-down})))
 
     (mouseReleased [e] (case (.getButton e)
                              1 (handle-input input
@@ -53,17 +54,17 @@
     (mouseEntered [e] )
     (mouseExited [e] )
     (mouseMoved [e] (println "mouse moved") (handle-input input
-                                  [:mouse-x (.getX e) :mouse-y (.getY e)]
-                                  {:type :mouse-moved}))
+                                                          [:mouse-x (.getX e) :mouse-y (.getY e)]
+                                                          {:type :mouse-moved}))
     (mouseDragged [e] )))
 
 (defn create-keyboard-input-handler [input]
   (proxy [KeyAdapter] []
     (keyPressed [e] (println "key pressed") (handle-input input
-                                  [:keys-down (conj (:keys-down @(:input-state input)) (.getKeyCode e))]
-                                  {:type :key-pressed
-                                   :key-code (.getKeyCode e)
-                                   :key-character (.getKeyChar e)}))
+                                                          [:keys-down (conj (:keys-down @(:input-state input)) (.getKeyCode e))]
+                                                          {:type :key-pressed
+                                                           :key-code (.getKeyCode e)
+                                                           :key-character (.getKeyChar e)}))
 
     (keyReleased [e] (handle-input input
                                    [:keys-down (disj (:keys-down @(:input-state input)) (.getKeyCode e))]
@@ -72,3 +73,18 @@
                                     :key-character (.getKeyChar e)}))))
 
 
+(defn read-input [input]
+  (while (Mouse/next)
+    (let [button (Mouse/getEventButton)]
+      (case (.getButton e)
+            0 (handle-input input
+                            [:left-mouse-button-down true]
+                            {:type :left-mouse-button-down})
+
+            1 (handle-input input
+                            [:middle-mouse-button-down true]
+                            {:type :middle-mouse-button-down})
+
+            2 (handle-input input
+                            [:right-mouse-button-down true]
+                            {:type :right-mouse-button-down})))))

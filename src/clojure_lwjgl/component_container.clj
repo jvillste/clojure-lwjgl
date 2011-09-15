@@ -88,5 +88,6 @@
 
 (defn dispose [component-container]
   (texture-atlas/dispose (:texture-atlas component-container))
+
   (buffer/delete (:vertex-buffer-id component-container))
   (buffer/delete (:index-buffer-id component-container)))

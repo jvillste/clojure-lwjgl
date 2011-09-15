@@ -10,7 +10,7 @@
 (def width (atom 300))
 (def height (atom 300))
 (def resize-requested (atom false))
-(def closeRequested (atom false))
+(def close-requested (atom false))
 
 (defn resize []
   (when resize-requested
@@ -48,17 +48,14 @@
                                (reset! height (-> canvas .getSize .getHeight)))))
 
 
-    (.addMouseListener canvas (input/create-mouse-input-handler input))
-    (.addMouseMotionListener canvas (input/create-mouse-input-handler input))
-    (.addKeyListener canvas (input/create-keyboard-input-handler input))
-
+    
     (doto frame
       (.add canvas)
       (.addWindowListener
        (proxy [WindowAdapter] []
          (windowClosing [e]
            (println "Frame closed")
-           (reset! closeRequested true))))
+           (reset! close-requested true))))
       (.setSize 400 400)
       .show)
 
@@ -67,7 +64,7 @@
     (Display/setParent canvas)
 
     (Display/create)
-
+    
     (GL11/glClearColor 1 1 1 0)
     (GL11/glEnable GL11/GL_BLEND)
     (GL11/glEnable GL11/GL_TEXTURE_2D)
@@ -79,13 +76,14 @@
       (catch Exception e
         (println e)))
 
-    (while (not @closeRequested)
+    (while (not @close-requested)
+      (input/read-input input)
       (render renderer))
 
     (println "Destroying window")
     (Display/destroy)
     (.dispose frame)
-    (reset! closeRequested false)))
+    (reset! close-requested false)))
 
 
 

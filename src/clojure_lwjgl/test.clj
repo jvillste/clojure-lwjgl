@@ -16,15 +16,10 @@
    {:name "fizzbuzz_should_return_fizz_if_number_is_multiple_of_3"
     :result [(= "fizz" (fizzbuzz 3)) (= "fizz" (fizzbuzz 6))]}
    {:name "fizzbuzz_should_return_buzz_if_number_is_multiple_of_5"
-    :result (map #(= "buzz"(fizzbuzz %))
+    :result (map #(= "buzz" (fizzbuzz %))
                  (range 5 50 5))}
    {:name "fizzbuzz_should_return_fizzbuzz_if_value_is_multiple_of_3_or_5"
     :result (= "fizzbuzz" (fizzbuzz 15))}])
 
 (doseq [test test-suite]
   (println (:name test) (:result test)))
-
-
-
-
-
