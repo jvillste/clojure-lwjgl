@@ -35,7 +35,9 @@
             (component-container/dispose component-container))))
 
 (defn handle-input [input-state]
-  (println input-state))
+  (when (not (= (:type (:last-event input-state))
+                :mouse-moved))
+    (println input-state)))
 
 (window/open render initialize handle-input)
 
