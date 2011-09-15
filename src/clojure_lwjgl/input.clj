@@ -76,7 +76,7 @@
 (defn read-input [input]
   (while (Mouse/next)
     (let [button (Mouse/getEventButton)]
-      (case (.getButton e)
+      (case button
             0 (handle-input input
                             [:left-mouse-button-down true]
                             {:type :left-mouse-button-down})
