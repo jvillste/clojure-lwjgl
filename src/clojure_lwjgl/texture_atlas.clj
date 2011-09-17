@@ -22,8 +22,27 @@
                    (buffer/create-gl-buffer)
                    (texture/create initial-base-texture-size initial-base-texture-size))))
 
-(defn- maximum-y [coordinate-buffer]
-  (apply max (map second (partition 2 (buffer/float-buffer-to-array coordinate-buffer)))))
+(defn remove-nth [n values]
+  (loop [result []
+         index 0
+         rest-values values]
+    (let [value (first values)]
+      (if value
+        (if (= index n)
+          (recur result
+                 (+ index 1)
+                 (rest values))
+          (recur (conj result value)
+                 (+ index 1)
+                 (rest values)))
+        result))))
+
+(defn- maximum-y
+  ([coordinate-buffer]
+     (apply max (map second (partition 2 (buffer/float-buffer-to-array coordinate-buffer)))))
+
+  ([coordinate-buffer ignored-index]
+     (apply max (remove-nth ignored-index (map second (partition 2 (buffer/float-buffer-to-array coordinate-buffer)))))))
 
 (defn texture-x-to-texel-x [texture-atlas texture-x]
   (* texture-x
@@ -77,10 +96,13 @@
                                                                                   (height texture-atlas
                                                                                           index)))))
 
-(defn- new-texture-coordinates [texture-atlas width height]
+
+
+
+
+(defn- new-texture-coordinates [texture-atlas width height y1]
   (let [max-x (:width (:texture texture-atlas))
-        max-y (:height (:texture texture-atlas))
-        y1 (maximum-y (:texture-coordinate-buffer texture-atlas))]
+        max-y (:height (:texture texture-atlas))]
     {:x1 0
      :y1 y1
      :x2 (/ width
@@ -89,20 +111,42 @@
             (/ height
                max-y))}))
 
+(defn- new-texture-coordinates [texture-atlas width height]
+  (let [y1 (maximum-y (:texture-coordinate-buffer texture-atlas))]
+    (new-texture-coordinates texture-atlas width height y1)))
+
+(defn- new-texture-coordinates [texture-atlas ignored-index width height]
+  (let [y1 (maximum-y (:texture-coordinate-buffer texture-atlas)
+                      ignored-index)]
+    (new-texture-coordinates texture-atlas width height y1)))
+
+(defn update-texture-coordinate-buffer [texture-atlas index x1 y1 x2 y2]
+  (assoc :texture-coordinate-buffer
+    (buffer/update-buffer (:texture-coordinate-buffer texture-atlas)
+                          (texture-index-to-texture-coordinate-index index)
+                          (float-array [x1 y1
+                                        x2 y1
+                                        x2 y2
+                                        x1 y2]))))
+
+(defn resize-texture [texture-atlas index width height]
+  (let [{:keys [x1 y1 x2 y2]} (new-texture-coordinates texture-atlas
+                                                       width
+                                                       height)]
+
+    (-> texture-atlas
+        (update-texture-coordinate-buffer index x1 y1 x2 y2)
+        (assoc :needs-to-load true))))
+
+
 (defn allocate-texture [texture-atlas width height]
   (let [{:keys [x1 y1 x2 y2]} (new-texture-coordinates texture-atlas
                                                        width
                                                        height)
         index (:texture-count texture-atlas)]
 
-    (buffer/update-buffer (:texture-coordinate-buffer texture-atlas)
-                          (texture-index-to-texture-coordinate-index index)
-                          (float-array [x1 y1
-                                        x2 y1
-                                        x2 y2
-                                        x1 y2]))
-
     (-> texture-atlas
+        (update-texture-coordinate-buffer index x1 y1 x2 y2)
         (assoc :texture-count (+ 1
                                  (:texture-count texture-atlas)))
         (assoc :needs-to-load true))))

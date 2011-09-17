@@ -10,51 +10,81 @@
   (ComponentManager. []
                      (image-list/create)))
 
+(defn- render-component [component-manager index component]
+  (visual/render (component/get-visual component)
+                 (image-list/get-graphics (:image-list component-manager)
+                                          index))
+  component-manager)
+
 (defn add-component [component-manager component]
-  (-> component-manager
-      (assoc :components
-        (conj (:components component-manager)
-              component))
-      (assoc :image-list
-        (image-list/add-image (:image-list component-manager)
-                              (:x component)
-                              (:y component)
-                              (:width component)
-                              (:height component)))))
+  (let [index (image-list/next-index (:image-list component-manager))]
+    (-> component-manager
+        (assoc :components
+          (conj (:components component-manager)
+                component))
+        (assoc :image-list
+          (image-list/add-image (:image-list component-manager)
+                                (:x component)
+                                (:y component)
+                                (:width component)
+                                (:height component)))
+        (render-component index component))))
 
 (defn- component-index [component-manager component]
   (first (seq/positions #{component} (:components component-manager))))
 
-(defn- render-component [component-manager component]
-  (visual/render (component/get-visual component)
-                 (image-list/get-graphics (:image-list component-manager)
-                                          (component-index component-manager component)))
-  component)
 
-(defn remove-place [component]
-  (dissoc component :x :y :width :height))
+(defn update-component-position [component-manager index component new-component]
+  (assoc component-manager :image-list (if (not (and (= (:x component)
+                                                        (:x new-component))
+                                                     (= (:y component)
+                                                        (:y new-component))))
+                                         (image-list/move-image (:image-list component-manager)
+                                                                index
+                                                                (:x new-component)
+                                                                (:y new-component))
+                                         (:image-list component-manager))))
 
-(defn update-components [component-manager new-components]
-  (when (not (= (dissoc component :x :y)
-                (dissoc new-component :x :y)))
-    (render-component component-manager new-component))
-  (when (not (and (= (:x component)
-                     (:x new-component))
-                  (= (:y component)
-                     (:y new-component))))
-    (image-list/move-image (:image-list component-manager)
-                           index
-                           (:x new-component)
-                           (:y new-component))))
+(defn update-component-dimensions [component-manager index component new-component]
+  (assoc component-manager :image-list (if (not (and (= (:width component)
+                                                        (:width new-component))
+                                                     (= (:height component)
+                                                        (:height new-component))))
+                                         (image-list/resize-image (:image-list component-manager)
+                                                                  index
+                                                                  (:x new-component)
+                                                                  (:y new-component))
+                                         (:image-list component-manager))))
+
+(defn update-component-image [component-manager index component new-component]
+  (if (not (= (dissoc component :x :y)
+              (dissoc new-component :x :y)))
+    (render-component component-manager index new-component)
+    component-manager))
+
+(defn update-components [component-manager index old-components new-components]
+  (let [component (first old-components)
+        new-component (first new-components)]
+
+    (if (and component new-component)
+      (-> component-manager
+          (update-component-position index component new-component)
+          (update-component-dimensions index component new-component)
+          (update-component-image index component new-component)
+          (recur (+ index 1)
+                 (rest old-components)
+                 (rest new-components)))
+      component-manager)))
 
 (defn handle-input [component-manager input-state]
-  
   (let [new-components (map (fn [component]
                               (component/handle-input component input-state))
                             (:components component-manager))]
 
-    (map-indexed)
     (-> component-manager
+        (update-components 0
+                           (:components component-manager)
+                           new-components)
         (assoc :components new-components))))
 
 (defn draw [component-manager]

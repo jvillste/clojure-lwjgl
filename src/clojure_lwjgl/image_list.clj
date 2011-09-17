@@ -18,6 +18,9 @@
               (quad-list/create)
               (texture-atlas/create)))
 
+(defn next-index [image-list]
+  (:image-count image-list))
+
 (defn add-image [image-list x y width height]
   (-> image-list
       (assoc :image-count (+ 1
@@ -43,11 +46,17 @@
                                 y)))
 
 (defn resize-image [image-list index width height]
-  (assoc image-list :quad-buffer
-         (quad-buffer/resize-quad (:quad-buffer image-list)
-                                  index
-                                  width
-                                  heigth)))
+  (-> image-list
+      (assoc :quad-buffer
+        (quad-buffer/resize-quad (:quad-buffer image-list)
+                                 index
+                                 width
+                                 height))
+      (assoc :texture-atlas
+        (texture-atlas/resize-texture (:texture-atlas image-list)
+                                      index
+                                      width
+                                      height))))
 
 (defn get-graphics [image-list index]
   (texture-atlas/get-graphics (:texture-atlas image-list)
