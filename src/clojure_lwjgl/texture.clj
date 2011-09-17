@@ -1,10 +1,6 @@
 (ns clojure-lwjgl.texture
   (:refer-clojure :exclude (load))
-  (:import [org.lwjgl.opengl GL11]
-           [java.awt.image BufferedImage Raster DataBuffer ComponentColorModel]
-           [java.awt.color ColorSpace]
-           [java.util Hashtable]
-           [java.nio IntBuffer FloatBuffer ByteBuffer ByteOrder])
+  (:import [org.lwjgl.opengl GL11])
   (:require [clojure-lwjgl.buffered-image :as buffered-image]))
 
 (defn- texture-dimension [value] value)
