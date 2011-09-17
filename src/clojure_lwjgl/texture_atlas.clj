@@ -60,12 +60,24 @@
 
 (defn get-graphics [texture-atlas index]
   (buffered-image/get-graphics (buffered-image/create-child (:buffered-image (:texture texture-atlas))
-                                                            (texture-x-to-texel-x texture-atlas (x1 texture-atlas index))
-                                                            (texture-y-to-texel-y texture-atlas (y1 texture-atlas index))
-                                                            (texture-x-to-texel-x texture-atlas (width texture-atlas index))
-                                                            (texture-y-to-texel-y texture-atlas (height texture-atlas index)))))
 
-(defn new-texture-coordinates [texture-atlas width height]
+                                                            (texture-x-to-texel-x texture-atlas
+                                                                                  (x1 texture-atlas
+                                                                                      index))
+
+                                                            (texture-y-to-texel-y texture-atlas
+                                                                                  (y1 texture-atlas
+                                                                                      index))
+
+                                                            (texture-x-to-texel-x texture-atlas
+                                                                                  (width texture-atlas
+                                                                                         index))
+
+                                                            (texture-y-to-texel-y texture-atlas
+                                                                                  (height texture-atlas
+                                                                                          index)))))
+
+(defn- new-texture-coordinates [texture-atlas width height]
   (let [max-x (:width (:texture texture-atlas))
         max-y (:height (:texture texture-atlas))
         y1 (maximum-y (:texture-coordinate-buffer texture-atlas))]
@@ -90,13 +102,17 @@
                                         x2 y2
                                         x1 y2]))
 
-    (assoc texture-atlas :texture-count (+ 1
-                                           (:texture-count texture-atlas)))))
+    (-> texture-atlas
+        (assoc :texture-count (+ 1
+                                 (:texture-count texture-atlas)))
+        (assoc :needs-to-load true))))
 
 (defn load [texture-atlas]
-  (texture/load (:texture texture-atlas))
-  (buffer/load-buffer (:texture-coordinate-buffer-id texture-atlas)
-                      (:texture-coordinate-buffer texture-atlas)))
+  (when (:needs-to-load texture-atlas)
+    (texture/load (:texture texture-atlas))
+    (buffer/load-buffer (:texture-coordinate-buffer-id texture-atlas)
+                        (:texture-coordinate-buffer texture-atlas)))
+  (assoc texture-atlas :needs-to-load false))
 
 (defn delete [texture-atlas]
   (texture/delete (:texture texture-atlas))

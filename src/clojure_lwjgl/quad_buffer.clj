@@ -39,7 +39,7 @@
   (- (quad-y2 quad-buffer index)
      (quad-y1 quad-buffer index)))
 
-(defn- set-quad-coordinates [quad-buffer index x y width height]
+(defn set-quad-coordinates [quad-buffer index x y width height]
   (let [x1 x
         y1 y
         x2 (+ x1 width)
@@ -50,23 +50,40 @@
                           (float-array [x1 y2 0.0
                                         x2 y2 0.0
                                         x2 y1 0.0
-                                        x1 y1 0.0]))))
+                                        x1 y1 0.0]))
+    (assoc quad-buffer :needs-to-load true)))
 
 (defn add-quad [quad-buffer x y width height]
+  (-> quad-buffer
+      (set-quad-coordinates (:quad-count quad-buffer)
+                            x
+                            y
+                            width
+                            height)
+
+      (assoc :quad-count (+ 1
+                            (:quad-count quad-buffer)))))
+
+
+(defn move-quad [quad-buffer index x y]
   (set-quad-coordinates quad-buffer
-                        (:quad-count quad-buffer)
                         x
                         y
+                        (quad-width quad-buffer index)
+                        (quad-height quad-buffer index)))
+
+(defn resize-quad [quad-buffer index width height]
+  (set-quad-coordinates quad-buffer
+                        (quad-x1 quad-buffer index)
+                        (quad-y1 quad-buffer index)
                         width
-                        height)
-
-  (assoc quad-buffer :quad-count (+ 1
-                                    (:quad-count quad-buffer))))
-
+                        height))
 
 (defn load [quad-buffer]
-  (buffer/load-buffer (:vertex-buffer-id quad-buffer)
-                      (:vertex-buffer quad-buffer)))
+  (when (:needs-to-load quad-buffer)
+    (buffer/load-buffer (:vertex-buffer-id quad-buffer)
+                        (:vertex-buffer quad-buffer)))
+  (assoc quad-buffer :needs-to-load false))
 
 (defn delete [quad-buffer]
   (buffer/delete (:vertex-buffer-id quad-buffer)))

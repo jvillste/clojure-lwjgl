@@ -3,8 +3,8 @@
            [org.lwjgl BufferUtils]
            [java.awt.image BufferedImage]
            [java.awt Color Font FontMetrics RenderingHints])
-  (:require [clojure-lwjgl.component :as component]
-            [clojure-lwjgl.texture :as texture]))
+  (:require (clojure-lwjgl [visual :as visual]
+                           [layoutable :as layoutable])))
 
 (def font (Font. "Arial" Font/BOLD 20))
 
@@ -29,8 +29,10 @@
 (defn create [content] (Text. content))
 
 (extend Text
-  component/Component
-  {:render render
-   :preferred-width get-width
-   :preferred-height get-height
-   :dispose #()})
+  visual/Visual
+  {:render render})
+
+(extend Text
+  layoutable/Layoutable
+  {:preferred-width get-width
+   :preferred-height get-height})

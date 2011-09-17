@@ -25,13 +25,17 @@
                                       (+ first-index-buffer-index 2)
                                       (+ first-index-buffer-index 3)]))
 
-    (assoc quad-list :quad-count (+ 1
-                                    (:quad-count quad-list)))))
+    (-> quad-list
+        (assoc :quad-count (+ 1
+                              (:quad-count quad-list)))
+        (assoc :needs-to-load true))))
 
 
 (defn load [quad-list]
-  (buffer/load-element-buffer (:index-buffer-id quad-list)
-                              (:index-buffer quad-list)))
+  (when (:needs-to-load quad-list)
+    (buffer/load-element-buffer (:index-buffer-id quad-list)
+                                (:index-buffer quad-list)))
+  (assoc quad-list :needs-to-load false))
 
 
 (defn delete [quad-list]
