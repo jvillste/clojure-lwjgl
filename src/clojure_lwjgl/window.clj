@@ -64,11 +64,12 @@
     (GL11/glEnable GL11/GL_TEXTURE_2D)
     (GL11/glColorMask true, true, true, true)
     (GL11/glBlendFunc GL11/GL_SRC_ALPHA GL11/GL_ONE_MINUS_SRC_ALPHA)
-
+    
     (try
       (initializer)
       (catch Exception e
-        (println e)))
+        (println "initializer failed")
+        (.printStackTrace e)))
 
     (while (not @close-requested)
       (render renderer))

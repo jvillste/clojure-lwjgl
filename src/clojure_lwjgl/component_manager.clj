@@ -1,6 +1,7 @@
 (ns clojure-lwjgl.component-manager
   (:require (clojure-lwjgl [image-list :as image-list]
                            [component :as component]
+                           [free-layout :as free-layout]
                            [visual :as visual])
             [clojure.contrib.seq :as seq]))
 
@@ -11,23 +12,26 @@
                      (image-list/create)))
 
 (defn- render-component [component-manager index component]
-  (visual/render (component/get-visual component)
+  (visual/render (free-layout/layout (component/get-visual component)
+                                     0
+                                     0)
                  (image-list/get-graphics (:image-list component-manager)
                                           index))
   component-manager)
 
 (defn add-component [component-manager component]
-  (let [index (image-list/next-index (:image-list component-manager))]
+  (let [index (image-list/next-index (:image-list component-manager))
+        visual (free-layout/layout (component/get-visual component) 0 0)]
     (-> component-manager
         (assoc :components
           (conj (:components component-manager)
                 component))
         (assoc :image-list
           (image-list/add-image (:image-list component-manager)
-                                (:x component)
-                                (:y component)
-                                (:width component)
-                                (:height component)))
+                                (:x visual)
+                                (:y visual)
+                                (:width visual)
+                                (:height visual)))
         (render-component index component))))
 
 (defn- component-index [component-manager component]

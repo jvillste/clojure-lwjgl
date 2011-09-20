@@ -4,7 +4,7 @@
 
 (defrecord TextField [content])
 
-(defn create [content] (TestField. content))
+(defn create [content] (TextField. content))
 
 (defn get-visual [text-field]
   (text/create (:content text-field)))
