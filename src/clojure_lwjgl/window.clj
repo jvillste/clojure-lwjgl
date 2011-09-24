@@ -6,13 +6,14 @@
            [java.awt.event WindowAdapter ComponentAdapter]
            [java.nio IntBuffer FloatBuffer]))
 
-(def width (atom 300))
-(def height (atom 300))
-(def resize-requested (atom false))
-(def close-requested (atom false))
+(defrecord Window [frame
+                   close-requested
+                   resize-requested
+                   width
+                   height])
 
-(defn resize []
-  (when resize-requested
+(defn resize [window]
+  (when @(:resize-requested window)
     (GL11/glViewport 0 0 @width @height)
     (GL11/glMatrixMode GL11/GL_PROJECTION)
     (GL11/glLoadIdentity)
@@ -20,23 +21,18 @@
     (GL11/glMatrixMode GL11/GL_MODELVIEW)
     (reset! resize-requested false)))
 
-(defn render [renderer]
-
+(defn update [window]
   (resize)
-
-  (try
-    (@renderer)
-    (catch Exception e
-      (println e)
-      (.printStackTrace e)))
-
   (Display/update)
-
   (Display/sync 1))
 
-(defn open [renderer initializer]
+(defn create []
   (let [canvas (Canvas.)
-        frame (new Frame)]
+        frame (new Frame)
+        resize-requested (atom false)
+        close-requested (atom false)
+        width (atom 300)
+        height (atom 300)]
 
     (.addComponentListener canvas
                            (proxy [ComponentAdapter] []
@@ -44,7 +40,7 @@
                                (println "Resizing")
                                (reset! width (-> canvas .getSize .getWidth))
                                (reset! height (-> canvas .getSize .getHeight)))))
-    
+
     (doto frame
       (.add canvas)
       (.addWindowListener
@@ -54,33 +50,21 @@
            (reset! close-requested true))))
       (.setSize 400 400)
       .show)
-    
+
     (Display/setParent canvas)
 
     (Display/create)
-    
-    (GL11/glClearColor 1 1 1 0)
-    (GL11/glEnable GL11/GL_BLEND)
-    (GL11/glEnable GL11/GL_TEXTURE_2D)
-    (GL11/glColorMask true, true, true, true)
-    (GL11/glBlendFunc GL11/GL_SRC_ALPHA GL11/GL_ONE_MINUS_SRC_ALPHA)
-    
-    (try
-      (initializer)
-      (catch Exception e
-        (println "initializer failed")
-        (.printStackTrace e)))
+    (Window. frame
+             resize-requested
+             close-requested
+             width
+             height)))
 
-    (while (not @close-requested)
-      (render renderer))
-
-    (println "Destroying window")
-    (Display/destroy)
-    (.dispose frame)
-    (reset! close-requested false)))
-
-
-
+(defn close [window]
+  (println "Destroying window")
+  (Display/destroy)
+  (.dispose (:frame window))
+  (reset! close-requested false))
 
 
 

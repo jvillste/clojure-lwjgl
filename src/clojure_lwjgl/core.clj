@@ -14,36 +14,21 @@
 
   (:import [org.lwjgl.opengl GL11]))
 
-(defn initialize []
-  (println "initialize")
-
-  (def component-manager (component-manager/create))
-
-;;  (pprint/pprint component-manager)
-
-  (println "adding component")
-  (component-manager/add-component component-manager (text-field/create "Foobar"))
-  (println "added component")
-  (pprint/pprint component-manager))
-
-(def render (atom nil))
-
-(def handle-input (atom nil))
+(defrecord Gui [input window component-manager])
 
 (def input (input/create handle-input))
 
-(reset! render
-        (fn []
+(defn render
+  (fn []
 
-          (input/read-input input)
+    (GL11/glClear GL11/GL_COLOR_BUFFER_BIT)
+    (GL11/glLoadIdentity)
 
-          (GL11/glClear GL11/GL_COLOR_BUFFER_BIT)
-          (GL11/glLoadIdentity)
+    ;;  (GL11/glTranslatef 100 100 0)
+    ;;            (GL11/glScalef 3 3 1)
 
-          ;;  (GL11/glTranslatef 100 100 0)
-          ;;            (GL11/glScalef 3 3 1)
-
-          (component-manager/draw component-manager)))
+    ;;  (component-manager/draw component-manager)
+    ))
 
 
 (reset! handle-input
@@ -51,5 +36,26 @@
           (component-manager/handle-input component-manager
                                           input-state)))
 
-(window/open render initialize)
+(def window (window/create)) 
 
+(try
+  (initialize)
+  (catch Exception e
+    (println "initializer failed")
+    (.printStackTrace e)
+
+    (reset! window/close-requested true)))
+
+
+(while (not @window/close-requested)
+  (try
+    
+    (window/update )
+    (input/read-input input)
+    (render)
+    
+    (catch Exception e
+      (println e)
+      (.printStackTrace e))))
+
+(window/close window)

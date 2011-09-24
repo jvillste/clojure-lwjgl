@@ -100,7 +100,7 @@
 
 
 
-(defn- new-texture-coordinates [texture-atlas width height y1]
+(defn- new-texture-coordinates-with-y1 [texture-atlas width height y1]
   (let [max-x (:width (:texture texture-atlas))
         max-y (:height (:texture texture-atlas))]
     {:x1 0
@@ -114,15 +114,15 @@
 (defn- new-texture-coordinates
   ([texture-atlas width height]
      (let [y1 (maximum-y (:texture-coordinate-buffer texture-atlas))]
-       (new-texture-coordinates texture-atlas width height y1)))
+       (new-texture-coordinates-with-y1 texture-atlas width height y1)))
 
   ([texture-atlas ignored-index width height]
      (let [y1 (maximum-y (:texture-coordinate-buffer texture-atlas)
                          ignored-index)]
-       (new-texture-coordinates texture-atlas width height y1))))
+       (new-texture-coordinates-with-y1 texture-atlas width height y1))))
 
 (defn update-texture-coordinate-buffer [texture-atlas index x1 y1 x2 y2]
-  (assoc :texture-coordinate-buffer
+  (assoc texture-atlas :texture-coordinate-buffer
     (buffer/update-buffer (:texture-coordinate-buffer texture-atlas)
                           (texture-index-to-texture-coordinate-index index)
                           (float-array [x1 y1
