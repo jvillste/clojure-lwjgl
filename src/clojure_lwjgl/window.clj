@@ -14,17 +14,18 @@
 
 (defn resize [window]
   (when @(:resize-requested window)
-    (GL11/glViewport 0 0 @width @height)
+    (GL11/glViewport 0 0 @(:width window)  @(:height window))
     (GL11/glMatrixMode GL11/GL_PROJECTION)
     (GL11/glLoadIdentity)
-    (GL11/glOrtho 0, @width, 0, @height, -1, 1)
+    (GL11/glOrtho 0, @(:width window), 0, @(:height window), -1, 1)
     (GL11/glMatrixMode GL11/GL_MODELVIEW)
-    (reset! resize-requested false)))
+    (reset! (:resize-requested window) false)))
 
 (defn update [window]
-  (resize)
+  (resize window)
   (Display/update)
-  (Display/sync 1))
+  (Display/sync 1)
+  window)
 
 (defn create []
   (let [canvas (Canvas.)
@@ -64,7 +65,7 @@
   (println "Destroying window")
   (Display/destroy)
   (.dispose (:frame window))
-  (reset! close-requested false))
+  (reset! (:close-requested window) false))
 
 
 

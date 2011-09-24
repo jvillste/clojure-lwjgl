@@ -2,8 +2,7 @@
   (:require (clojure-lwjgl [image-list :as image-list]
                            [component :as component]
                            [free-layout :as free-layout]
-                           [visual :as visual])
-            [clojure.contrib.seq :as seq]))
+                           [visual :as visual])))
 
 (defrecord ComponentManager [components image-list])
 
@@ -35,7 +34,7 @@
         (render-component index component))))
 
 (defn- component-index [component-manager component]
-  (first (seq/positions #{component} (:components component-manager))))
+  (.indexOf (:components component-manager) component))
 
 
 (defn update-component-position [component-manager index component new-component]
