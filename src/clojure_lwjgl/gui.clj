@@ -23,14 +23,10 @@
     window))
 
 (defn create []
-  (try
-    (Gui. (create-window)
-          (input/create-initial-input-state)
-          (-> (component-manager/create)
-              (component-manager/add-component (text-field/create "Foobar"))))
-    (catch Exception e
-      (println "GUI creation failed")
-      (.printStackTrace e))))
+  (Gui. (create-window)
+        (input/create-initial-input-state)
+        (-> (component-manager/create)
+            (component-manager/add-component (text-field/create "Foobar")))))
 
 
 (defn render [gui]
@@ -45,7 +41,7 @@
 (defn handle-input [gui]
   (let [all-input-states (input/read-input (:input-state gui))]
     (assoc gui
-      :component-manager (loop [input-states (seq all-input-states)
+      :component-manager (loop [input-states (seq (next all-input-states))
                                 component-manager (:component-manager gui)]
                            (if input-states
                              (recur (next input-states)
@@ -57,16 +53,17 @@
   (assoc gui :window (window/update (:window gui))))
 
 (defn run []
-  (loop [gui (create)]
-    (if (not @(:close-requested (:window gui)))
-      (recur (try
-               (-> gui
-                   (update-window)
-                   (handle-input)
-                   (render))
-               (catch Exception e
-                 (println e)
-                 (.printStackTrace e)
-                 gui)))
-      (window/close (:window gui)))))
+  (let [initial-gui (create)]
+    (try
+      (loop [gui initial-gui]
+        (if (not @(:close-requested (:window gui)))
+          (recur (-> gui
+                     (update-window)
+                     (handle-input)
+                     (render)))
+          (window/close (:window gui))))
+      (catch Exception e
+        (println e)
+        (.printStackTrace e)
+        (window/close (:window initial-gui))))))
 

@@ -10,11 +10,13 @@
   (text/create (:content text-field)))
 
 (defn handle-input [text-field input-state]
-  (when (= (:type (:last-event input-state))
-           :key-pressed)
-    (assoc text-field :content
-      (conj (:content text-field)
-            (:key-character (:last-event input-state))))))
+
+  (if (= (:type (:last-event input-state))
+         :key-pressed)
+    (do (println "handling input " input-state)
+        (assoc text-field :content (str ;(:content text-field)
+                                        (:character (:last-event input-state)))))
+    text-field))
 
 (extend TextField
   component/Component

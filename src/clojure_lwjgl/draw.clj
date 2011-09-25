@@ -7,11 +7,6 @@
                   index-buffer-id
                   quad-count]
 
-  (println vertex-buffer-id
-           texture-coordinate-buffer-id
-           index-buffer-id
-           quad-count)
-
   (GL11/glEnableClientState GL11/GL_TEXTURE_COORD_ARRAY)
   (buffer/bind-buffer texture-coordinate-buffer-id)
   (GL11/glTexCoordPointer 2 GL11/GL_FLOAT 0 (long 0))

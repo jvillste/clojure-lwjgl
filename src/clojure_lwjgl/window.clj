@@ -30,7 +30,7 @@
 (defn create []
   (let [canvas (Canvas.)
         frame (new Frame)
-        resize-requested (atom false)
+        resize-requested (atom true)
         close-requested (atom false)
         width (atom 300)
         height (atom 300)]
@@ -55,11 +55,11 @@
     (Display/setParent canvas)
 
     (Display/create)
-    (Window. frame
-             resize-requested
-             close-requested
-             width
-             height)))
+    (map->Window {:frame frame
+                  :close-requested close-requested
+                   :resize-requested resize-requested
+                   :width width
+                   :height height})))
 
 (defn close [window]
   (println "Destroying window")

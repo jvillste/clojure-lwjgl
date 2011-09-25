@@ -22,50 +22,46 @@
   (:image-count image-list))
 
 (defn add-image [image-list x y width height]
-  (-> image-list
-      (assoc :image-count (+ 1
-                             (:image-count image-list)))
-
-      (assoc :quad-buffer (quad-buffer/add-quad (:quad-buffer image-list)
-                                                x
-                                                y
-                                                width
-                                                height))
-
-      (assoc :quad-list (quad-list/add-quad (:quad-list image-list)))
-
-      (assoc :texture-atlas (texture-atlas/allocate-texture (:texture-atlas image-list)
-                                                            width
-                                                            height))))
+  (assoc image-list
+    :image-count (+ 1
+                    (:image-count image-list))
+    :quad-buffer (quad-buffer/add-quad (:quad-buffer image-list)
+                                       x
+                                       y
+                                       width
+                                       height)
+    :quad-list (quad-list/add-quad (:quad-list image-list))
+    :texture-atlas (texture-atlas/allocate-texture (:texture-atlas image-list)
+                                                   width
+                                                   height)))
 
 (defn move-image [image-list index x y]
-  (assoc image-list :quad-buffer
-         (quad-buffer/move-quad (:quad-buffer image-list)
-                                index
-                                x
-                                y)))
+  (assoc image-list
+    :quad-buffer (quad-buffer/move-quad (:quad-buffer image-list)
+                                        index
+                                        x
+                                        y)))
 
 (defn resize-image [image-list index width height]
-  (-> image-list
-      (assoc :quad-buffer
-        (quad-buffer/resize-quad (:quad-buffer image-list)
-                                 index
-                                 width
-                                 height))
-      (assoc :texture-atlas
-        (texture-atlas/resize-texture (:texture-atlas image-list)
-                                      index
-                                      width
-                                      height))))
+  (assoc image-list
+    :quad-buffer (quad-buffer/resize-quad (:quad-buffer image-list)
+                                          index
+                                          width
+                                          height)
+    :texture-atlas (texture-atlas/resize-texture (:texture-atlas image-list)
+                                                 index
+                                                 width
+                                                 height)))
 
 (defn get-graphics [image-list index]
   (texture-atlas/get-graphics (:texture-atlas image-list)
                               index))
 
 (defn- load [image-list]
-  (quad-buffer/load (:quad-buffer image-list))
-  (quad-list/load (:quad-list image-list))
-  (texture-atlas/load (:texture-atlas image-list)))
+  (assoc image-list
+    :quad-buffer (quad-buffer/load (:quad-buffer image-list))
+    :quad-list (quad-list/load (:quad-list image-list))
+    :texture-atlas (texture-atlas/load (:texture-atlas image-list))))
 
 (defn- draw-image-list [image-list]
   (draw/draw-quads (:vertex-buffer-id (:quad-buffer image-list))

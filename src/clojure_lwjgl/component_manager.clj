@@ -21,16 +21,15 @@
 (defn add-component [component-manager component]
   (let [index (image-list/next-index (:image-list component-manager))
         visual (free-layout/layout (component/get-visual component) 0 0)]
+
     (-> component-manager
-        (assoc :components
-          (conj (:components component-manager)
-                component))
-        (assoc :image-list
-          (image-list/add-image (:image-list component-manager)
-                                (:x visual)
-                                (:y visual)
-                                (:width visual)
-                                (:height visual)))
+        (assoc :components (conj (:components component-manager)
+                                 component)
+               :image-list (image-list/add-image (:image-list component-manager)
+                                                 (:x visual)
+                                                 (:y visual)
+                                                 (:width visual)
+                                                 (:height visual)))
         (render-component index component))))
 
 (defn- component-index [component-manager component]
