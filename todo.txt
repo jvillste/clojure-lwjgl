@@ -1,1 +1,28 @@
-buffereille recordi jossa on opengl buffer id ja databuffern
+everything is just composable functions
+
+component state is function of application state
+visual elements are functions of component state
+styles are functions of visual elements
+event handlers are functions over input state, visual elements, component state and application state
+layouts are functions over visuals
+animations are functions over visuals and time
+
+
+component state = data binding(application state)
+component state = event handlers(input state, component state)
+visual elements = template(component state)
+visual elements = style(visual elements)
+visual elements = layout(visual elements)
+visual elements = animations(visual elements, time)
+
+(-> application-state
+  (create-components)
+  (handle-input (read-input))
+  (create-visuals (templates))
+  (apply-styles (styles))
+  (animate)
+  (layout)
+  (draw))
+
+
+every application can have different set of components, visual elements, layouts, styles and animations. 
