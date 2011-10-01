@@ -38,6 +38,9 @@
   (component-manager/draw (:component-manager gui))
   gui)
 
+(defn read-input [gui]
+  (assoc gui :input (input/read-input (:input-state gui))))
+
 (defn handle-input [gui]
   (let [all-input-states (input/read-input (:input-state gui))]
     (assoc gui

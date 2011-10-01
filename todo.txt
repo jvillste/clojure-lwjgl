@@ -15,13 +15,14 @@ visual elements = style(visual elements)
 visual elements = layout(visual elements)
 visual elements = animations(visual elements, time)
 
-(-> application-state
+(-> application-and-input-state
   (create-components)
-  (handle-input (read-input))
   (create-visuals (templates))
   (apply-styles (styles))
-  (animate)
-  (layout)
+  (measure-layout (is-layout-expired))
+  (layout (is-layout-expired))
+  (tweening)
+  (update-quad-tree)
   (draw))
 
 
