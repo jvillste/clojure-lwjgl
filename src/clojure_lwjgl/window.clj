@@ -21,11 +21,11 @@
     (GL11/glMatrixMode GL11/GL_MODELVIEW)
     (reset! (:resize-requested window) false)))
 
-(defn update [window]
-  (resize window)
+(defn update [gui]
+  (resize (::window gui))
   (Display/update)
   (Display/sync 1)
-  window)
+  gui)
 
 (defn create []
   (let [canvas (Canvas.)
@@ -67,7 +67,8 @@
   (.dispose (:frame window))
   (reset! (:close-requested window) false))
 
-
-
+(defn initialize [gui]
+  (assoc ::window (create)
+         :updaters (conj (:updaters gui) update)))
 
 

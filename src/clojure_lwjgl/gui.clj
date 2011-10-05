@@ -1,59 +1,63 @@
 (ns clojure-lwjgl.gui
   (:require (clojure-lwjgl [window :as window]
                            [input :as input]
+                           [event-queue :as event-queue]
                            [component-manager :as component-manager]
                            [text-field :as text-field]))
   (:import [org.lwjgl.opengl GL11]))
 
-(defrecord Gui [window
-                input-state
-                component-manager])
 
-(defn initialize-gl []
+(defn initialize-gl [gui]
   (GL11/glClearColor 1 1 1 0)
   (GL11/glEnable GL11/GL_BLEND)
   (GL11/glEnable GL11/GL_TEXTURE_2D)
   (GL11/glColorMask true, true, true, true)
-  (GL11/glBlendFunc GL11/GL_SRC_ALPHA GL11/GL_ONE_MINUS_SRC_ALPHA))
+  (GL11/glBlendFunc GL11/GL_SRC_ALPHA GL11/GL_ONE_MINUS_SRC_ALPHA)
+  gui)
 
-
-(defn create-window []
-  (let [window (window/create)]
-    (initialize-gl)
-    window))
+(defn open-view [gui]
+  (assoc gui
+    :clojure-lwjgl.component-manager/component-manager (component-manager/add-component (:component-manager/component-manager gui)
+                                                                                        (text-field/create "Foobar"))))
 
 (defn create []
-  (Gui. (create-window)
-        (input/create-initial-input-state)
-        (-> (component-manager/create)
-            (component-manager/add-component (text-field/create "Foobar")))))
+  (-> {:updaters #{}
+       :event-handlers #{}}
+      (window/initialize)
+      (input/initialize)
+      (component-manager/initialize)
+      (initialize-gl)
+      (open-view)))
 
-
-(defn render [gui]
+(defn clear [gui]
   (GL11/glClear GL11/GL_COLOR_BUFFER_BIT)
   (GL11/glLoadIdentity)
   ;;(GL11/glTranslatef 100 100 0)
   ;;(GL11/glScalef 3 3 1)
-
-  (component-manager/draw (:component-manager gui))
   gui)
 
-(defn read-input [gui]
-  (assoc gui :input (input/read-input (:input-state gui))))
+(defn call-drawers [gui]
+  (reduce (fn [new-gui drawer] (drawer new-gui))
+          gui
+          (:drawers gui)))
 
-(defn handle-input [gui]
-  (let [all-input-states (input/read-input (:input-state gui))]
-    (assoc gui
-      :component-manager (loop [input-states (seq (next all-input-states))
-                                component-manager (:component-manager gui)]
-                           (if input-states
-                             (recur (next input-states)
-                                    (component-manager/handle-input component-manager (first input-states)))
-                             component-manager))
-      :input-state (last all-input-states))))
+(defn call-updaters [gui]
+  (reduce (fn [new-gui updater] (updater new-gui))
+          gui
+          (:updaters gui)))
 
-(defn update-window [gui]
-  (assoc gui :window (window/update (:window gui))))
+(defn call-event-handlers-for-single-event [gui event]
+  (reduce (fn [gui event-handler] (event-handler gui event))
+          gui
+          (:event-handlers gui)))
+
+(defn call-event-handlers [gui]
+  (if (not (empty? (:event-queue gui)))
+    (let [event (event-queue/oldest (:event-queue gui))
+          new-gui (call-event-handlers-for-single-event gui event)]
+      (recur (assoc new-gui
+               :event-queue (event-queue/remove-oldest (:event-queue new-gui)))))
+    gui))
 
 (defn run []
   (let [initial-gui (create)]
@@ -61,9 +65,12 @@
       (loop [gui initial-gui]
         (if (not @(:close-requested (:window gui)))
           (recur (-> gui
-                     (update-window)
-                     (handle-input)
-                     (render)))
+                     ;;                     (create-new-frame-event)
+                     (call-updaters)
+                     (call-event-handlers)
+                     (clear)
+                     ;;                     (create-redraw-event)
+                     (call-drawers)))
           (window/close (:window gui))))
       (catch Exception e
         (println e)

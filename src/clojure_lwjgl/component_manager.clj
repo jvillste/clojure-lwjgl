@@ -6,9 +6,7 @@
 
 (defrecord ComponentManager [components image-list])
 
-(defn create []
-  (ComponentManager. []
-                     (image-list/create)))
+
 
 (defn- render-component [component-manager index component]
   (visual/render (free-layout/layout (component/get-visual component)
@@ -89,5 +87,12 @@
                            new-components)
         (assoc :components new-components))))
 
-(defn draw [component-manager]
-  (image-list/draw (:image-list component-manager)))
+(defn draw [gui]
+  (image-list/draw (:image-list (::component-manager gui))))
+
+
+(defn initialize [gui]
+  (assoc gui
+    ::component-manager (ComponentManager. []
+                                           (image-list/create))
+    :drawers (conj (:drawers gui) draw)))

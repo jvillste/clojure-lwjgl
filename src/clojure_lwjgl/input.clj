@@ -1,37 +1,25 @@
 (ns clojure-lwjgl.input
+  (:require [clojure-lwjgl.event-queue :as event-queue])
   (:import
    (java.awt.event KeyListener MouseAdapter KeyAdapter WindowAdapter)
    (org.lwjgl.input Mouse Keyboard)))
 
-(defrecord InputState [time
-                       keys-down
-                       left-mouse-button-down
+(defrecord MouseState [left-mouse-button-down
                        middle-mouse-button-down
                        right-mouse-button-down
                        mouse-x
-                       mouse-y
-                       last-event])
+                       mouse-y])
+(defn create-initial-mouse-state []
+  (MouseState. false
+               false
+               false
+               0
+               0))
 
-(defn create-initial-input-state []
-  (InputState. (System/nanoTime)
-               #{}
-               false
-               false
-               false
-               0
-               0
-               {}))
 
 (defn ^:dynamic get-time [] (System/nanoTime))
 
-(defn apply-state-changes [state-changes input-states]
-  (conj input-states (apply assoc (last input-states)
-                            (concat state-changes
-                                    [:time (get-time)]))))
 
-
-(defn sort-input-states [input-states]
-  (sort-by :time input-states))
 
 
 
@@ -47,26 +35,33 @@
     [2 false] :middle-mouse-button-up
     nil))
 
-(defn mouse-button-keyword [lwjgl-event]
-  (nth [:left-mouse-button-down
-        :right-mouse-button-down
-        :middle-mouse-button-down]
-       (:mouse-button lwjgl-event)))
+(defn update-mouse-state [gui event]
+  (update-in gui :mouse-state (fn [mouse-state]
+                                (case (:type event)
+                                  :mouse-moved (assoc mouse-state
+                                                 :mouse-x (:mouse-x event)
+                                                 :mouse-y (:mouse-y event))
+                                  :left-mouse-button-down (assoc mouse-state :left-mouse-button-down true)
+                                  :right-mouse-button-down (assoc mouse-state :right-mouse-button-down true)
+                                  :middle-mouse-button-down (assoc mouse-state :middle-mouse-button-down true)
+                                  :left-mouse-button-up (assoc mouse-state :left-mouse-button-down false)
+                                  :right-mouse-button-up (assoc mouse-state :right-mouse-button-down false)
+                                  :middle-mouse-button-up (assoc mouse-state :middle-mouse-button-down false)
+                                  mouse-state))))
 
-(defn get-mouse-state-changes-for-event [lwjgl-event]
+(defn create-mouse-event [lwjgl-event]
   (cond (or (> (:mouse-delta-x lwjgl-event) 0)
             (> (:mouse-delta-y lwjgl-event) 0))
-        [:mouse-x (:mouse-x lwjgl-event)
-         :mouse-y (:mouse-y lwjgl-event)
-         :last-event {:type :mouse-moved}]
+        {:type :mouse-moved
+         :mouse-delta-y (:mouse-delta-y lwjgl-event)
+         :mouse-delta-x (:mouse-delta-x lwjgl-event)}
 
         (not (= 0 (:mouse-wheel-delta lwjgl-event)))
-        [:mouse-wheel-delta (:mouse-wheel-delta lwjgl-event)
-         :last-event {:type :mouse-wheel-moved}]
+        {:type :mouse-wheel-moved
+         :mouse-wheel-delta (:mouse-wheel-delta lwjgl-event)}
 
         (not (= (:mouse-button lwjgl-event) -1))
-        [(mouse-button-keyword lwjgl-event) (:mouse-button-state lwjgl-event)
-         :last-event {:type (mouse-button-event-type lwjgl-event)}]))
+        {:type (mouse-button-event-type lwjgl-event)}))
 
 (defn read-lwjgl-mouse-event []
   {:mouse-button (Mouse/getEventButton)
@@ -75,16 +70,16 @@
    :mouse-x (Mouse/getEventX)
    :mouse-y (Mouse/getEventY)
    :mouse-delta-x (Mouse/getEventDX)
-   :mouse-delta-y (Mouse/getEventDY)})
+   :mouse-delta-y (Mouse/getEventDY)
+   :time (Mouse/getEventNanoseconds)})
 
 (defn unread-mouse-input-exists? [] (Mouse/next))
 
-(defn read-mouse-input [input-states]
+(defn create-mouse-events [gui]
   (if (unread-mouse-input-exists?)
-      (recur (-> (read-lwjgl-mouse-event)
-                 (get-mouse-state-changes-for-event)
-                 (apply-state-changes input-states)))
-      input-states))
+    (recur (update-in gui [:event-queue] (fn [event-queue]
+                                           (event-queue/add event-queue (create-mouse-event (read-lwjgl-mouse-event))))))
+    gui))
 
 
 ;; KEYBOARD
@@ -94,32 +89,39 @@
    :key-code (Keyboard/getEventKey)
    :character (Keyboard/getEventCharacter)})
 
+(defn create-keyboard-event [lwjgl-event]
+  {:type (if (:key-state lwjgl-event)
+           :key-pressed
+           :key-released)
+   :key-code (:key-code lwjgl-event)
+   :character (:character lwjgl-event)})
+
+(defn update-keyboard-state [gui event]
+  (update-in gui :keys-down (fn [keys-down]
+                              (case (:type event)
+                                :key-pressed (conj keys-down (:key-code event))
+                                :key-released (disj keys-down (:key-code event))
+                                keys-down))))
+
 (defn unread-keyboard-input-exists? [] (Keyboard/next))
 
-
-(defn get-keyboard-state-changes-for-event [lwjgl-event old-input-state]
-  [:keys-down (if (:key-state lwjgl-event)
-                (conj (:keys-down old-input-state) (:key-code lwjgl-event))
-                (disj (:keys-down old-input-state) (:key-code lwjgl-event)))
-   :last-event {:type (if (:key-state lwjgl-event)
-                        :key-pressed
-                        :key-released)
-                :key-code (:key-code lwjgl-event)
-                :character (:character lwjgl-event)}])
-
-(defn read-keyboard-input [input-states]
+(defn create-keyboard-events [gui]
   (if (unread-keyboard-input-exists?)
-      (recur (-> (read-lwjgl-keyboard-event)
-                 (get-keyboard-state-changes-for-event (last input-states))
-                 (apply-state-changes input-states)))
-      input-states))
+    (recur (update-in gui [:event-queue] (fn [event-queue]
+                                           (event-queue/add event-queue (create-keyboard-event (read-lwjgl-keyboard-event))))))
+    gui))
+
 
 
 ;; PUBLIC
 
-(defn read-input [initial-input-state]
-  (-> [initial-input-state]
-      (read-mouse-input)
-      (read-keyboard-input)
-      (sort-input-states)))
-
+(defn initialize [gui]
+  (assoc gui
+    :mouse-state (create-initial-mouse-state)
+    :keys-down #{}
+    :updaters (conj (:updaters gui)
+                    create-mouse-events
+                    create-keyboard-events)
+    :event-handlers (conj (:event-handlers gui)
+                          (update-mouse-state)
+                          (update-keyboard-state))))
