@@ -2,7 +2,7 @@
   (:require (clojure-lwjgl [window :as window]
                            [input :as input]
                            [event-queue :as event-queue]
-                           [component-manager :as component-manager]
+                           [visual-manager :as visual-manager]
                            [text-field :as text-field]))
   (:import [org.lwjgl.opengl GL11]))
 
@@ -17,15 +17,15 @@
 
 (defn open-view [gui]
   (assoc gui
-    :clojure-lwjgl.component-manager/component-manager (component-manager/add-component (:component-manager/component-manager gui)
+    :clojure-lwjgl.component-manager/component-manager (visual-manager/add-component (:component-manager/component-manager gui)
                                                                                         (text-field/create "Foobar"))))
 
 (defn create []
-  (-> {:updaters #{}
-       :event-handlers #{}}
+  (-> {}
+      (event-queue/initialize)
       (window/initialize)
       (input/initialize)
-      (component-manager/initialize)
+      (visual-manager/initialize)
       (initialize-gl)
       (open-view)))
 
@@ -36,28 +36,11 @@
   ;;(GL11/glScalef 3 3 1)
   gui)
 
-(defn call-drawers [gui]
-  (reduce (fn [new-gui drawer] (drawer new-gui))
-          gui
-          (:drawers gui)))
+(defn create-draw-event [gui]
+  (event-queue/add-event gui {:type :draw}))
 
-(defn call-updaters [gui]
-  (reduce (fn [new-gui updater] (updater new-gui))
-          gui
-          (:updaters gui)))
-
-(defn call-event-handlers-for-single-event [gui event]
-  (reduce (fn [gui event-handler] (event-handler gui event))
-          gui
-          (:event-handlers gui)))
-
-(defn call-event-handlers [gui]
-  (if (not (empty? (:event-queue gui)))
-    (let [event (event-queue/oldest (:event-queue gui))
-          new-gui (call-event-handlers-for-single-event gui event)]
-      (recur (assoc new-gui
-               :event-queue (event-queue/remove-oldest (:event-queue new-gui)))))
-    gui))
+(defn create-update-event [gui]
+  (event-queue/add-event gui {:type :update}))
 
 (defn run []
   (let [initial-gui (create)]
@@ -65,12 +48,11 @@
       (loop [gui initial-gui]
         (if (not @(:close-requested (:window gui)))
           (recur (-> gui
-                     ;;                     (create-new-frame-event)
-                     (call-updaters)
-                     (call-event-handlers)
+                     (create-update-event)
+                     (event-queue/call-event-handlers)
                      (clear)
-                     ;;                     (create-redraw-event)
-                     (call-drawers)))
+                     (create-draw-event)
+                     (event-queue/call-event-handlers)))
           (window/close (:window gui))))
       (catch Exception e
         (println e)

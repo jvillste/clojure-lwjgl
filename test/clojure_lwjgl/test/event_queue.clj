@@ -30,4 +30,15 @@
              (event-queue/add {:time 2})
              (event-queue/remove-oldest)))))
 
+(defn handler-1)
+(defn handler-2)
+(deftest remove-event-hanlder-test
+  (is (= {:event-handlers {:foo [handler-1]}}
+         (-> {}
+             (event-queue/add-event-handler :foo handler-1)
+             (event-queue/add-event-handler :foo handler-2)
+             (event-queue/remove-event-handler :foo handler-2)
+             (event-queue/remove-event-handler :foo handler-1)
+             (event-queue/add-event-handler :foo handler-1)))))
+
 (run-tests 'clojure-lwjgl.test.event-queue)

@@ -4,10 +4,11 @@
            [org.lwjgl BufferUtils]
            [java.awt Frame Canvas]
            [java.awt.event WindowAdapter ComponentAdapter]
-           [java.nio IntBuffer FloatBuffer]))
+           [java.nio IntBuffer FloatBuffer])
+  (:require [clojure-lwjgl.event-queue :as event-queue]))
 
 (defrecord Window [frame
-                   close-requested
+                   close-requestedn
                    resize-requested
                    width
                    height])
@@ -69,6 +70,7 @@
 
 (defn initialize [gui]
   (assoc ::window (create)
+         (event-queue/add-event)
          :updaters (conj (:updaters gui) update)))
 
 
