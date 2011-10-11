@@ -76,10 +76,11 @@
 (defn unread-mouse-input-exists? [] (Mouse/next))
 
 (defn create-mouse-events [gui]
-  (if (unread-mouse-input-exists?)
-    (recur (event-queue/add-event gui
-                                  (create-mouse-event (read-lwjgl-mouse-event))))
-    gui))
+  (reduce event-queue/add-event
+          gui
+          (take-while unread-mouse-input-exists?
+                      (repeatedly #(create-mouse-event (read-lwjgl-mouse-event))))))
+
 
 
 ;; KEYBOARD
