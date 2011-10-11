@@ -4,10 +4,11 @@
            [org.lwjgl BufferUtils]
            [java.awt Frame Canvas]
            [java.awt.event WindowAdapter ComponentAdapter]
-           [java.nio IntBuffer FloatBuffer]))
+           [java.nio IntBuffer FloatBuffer])
+  (:require [clojure-lwjgl.event-queue :as event-queue]))
 
 (defrecord Window [frame
-                   close-requested
+                   close-requestedn
                    resize-requested
                    width
                    height])
@@ -21,11 +22,11 @@
     (GL11/glMatrixMode GL11/GL_MODELVIEW)
     (reset! (:resize-requested window) false)))
 
-(defn update [window]
-  (resize window)
+(defn update [gui event]
+  (resize (::window gui))
   (Display/update)
   (Display/sync 1)
-  window)
+  gui)
 
 (defn create []
   (let [canvas (Canvas.)
@@ -57,9 +58,9 @@
     (Display/create)
     (map->Window {:frame frame
                   :close-requested close-requested
-                   :resize-requested resize-requested
-                   :width width
-                   :height height})))
+                  :resize-requested resize-requested
+                  :width width
+                  :height height})))
 
 (defn close [window]
   (println "Destroying window")
@@ -67,7 +68,8 @@
   (.dispose (:frame window))
   (reset! (:close-requested window) false))
 
-
-
+(defn initialize [gui]
+  (assoc ::window (create)
+         (event-queue/add-event-handler :update update)))
 
 

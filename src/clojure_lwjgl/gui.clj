@@ -1,56 +1,46 @@
 (ns clojure-lwjgl.gui
   (:require (clojure-lwjgl [window :as window]
                            [input :as input]
-                           [component-manager :as component-manager]
+                           [event-queue :as event-queue]
+                           [visual-list :as visual-list]
                            [text-field :as text-field]))
   (:import [org.lwjgl.opengl GL11]))
 
-(defrecord Gui [window
-                input-state
-                component-manager])
 
-(defn initialize-gl []
+(defn initialize-gl [gui]
   (GL11/glClearColor 1 1 1 0)
   (GL11/glEnable GL11/GL_BLEND)
   (GL11/glEnable GL11/GL_TEXTURE_2D)
   (GL11/glColorMask true, true, true, true)
-  (GL11/glBlendFunc GL11/GL_SRC_ALPHA GL11/GL_ONE_MINUS_SRC_ALPHA))
+  (GL11/glBlendFunc GL11/GL_SRC_ALPHA GL11/GL_ONE_MINUS_SRC_ALPHA)
+  gui)
 
-
-(defn create-window []
-  (let [window (window/create)]
-    (initialize-gl)
-    window))
+(defn open-view [gui]
+  (assoc gui
+    :clojure-lwjgl.component-manager/component-manager (visual-list/add-visual (:component-manager/component-manager gui)
+                                                                               (text-field/create "Foobar"))))
 
 (defn create []
-  (Gui. (create-window)
-        (input/create-initial-input-state)
-        (-> (component-manager/create)
-            (component-manager/add-component (text-field/create "Foobar")))))
+  (-> {}
+      (event-queue/initialize)
+      (window/initialize)
+      (input/initialize)
+      (visual-list/initialize)
+      (initialize-gl)
+      (open-view)))
 
-
-(defn render [gui]
+(defn clear [gui]
   (GL11/glClear GL11/GL_COLOR_BUFFER_BIT)
   (GL11/glLoadIdentity)
   ;;(GL11/glTranslatef 100 100 0)
   ;;(GL11/glScalef 3 3 1)
-
-  (component-manager/draw (:component-manager gui))
   gui)
 
-(defn handle-input [gui]
-  (let [all-input-states (input/read-input (:input-state gui))]
-    (assoc gui
-      :component-manager (loop [input-states (seq (next all-input-states))
-                                component-manager (:component-manager gui)]
-                           (if input-states
-                             (recur (next input-states)
-                                    (component-manager/handle-input component-manager (first input-states)))
-                             component-manager))
-      :input-state (last all-input-states))))
+(defn create-draw-event [gui]
+  (event-queue/add-event gui {:type :draw}))
 
-(defn update-window [gui]
-  (assoc gui :window (window/update (:window gui))))
+(defn create-update-event [gui]
+  (event-queue/add-event gui {:type :update}))
 
 (defn run []
   (let [initial-gui (create)]
@@ -58,9 +48,11 @@
       (loop [gui initial-gui]
         (if (not @(:close-requested (:window gui)))
           (recur (-> gui
-                     (update-window)
-                     (handle-input)
-                     (render)))
+                     (create-update-event)
+                     (event-queue/call-event-handlers)
+                     (clear)
+                     (create-draw-event)
+                     (event-queue/call-event-handlers)))
           (window/close (:window gui))))
       (catch Exception e
         (println e)
