@@ -116,12 +116,19 @@
 ;; PUBLIC
 
 (defn initialize [gui]
-  (assoc gui
-    :mouse-state (create-initial-mouse-state)
-    :keys-down #{}
-    :updaters (conj (:updaters gui)
-                    create-mouse-events
-                    create-keyboard-events)
-    :event-handlers (conj (:event-handlers gui)
-                          (update-mouse-state)
-                          (update-keyboard-state))))
+  (-> gui
+      (assoc
+          :mouse-state (create-initial-mouse-state)
+          :keys-down #{})
+      (event-queue/add-event-handlers [:update] create-mouse-events)
+      (event-queue/add-event-handlers [:update] create-keyboard-events)
+      (event-queue/add-event-handlers [:key-pressed
+                                       :key-released] update-keyboard-state)
+      (event-queue/add-event-handlers [:mouse-moved
+                                       :mouse-wheel-moved
+                                       :left-mouse-button-down
+                                       :right-mouse-button-down
+                                       :middle-mouse-button-down
+                                       :left-mouse-button-up
+                                       :right-mouse-button-up
+                                       :middle-mouse-button-up] update-mouse-state)))

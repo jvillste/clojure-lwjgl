@@ -2,7 +2,7 @@
   (:require (clojure-lwjgl [window :as window]
                            [input :as input]
                            [event-queue :as event-queue]
-                           [visual-manager :as visual-manager]
+                           [visual-list :as visual-list]
                            [text-field :as text-field]))
   (:import [org.lwjgl.opengl GL11]))
 
@@ -17,15 +17,15 @@
 
 (defn open-view [gui]
   (assoc gui
-    :clojure-lwjgl.component-manager/component-manager (visual-manager/add-component (:component-manager/component-manager gui)
-                                                                                        (text-field/create "Foobar"))))
+    :clojure-lwjgl.component-manager/component-manager (visual-list/add-visual (:component-manager/component-manager gui)
+                                                                               (text-field/create "Foobar"))))
 
 (defn create []
   (-> {}
       (event-queue/initialize)
       (window/initialize)
       (input/initialize)
-      (visual-manager/initialize)
+      (visual-list/initialize)
       (initialize-gl)
       (open-view)))
 

@@ -22,7 +22,7 @@
     (GL11/glMatrixMode GL11/GL_MODELVIEW)
     (reset! (:resize-requested window) false)))
 
-(defn update [gui]
+(defn update [gui event]
   (resize (::window gui))
   (Display/update)
   (Display/sync 1)
@@ -58,9 +58,9 @@
     (Display/create)
     (map->Window {:frame frame
                   :close-requested close-requested
-                   :resize-requested resize-requested
-                   :width width
-                   :height height})))
+                  :resize-requested resize-requested
+                  :width width
+                  :height height})))
 
 (defn close [window]
   (println "Destroying window")
@@ -70,7 +70,6 @@
 
 (defn initialize [gui]
   (assoc ::window (create)
-         (event-queue/add-event)
-         :updaters (conj (:updaters gui) update)))
+         (event-queue/add-event-handler :update update)))
 
 

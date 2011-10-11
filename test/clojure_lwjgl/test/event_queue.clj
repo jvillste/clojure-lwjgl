@@ -41,4 +41,11 @@
              (event-queue/remove-event-handler :foo handler-1)
              (event-queue/add-event-handler :foo handler-1)))))
 
+(deftest add-event-hanlders-test
+  (is (= {:event-handlers {:a [handler-1]
+                           :b [handler-1]
+                           :c [handler-1]}}
+         (-> {}
+             (event-queue/add-event-handlers [:a :b :c] handler-1)))))
+
 (run-tests 'clojure-lwjgl.test.event-queue)
