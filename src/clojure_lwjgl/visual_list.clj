@@ -15,8 +15,7 @@
   visual-list)
 
 (defn add-visual [visual-list visual]
-  (let [index (image-list/next-index (:image-list visual-list))
-        visual (free-layout/layout visual 0 0)]
+  (let [index (image-list/next-index (:image-list visual-list))]
 
     (-> visual-list
         (assoc :visuals (conj (:visuals visual-list)
@@ -60,30 +59,24 @@
     (render-visual visual-list index new-visual)
     visual-list))
 
+(defn update-visual [visual-list index old-visual new-visual]
+  (-> visual-list
+      (update-visual-position index visual new-visual)
+      (update-visual-dimensions index visual new-visual)
+      (update-visual-image index visual new-visual)))
+
 (defn update-visuals [visual-list index old-visuals new-visuals]
   (let [visual (first old-visuals)
         new-visual (first new-visuals)]
 
     (if (and visual new-visual)
-      (-> visual-list
-          (update-visual-position index visual new-visual)
-          (update-visual-dimensions index visual new-visual)
-          (update-visual-image index visual new-visual)
-          (recur (+ index 1)
-                 (rest old-visuals)
-                 (rest new-visuals)))
+      (recur (update-visual visual-list index visual new-visual)
+             (+ index 1)
+             (rest old-visuals)
+             (rest new-visuals))
       visual-list)))
 
-(defn handle-input [visual-list input-state]
-  (let [new-visuals (map (fn [visual]
-                           (visual/handle-input visual input-state))
-                         (:visuals visual-list))]
 
-    (-> visual-list
-        (update-visuals 0
-                        (:visuals visual-list)
-                        new-visuals)
-        (assoc :visuals new-visuals))))
 
 (defn draw [gui]
   (image-list/draw (:image-list (::visual-list gui))))

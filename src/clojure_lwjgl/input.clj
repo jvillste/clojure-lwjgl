@@ -77,8 +77,8 @@
 
 (defn create-mouse-events [gui]
   (if (unread-mouse-input-exists?)
-    (recur (update-in gui [:event-queue] (fn [event-queue]
-                                           (event-queue/add event-queue (create-mouse-event (read-lwjgl-mouse-event))))))
+    (recur (event-queue/add-event gui
+                                  (create-mouse-event (read-lwjgl-mouse-event))))
     gui))
 
 
