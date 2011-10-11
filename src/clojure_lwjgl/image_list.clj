@@ -3,7 +3,8 @@
   (:require (clojure-lwjgl [quad-buffer :as quad-buffer]
                            [quad-list :as quad-list]
                            [draw :as draw]
-                           [texture-atlas :as texture-atlas])))
+                           [texture-atlas :as texture-atlas]))
+  (:import [java.awt Color AlphaComposite]))
 
 (defrecord ImageList [image-count
                       needs-to-load
@@ -56,6 +57,14 @@
 (defn get-graphics [image-list index]
   (texture-atlas/get-graphics (:texture-atlas image-list)
                               index))
+
+(defn clear-image [image-list index]
+  (doto (get-graphics image-list index)
+    (.setComposite (AlphaComposite/getInstance AlphaComposite/CLEAR (float 0)))
+    (.fillRect 0
+               0
+               (quad-buffer/quad-width (:quad-buffer image-list) index)
+               (quad-buffer/quad-height (:quad-buffer image-list) index))))
 
 (defn- load [image-list]
   (assoc image-list

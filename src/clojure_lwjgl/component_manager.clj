@@ -11,6 +11,8 @@
                      (image-list/create)))
 
 (defn- render-component [component-manager index component]
+  (image-list/clear-image (:image-list component-manager)
+                          index)
   (visual/render (free-layout/layout (component/get-visual component)
                                      0
                                      0)
@@ -54,8 +56,8 @@
                                                         (:height new-component))))
                                          (image-list/resize-image (:image-list component-manager)
                                                                   index
-                                                                  (:x new-component)
-                                                                  (:y new-component))
+                                                                  (:width new-component)
+                                                                  (:height new-component))
                                          (:image-list component-manager))))
 
 (defn update-component-image [component-manager index component new-component]
