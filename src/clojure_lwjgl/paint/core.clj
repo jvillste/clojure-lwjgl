@@ -44,7 +44,7 @@
   (let [graphics (texture/get-graphics (:texture-1 paint))]
     (doto graphics
       (.setColor Color/GREEN)
-      (.fillRect 0 0 200 200))
+      (.fillRect 0 0 width height))
     paint))
 
 (defn update-window [paint]
@@ -57,7 +57,9 @@
   (GL11/glLoadIdentity)
   (GL11/glDisable GL11/GL_LIGHTING)
   (GL11/glDisable GL11/GL_BLEND)
-  
+  ;;  (GL11/glTexEnvi GL11/GL_TEXTURE_ENV GL11/GL_TEXTURE_ENV_MODE GL11/GL_MODULATE)
+;;  (GL11/glTexEnvi GL11/GL_TEXTURE_ENV GL11/GL_TEXTURE_ENV_MODE GL11/GL_TEXTURE)
+
   (texture/bind texture)
   (draw/draw-quads (:vertex-buffer-id (:quad-buffer paint))
                    (:buffer-id (:texture-coordinate-buffer paint))
@@ -72,6 +74,8 @@
 (defn render-to-texture [paint]
   (frame-buffer-object/bind (:frame-buffer-object paint))
   (frame-buffer-object/bind-texture (:id (:texture-2 paint)))
+
+  (GL11/glViewport 0 0 width height)
   (render-texture paint
                   (:texture-1 paint))
   (frame-buffer-object/bind 0)
@@ -83,18 +87,18 @@
       (update-window)))
 
 (let [initial-paint (-> (create-paint)
-                          (add-quad)
-                          (draw-texture)
-                          (load)
-                          (render-to-texture))]
-    (try
-      (loop [paint initial-paint]
-        (if (not @(:close-requested (:window paint)))
-          (recur (update paint))
-          (window/close (:window paint))))
-      (catch Exception e
-        (println e)
-        (.printStackTrace e)
-        (window/close (:window initial-paint)))))
+                        (add-quad)
+                        (draw-texture)
+                        (load)
+                        (render-to-texture))]
+  (try
+    (loop [paint initial-paint]
+      (if (not @(:close-requested (:window paint)))
+        (recur (update paint))
+        (window/close (:window paint))))
+    (catch Exception e
+      (println e)
+      (.printStackTrace e)
+      (window/close (:window initial-paint)))))
 
 
