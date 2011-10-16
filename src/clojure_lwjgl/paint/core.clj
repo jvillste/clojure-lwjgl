@@ -43,7 +43,7 @@
 (defn draw-texture [paint]
   (let [graphics (texture/get-graphics (:texture-1 paint))]
     (doto graphics
-      (.setColor Color/RED)
+      (.setColor Color/GREEN)
       (.fillRect 0 0 200 200))
     paint))
 
@@ -55,7 +55,9 @@
   (GL11/glClearColor 0 0 0 1)
   (GL11/glClear GL11/GL_COLOR_BUFFER_BIT)
   (GL11/glLoadIdentity)
-
+  (GL11/glDisable GL11/GL_LIGHTING)
+  (GL11/glDisable GL11/GL_BLEND)
+  
   (texture/bind texture)
   (draw/draw-quads (:vertex-buffer-id (:quad-buffer paint))
                    (:buffer-id (:texture-coordinate-buffer paint))
@@ -80,8 +82,6 @@
       (render)
       (update-window)))
 
-(comment
-
 (let [initial-paint (-> (create-paint)
                           (add-quad)
                           (draw-texture)
@@ -95,5 +95,6 @@
       (catch Exception e
         (println e)
         (.printStackTrace e)
-        (window/close (:window initial-paint)))))  )
+        (window/close (:window initial-paint)))))
+
 
