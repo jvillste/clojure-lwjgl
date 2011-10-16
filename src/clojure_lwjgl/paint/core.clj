@@ -5,7 +5,8 @@
                            [quad-list :as quad-list]
                            [draw :as draw]
                            [texture :as texture]
-                           [texture-coordinate-buffer :as texture-coordinate-buffer]))
+                           [texture-coordinate-buffer :as texture-coordinate-buffer]
+                           [frame-buffer-object :as frame-buffer-object]))
   (:import [java.awt Color Font  RenderingHints]
            [org.lwjgl.opengl GL11]))
 
@@ -27,17 +28,20 @@
     :quad-buffer (quad-buffer/load (:quad-buffer paint))
     :quad-list (quad-list/load (:quad-list paint))
     :texture-coordinate-buffer (texture-coordinate-buffer/load (:texture-coordinate-buffer paint))
-    :texture (texture/load (:texture paint))))
+    :texture-1 (texture/load (:texture-1 paint))
+    :texture-2 (texture/load (:texture-2 paint))))
 
 (defn create-paint []
   {:window (window/create)
    :quad-buffer (quad-buffer/create)
    :quad-list (quad-list/create)
    :texture-coordinate-buffer (texture-coordinate-buffer/create)
-   :texture (texture/create width height)})
+   :texture-1 (texture/create width height)
+   :texture-2 (texture/create width height)
+   :frame-buffer-object (frame-buffer-object/create)})
 
 (defn draw-texture [paint]
-  (let [graphics (texture/get-graphics (:texture paint))]
+  (let [graphics (texture/get-graphics (:texture-1 paint))]
     (doto graphics
       (.setColor Color/RED)
       (.fillRect 0 0 200 200))
@@ -46,40 +50,49 @@
 (defn update-window [paint]
   (assoc paint :window (window/update (:window paint))))
 
-(defn render [paint]
+
+(defn render-texture [paint texture]
   (GL11/glClear GL11/GL_COLOR_BUFFER_BIT)
   (GL11/glLoadIdentity)
 
-  (texture/bind (:texture paint))
+  (texture/bind texture)
   (draw/draw-quads (:vertex-buffer-id (:quad-buffer paint))
-                            (:buffer-id (:texture-coordinate-buffer paint))
-                            (:index-buffer-id (:quad-list paint))
-                            1)
+                   (:buffer-id (:texture-coordinate-buffer paint))
+                   (:index-buffer-id (:quad-list paint))
+                   1))
+
+(defn render [paint]
+  (render-texture paint
+                  (:texture-1 paint))
   paint)
 
+(defn render-to-texture [paint]
+  (frame-buffer-object/bind (:frame-buffer-object paint))
+  (frame-buffer-object/bind-texture (:id (:texture-2 paint)))
+  (render-texture paint
+                  (:texture-1 paint))
+  (frame-buffer-object/bind 0)
+  paint)
 
 (defn update [paint]
   (-> paint
       (render)
       (update-window)))
 
+(comment
 
-(def initial-paint
-  (-> (create-paint)
-      (add-quad)
-      (draw-texture)
-      (load)))
+(let [initial-paint (-> (create-paint)
+                          (add-quad)
+                          (draw-texture)
+                          (load)
+                          (render-to-texture))]
+    (try
+      (loop [paint initial-paint]
+        (if (not @(:close-requested (:window paint)))
+          (recur (update paint))
+          (window/close (:window paint))))
+      (catch Exception e
+        (println e)
+        (.printStackTrace e)
+        (window/close (:window initial-paint)))))  )
 
-(println (into [] (clojure-lwjgl.buffer/int-buffer-to-array (:index-buffer (:quad-list initial-paint)))))
-(println (into [] (clojure-lwjgl.buffer/float-buffer-to-array (:buffer (:texture-coordinate-buffer initial-paint)))))
-(println (into [] (clojure-lwjgl.buffer/float-buffer-to-array (:vertex-buffer (:quad-buffer initial-paint)))))
-
-(try
-  (loop [paint initial-paint]
-    (if (not @(:close-requested (:window paint)))
-      (recur (update paint))
-      (window/close (:window paint))))
-  (catch Exception e
-    (println e)
-    (.printStackTrace e)
-    (window/close (:window initial-paint))))

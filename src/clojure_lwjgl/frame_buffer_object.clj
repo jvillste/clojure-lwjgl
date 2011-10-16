@@ -5,11 +5,11 @@
 (defn create []
   (EXTFramebufferObject/glGenFramebuffersEXT))
 
-(defn bind-buffer [id]
+(defn bind [id]
   (EXTFramebufferObject/glBindFramebufferEXT EXTFramebufferObject/GL_FRAMEBUFFER_EXT id))
 
 (defn delete [id]
-  (EXTFramebufferObject/glDeleteFrameBuffersEXT id))
+  (EXTFramebufferObject/glDeleteFramebuffersEXT id))
 
 (defn bind-texture [texture-id]
   (EXTFramebufferObject/glFramebufferTexture2DEXT EXTFramebufferObject/GL_FRAMEBUFFER_EXT
