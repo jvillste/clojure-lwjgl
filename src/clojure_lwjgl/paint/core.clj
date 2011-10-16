@@ -52,6 +52,7 @@
 
 
 (defn render-texture [paint texture]
+  (GL11/glClearColor 0 0 0 1)
   (GL11/glClear GL11/GL_COLOR_BUFFER_BIT)
   (GL11/glLoadIdentity)
 
@@ -63,7 +64,7 @@
 
 (defn render [paint]
   (render-texture paint
-                  (:texture-1 paint))
+                  (:texture-2 paint))
   paint)
 
 (defn render-to-texture [paint]
