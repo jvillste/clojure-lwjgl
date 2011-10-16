@@ -5,7 +5,7 @@
 
 (defrecord TextField [content])
 
-(defn create [gui content]
+(defn create [content]
   (TextField. content))
 
 

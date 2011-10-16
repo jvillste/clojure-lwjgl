@@ -8,25 +8,32 @@
   (:require [clojure-lwjgl.event-queue :as event-queue]))
 
 (defrecord Window [frame
-                   close-requestedn
+                   close-requested
                    resize-requested
                    width
                    height])
 
 (defn resize [window]
-  (when @(:resize-requested window)
-    (GL11/glViewport 0 0 @(:width window)  @(:height window))
-    (GL11/glMatrixMode GL11/GL_PROJECTION)
-    (GL11/glLoadIdentity)
-    (GL11/glOrtho 0, @(:width window), 0, @(:height window), -1, 1)
-    (GL11/glMatrixMode GL11/GL_MODELVIEW)
-    (reset! (:resize-requested window) false)))
+  (if @(:resize-requested window)
+    (do
+      (GL11/glViewport 0 0 @(:width window)  @(:height window))
+      (GL11/glMatrixMode GL11/GL_PROJECTION)
+      (GL11/glLoadIdentity)
+      (GL11/glOrtho 0, @(:width window), 0, @(:height window), -1, 1)
+      (GL11/glMatrixMode GL11/GL_MODELVIEW)
+      (reset! (:resize-requested window) false)
+      window)
+    window))
 
-(defn update [gui event]
-  (resize (::window gui))
-  (Display/update)
-  (Display/sync 1)
-  gui)
+(defn update [window]
+  (let [new-window (resize window)]
+    (Display/update)
+    (Display/sync 1)
+    new-window))
+
+(defn handle-update-event [gui event]
+  (assoc gui
+    ::window (update (::window gui))))
 
 (defn create []
   (let [canvas (Canvas.)
