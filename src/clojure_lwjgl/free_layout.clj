@@ -1,5 +1,6 @@
 (ns clojure-lwjgl.free-layout
-  (:require [clojure-lwjgl.layoutable :as layoutable]))
+  (:require [clojure-lwjgl.layoutable :as layoutable]
+            [clojure-lwjgl.component :as component]))
 
 (defrecord FreeLayout [children])
 
@@ -15,11 +16,10 @@
     ::x x
     ::y y))
 
-(defn create children
+(defn create [children]
   (FreeLayout. children))
 
-(defn get-visual free-layout
-  )
+(defn get-visual [free-layout])
 
 (extend FreeLayout
   component/Component

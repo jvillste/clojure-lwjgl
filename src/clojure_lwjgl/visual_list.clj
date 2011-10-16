@@ -1,8 +1,7 @@
 (ns clojure-lwjgl.visual-list
   (:require (clojure-lwjgl [image-list :as image-list]
                            [visual :as visual]
-                           [free-layout :as free-layout]
-                           [visual :as visual])))
+                           [free-layout :as free-layout])))
 
 (defrecord VisualList [visuals image-list])
 
@@ -61,9 +60,9 @@
 
 (defn update-visual [visual-list index old-visual new-visual]
   (-> visual-list
-      (update-visual-position index visual new-visual)
-      (update-visual-dimensions index visual new-visual)
-      (update-visual-image index visual new-visual)))
+      (update-visual-position index old-visual new-visual)
+      (update-visual-dimensions index old-visual new-visual)
+      (update-visual-image index old-visual new-visual)))
 
 (defn update-visuals [visual-list index old-visuals new-visuals]
   (let [visual (first old-visuals)
