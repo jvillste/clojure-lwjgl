@@ -13,7 +13,7 @@
 (defn bind [texture]  (GL11/glBindTexture GL11/GL_TEXTURE_2D (:id texture)))
 
 (defn load [texture]
-  (GL11/glBindTexture GL11/GL_TEXTURE_2D (:id texture))
+  (bind texture)
   (GL11/glTexImage2D GL11/GL_TEXTURE_2D
                      0
                      GL11/GL_RGBA
@@ -30,7 +30,8 @@
 
   (GL11/glTexParameterf GL11/GL_TEXTURE_2D
                         GL11/GL_TEXTURE_MIN_FILTER
-                        GL11/GL_LINEAR))
+                        GL11/GL_LINEAR)
+  texture)
 
 (defn draw [texture]
   (let [width (:width texture)

@@ -3,7 +3,8 @@
 
 
 (defrecord TextureCoordinateBuffer [buffer
-                                    buffer-id])
+                                    buffer-id
+                                    needs-to-load])
 
 (defn texture-index-to-texture-coordinate-index [texture-index]
   (* texture-index
@@ -13,7 +14,8 @@
 (defn create []
   (let [initial-number-of-textures 10]
     (TextureCoordinateBuffer. (buffer/create-float-buffer (texture-index-to-texture-coordinate-index initial-number-of-textures))
-                              (buffer/create-gl-buffer))))
+                              (buffer/create-gl-buffer)
+                              true)))
 
 (defn coordinate [texture-coordinate-buffer texture-index coordinate-index]
   (.get (:buffer texture-coordinate-buffer)

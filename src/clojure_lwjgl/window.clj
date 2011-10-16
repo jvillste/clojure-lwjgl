@@ -28,20 +28,27 @@
 (defn update [window]
   (let [new-window (resize window)]
     (Display/update)
-    (Display/sync 1)
+    (Display/sync 3)
     new-window))
 
 (defn handle-update-event [gui event]
   (assoc gui
     ::window (update (::window gui))))
 
+(defn initialize-gl []
+  (GL11/glClearColor 0 0 0 0)
+  (GL11/glEnable GL11/GL_BLEND)
+  (GL11/glEnable GL11/GL_TEXTURE_2D)
+  (GL11/glColorMask true, true, true, true)
+  (GL11/glBlendFunc GL11/GL_SRC_ALPHA GL11/GL_ONE_MINUS_SRC_ALPHA))
+
 (defn create []
   (let [canvas (Canvas.)
         frame (new Frame)
         resize-requested (atom true)
         close-requested (atom false)
-        width (atom 300)
-        height (atom 300)]
+        width (atom 0)
+        height (atom 0)]
 
     (.addComponentListener canvas
                            (proxy [ComponentAdapter] []
@@ -61,8 +68,8 @@
       .show)
 
     (Display/setParent canvas)
-
     (Display/create)
+    (initialize-gl)
     (map->Window {:frame frame
                   :close-requested close-requested
                   :resize-requested resize-requested
