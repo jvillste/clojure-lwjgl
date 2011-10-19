@@ -28,7 +28,7 @@
 (defn update [window]
   (let [new-window (resize window)]
     (Display/update)
-    (Display/sync 3)
+    (Display/sync 30)
     new-window))
 
 (defn handle-update-event [gui event]

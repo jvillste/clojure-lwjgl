@@ -11,8 +11,8 @@
   (:import [java.awt Color Font  RenderingHints]
            [org.lwjgl.opengl GL11]))
 
-(def width 400)
-(def height 400)
+(def width 200)
+(def height 200)
 
 (defn add-quad [paint]
   (assoc paint
@@ -42,7 +42,8 @@ void main(){
 (def vertex-shader-2-source "
 void main() {
   gl_TexCoord[0] = gl_MultiTexCoord0;
-  gl_Position = ftransform();
+  gl_Position = gl_ModelViewProjectionMatrix*gl_Vertex;
+
 }
 ")
 
@@ -57,7 +58,7 @@ uniform sampler2D tex;
 
 void main() {
         vec4 color = texture2D(tex,gl_TexCoord[0].st);
-        gl_FragColor = color * vec4(0.9, 0.9, 0.9, 1.0);
+        gl_FragColor = color * vec4(1.0, 0.99, 1.0, 1.0);
 }
 ")
 
@@ -91,7 +92,7 @@ void main() {
       (.setColor Color/BLACK)
       (.setFont (Font. "Arial" Font/BOLD 20))
       (.setRenderingHint RenderingHints/KEY_TEXT_ANTIALIASING RenderingHints/VALUE_TEXT_ANTIALIAS_LCD_HBGR )
-      (.drawString "Foo" 20 50))
+      (.drawString "Foo" 20 100))
     paint))
 
 (defn update-window [paint]
@@ -129,6 +130,8 @@ void main() {
   (GL11/glLoadIdentity)
   (GL11/glOrtho 0 width 0 height -1 1)
 
+
+  
   (render-texture paint
                   ((non-visible-texture paint) paint))
 

@@ -47,10 +47,15 @@
 
     (buffer/update-buffer (:vertex-buffer quad-buffer)
                           (quad-index-to-vertex-buffer-index index)
-                          (float-array [x1 y2 0.0
-                                        x2 y2 0.0
+                          (float-array [x1 y1 0.0
                                         x2 y1 0.0
-                                        x1 y1 0.0]))
+                                        x2 y2 0.0
+                                        x1 y2 0.0])
+;;                          (float-array [x1 y2 0.0
+;;                                        x2 y2 0.0
+;;                                        x2 y1 0.0
+;;                                        x1 y1 0.0])
+                          )
     (assoc quad-buffer :needs-to-load true)))
 
 (defn add-quad [quad-buffer x y width height]
