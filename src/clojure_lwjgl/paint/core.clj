@@ -25,6 +25,7 @@
                                                                  1.0
                                                                  1.0)))
 (defn load [paint]
+  (println "loading texture " (:texture-1 paint) " " (:texture-2 paint))
   (assoc paint
     :quad-buffer (quad-buffer/load (:quad-buffer paint))
     :quad-list (quad-list/load (:quad-list paint))
@@ -45,9 +46,6 @@ void main() {
 }
 ")
 
-
-
-
 (def fragment-shader-source "
 void main(){
     gl_FragColor = vec4(0.0, 0.0, 1.0, 1.0);
@@ -58,13 +56,13 @@ void main(){
 uniform sampler2D tex;
 
 void main() {
-	vec4 color = texture2D(tex,gl_TexCoord[0].st);
-	gl_FragColor = color * vec4(0.5, 0.5, 0.5, 1.0);;
+        vec4 color = texture2D(tex,gl_TexCoord[0].st);
+        gl_FragColor = color * vec4(0.9, 0.9, 0.9, 1.0);
 }
 ")
 
-(defn create-paint []
-  {:window (window/create)
+(defn create-paint [window]
+  {:window window
    :quad-buffer (quad-buffer/create)
    :quad-list (quad-list/create)
    :texture-coordinate-buffer (texture-coordinate-buffer/create)
@@ -74,16 +72,30 @@ void main() {
    :shader-program (shader/compile-program vertex-shader-2-source
                                            fragment-shader-2-source)})
 
-(defn draw-texture [paint]
-  (let [graphics (texture/get-graphics (:texture-1 paint))]
+(defn non-visible-texture [paint]
+  (if (= (:visible-texture paint)
+         :texture-1)
+    :texture-2
+    :texture-1))
+
+(defn swap-visible-texture [paint]
+  (assoc paint
+    :visible-texture (non-visible-texture paint)))
+
+
+(defn draw-initial-texture [paint]
+  (let [graphics (texture/get-graphics ((non-visible-texture paint) paint))] ;
     (doto graphics
       (.setColor Color/GREEN)
-      (.fillRect 0 0 200 100))
+      (.fillRect 0 0 200 100)
+      (.setColor Color/BLACK)
+      (.setFont (Font. "Arial" Font/BOLD 20))
+      (.setRenderingHint RenderingHints/KEY_TEXT_ANTIALIASING RenderingHints/VALUE_TEXT_ANTIALIAS_LCD_HBGR )
+      (.drawString "Foo" 20 50))
     paint))
 
 (defn update-window [paint]
   (assoc paint :window (window/update (:window paint))))
-
 
 (defn render-texture [paint texture]
   (GL11/glClearColor 0 0 0 0)
@@ -92,11 +104,6 @@ void main() {
   (GL11/glLoadIdentity)
 
   (shader/enable-program (:shader-program paint))
-  
-  ;;  (GL11/glDisable GL11/GL_LIGHTING)
-  ;;  (GL11/glDisable GL11/GL_BLEND)
-  ;;  (GL11/glTexEnvi GL11/GL_TEXTURE_ENV GL11/GL_TEXTURE_ENV_MODE GL11/GL_MODULATE)
-  ;;  (GL11/glTexEnvi GL11/GL_TEXTURE_ENV GL11/GL_TEXTURE_ENV_MODE GL11/GL_TEXTURE)
 
   (texture/bind texture)
   (draw/draw-quads (:vertex-buffer-id (:quad-buffer paint))
@@ -108,12 +115,12 @@ void main() {
 
 (defn render [paint]
   (render-texture paint
-                  (:texture-1 paint))
+                  ((:visible-texture paint) paint))
   paint)
 
 (defn render-to-texture [paint]
   (frame-buffer-object/bind (:frame-buffer-object paint))
-  (frame-buffer-object/bind-texture (:id (:texture-2 paint)))
+  (frame-buffer-object/bind-texture (:id ((:visible-texture paint) paint)))
 
   (GL11/glPushAttrib GL11/GL_VIEWPORT_BIT)
   (GL11/glViewport 0 0 width height)
@@ -123,7 +130,7 @@ void main() {
   (GL11/glOrtho 0 width 0 height -1 1)
 
   (render-texture paint
-                  (:texture-1 paint))
+                  ((non-visible-texture paint) paint))
 
   (GL11/glMatrixMode GL11/GL_PROJECTION)
   (GL11/glPopMatrix)
@@ -135,21 +142,27 @@ void main() {
 (defn update [paint]
   (-> paint
       (render)
+      (swap-visible-texture)
+      (render-to-texture)
       (update-window)))
 
-(let [initial-paint (-> (create-paint)
-                        (add-quad)
-                        (draw-texture)
-                        (load)
-                        (render-to-texture))]
+(let [window (window/create)]
   (try
-    (loop [paint initial-paint]
-      (if (not @(:close-requested (:window paint)))
-        (recur (update paint))
-        (window/close (:window paint))))
+    (let [initial-paint (-> (create-paint window)
+                            (assoc :visible-texture :texture-1)
+                            (add-quad)
+                            (draw-initial-texture)
+                            (load)
+                            (render-to-texture))]
+      (loop [paint initial-paint]
+        (if (not @(:close-requested (:window paint)))
+          (recur (update paint))
+          (window/close window))))
+
     (catch Exception e
       (println e)
       (.printStackTrace e)
-      (window/close (:window initial-paint)))))
+      (window/close window))))
+
 
 
