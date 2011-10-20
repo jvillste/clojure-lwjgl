@@ -3,7 +3,9 @@
            [java.awt.image BufferedImage Raster DataBuffer ComponentColorModel]
            [java.awt.color ColorSpace]
            [java.util Hashtable]
-           [java.nio IntBuffer FloatBuffer ByteBuffer ByteOrder]))
+           [java.nio IntBuffer FloatBuffer ByteBuffer ByteOrder]
+           [javax.imageio ImageIO]
+           [java.io File]))
 
 (defn create-byte-buffer [buffered-image]
   (let [bytes (-> buffered-image (.getRaster) (.getDataBuffer) (.getData))
@@ -31,6 +33,17 @@
                                                4
                                                nil)]
   (create-from-raster raster)))
+
+(defn create-from-file [file-name]
+  (let [original-image (ImageIO/read (File. file-name))
+        new-image (create (.getWidth original-image)
+                          (.getHeight original-image))]
+    (.drawImage (get-graphics new-image)
+                original-image
+                nil
+                0
+                0)
+    new-image))
 
 (defn get-graphics [buffered-image]
   (.createGraphics buffered-image))

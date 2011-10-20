@@ -81,6 +81,12 @@
           (take-while unread-mouse-input-exists?
                       (repeatedly #(create-mouse-event (read-lwjgl-mouse-event))))))
 
+(defn mouse-x []
+  (Mouse/getX))
+
+(defn mouse-y []
+  (Mouse/getY))
+
 
 
 ;; KEYBOARD

@@ -7,16 +7,21 @@
                            [texture :as texture]
                            [texture-coordinate-buffer :as texture-coordinate-buffer]
                            [frame-buffer-object :as frame-buffer-object]
-                           [shader :as shader]))
+                           [shader :as shader]
+                           [buffered-image :as buffered-image]
+                           [input :as input]))
   (:import [java.awt Color Font  RenderingHints]
            [org.lwjgl.opengl GL11]))
 
-(def width 200)
-(def height 200)
+(defn width [paint]
+  (:width (:texture-1 paint)))
+
+(defn height [paint]
+  (:height (:texture-1 paint)))
 
 (defn add-quad [paint]
   (assoc paint
-    :quad-buffer (quad-buffer/add-quad (:quad-buffer paint) 0 0 width height)
+    :quad-buffer (quad-buffer/add-quad (:quad-buffer paint) 0 0 (width paint) (height paint))
     :quad-list (quad-list/add-quad (:quad-list paint))
     :texture-coordinate-buffer (texture-coordinate-buffer/update (:texture-coordinate-buffer paint)
                                                                  0
@@ -25,13 +30,14 @@
                                                                  1.0
                                                                  1.0)))
 (defn load [paint]
-  (println "loading texture " (:texture-1 paint) " " (:texture-2 paint))
   (assoc paint
     :quad-buffer (quad-buffer/load (:quad-buffer paint))
     :quad-list (quad-list/load (:quad-list paint))
     :texture-coordinate-buffer (texture-coordinate-buffer/load (:texture-coordinate-buffer paint))
     :texture-1 (texture/load (:texture-1 paint))
     :texture-2 (texture/load (:texture-2 paint))))
+
+
 
 (def vertex-shader-source "
 void main(){
@@ -55,10 +61,11 @@ void main(){
 
 (def fragment-shader-2-source "
 uniform sampler2D tex;
+uniform float mouseX;
 
 void main() {
         vec4 color = texture2D(tex,gl_TexCoord[0].st);
-        gl_FragColor = color * vec4(1.0, 0.99, 1.0, 1.0);
+        gl_FragColor = color * vec4(1.0, 1.0, 1.0, mouseX);
 }
 ")
 
@@ -67,8 +74,7 @@ void main() {
    :quad-buffer (quad-buffer/create)
    :quad-list (quad-list/create)
    :texture-coordinate-buffer (texture-coordinate-buffer/create)
-   :texture-1 (texture/create width height)
-   :texture-2 (texture/create width height)
+   :visible-texture :texture-1
    :frame-buffer-object (frame-buffer-object/create)
    :shader-program (shader/compile-program vertex-shader-2-source
                                            fragment-shader-2-source)})
@@ -83,9 +89,14 @@ void main() {
   (assoc paint
     :visible-texture (non-visible-texture paint)))
 
+(defn load-image [paint]
+  (let [image (buffered-image/create-from-file "mood_study_by_exphrasis-d4cnrgu.jpg")]
+    (assoc paint
+      :texture-1 (texture/create (.getWidth image) (.getHeight image))
+      :texture-2 (texture/create-for-buffered-image image))))
 
 (defn draw-initial-texture [paint]
-  (let [graphics (texture/get-graphics ((non-visible-texture paint) paint))] ;
+  (let [graphics (texture/get-graphics ((non-visible-texture paint) paint))]
     (doto graphics
       (.setColor Color/GREEN)
       (.fillRect 0 0 200 100)
@@ -96,7 +107,8 @@ void main() {
     paint))
 
 (defn update-window [paint]
-  (assoc paint :window (window/update (:window paint))))
+  (assoc paint :window (window/update (:window paint)
+                                      40)))
 
 (defn render-texture [paint texture]
   (GL11/glClearColor 0 0 0 0)
@@ -105,6 +117,11 @@ void main() {
   (GL11/glLoadIdentity)
 
   (shader/enable-program (:shader-program paint))
+
+  (shader/set-float-uniform (:shader-program paint)
+                            "mouseX"
+                            (float (/ (input/mouse-x)
+                                      @(:width (:window paint)))))
 
   (texture/bind texture)
   (draw/draw-quads (:vertex-buffer-id (:quad-buffer paint))
@@ -124,14 +141,14 @@ void main() {
   (frame-buffer-object/bind-texture (:id ((:visible-texture paint) paint)))
 
   (GL11/glPushAttrib GL11/GL_VIEWPORT_BIT)
-  (GL11/glViewport 0 0 width height)
+  (GL11/glViewport 0 0 (width paint) (height paint))
   (GL11/glMatrixMode GL11/GL_PROJECTION)
   (GL11/glPushMatrix)
   (GL11/glLoadIdentity)
-  (GL11/glOrtho 0 width 0 height -1 1)
+  (GL11/glOrtho 0 (width paint) 0 (height paint) -1 1)
 
 
-  
+
   (render-texture paint
                   ((non-visible-texture paint) paint))
 
@@ -143,18 +160,18 @@ void main() {
   paint)
 
 (defn update [paint]
+  (println "mousex " )
   (-> paint
       (render)
-      (swap-visible-texture)
+      ;;      (swap-visible-texture)
       (render-to-texture)
       (update-window)))
 
-(let [window (window/create)]
+(let [window (window/create 800 500)]
   (try
     (let [initial-paint (-> (create-paint window)
-                            (assoc :visible-texture :texture-1)
+                            (load-image)
                             (add-quad)
-                            (draw-initial-texture)
                             (load)
                             (render-to-texture))]
       (loop [paint initial-paint]

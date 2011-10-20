@@ -29,6 +29,14 @@
       (throw (Exception. (compile-errors program-id))))
     program-id))
 
+(defn get-uniform-location [program name]
+  (ARBShaderObjects/glGetUniformLocationARB program name))
+
+(defn set-float-uniform [program name value]
+  (ARBShaderObjects/glUniform1fARB (get-uniform-location program
+                                                         name)
+                                   value))
+
 (defn compile-program [vertex-shader-source fragment-shader-source]
   (let [vertex-shader-id (create-vertex-shader)
         fragment-shader-id (create-fragment-shader)]

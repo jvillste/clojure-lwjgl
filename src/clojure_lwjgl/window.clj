@@ -25,10 +25,10 @@
       window)
     window))
 
-(defn update [window]
+(defn update [window framerate]
   (let [new-window (resize window)]
     (Display/update)
-    (Display/sync 30)
+    (Display/sync framerate)
     new-window))
 
 (defn handle-update-event [gui event]
@@ -42,7 +42,7 @@
   (GL11/glColorMask true, true, true, true)
   (GL11/glBlendFunc GL11/GL_SRC_ALPHA GL11/GL_ONE_MINUS_SRC_ALPHA))
 
-(defn create []
+(defn create [initial-width initial-height]
   (let [canvas (Canvas.)
         frame (new Frame)
         resize-requested (atom true)
@@ -64,7 +64,7 @@
          (windowClosing [e]
            (println "Frame closed")
            (reset! close-requested true))))
-      (.setSize 400 400)
+      (.setSize initial-width initial-height)
       .show)
 
     (Display/setParent canvas)

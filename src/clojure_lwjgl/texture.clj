@@ -56,7 +56,7 @@
 (defn get-graphics [texture]
   (buffered-image/get-graphics (:buffered-image texture)))
 
-(defn- create-for-buffered-image [buffered-image]
+(defn create-for-buffered-image [buffered-image]
   (Texture. (create-gl-texture)
             (.getWidth buffered-image)
             (.getHeight buffered-image)
