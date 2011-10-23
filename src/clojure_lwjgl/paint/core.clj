@@ -160,7 +160,6 @@ void main() {
   paint)
 
 (defn update [paint]
-  (println "mousex " )
   (-> paint
       (render)
       ;;      (swap-visible-texture)

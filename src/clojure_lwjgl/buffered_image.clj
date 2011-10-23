@@ -34,6 +34,9 @@
                                                nil)]
   (create-from-raster raster)))
 
+(defn get-graphics [buffered-image]
+  (.createGraphics buffered-image))
+
 (defn create-from-file [file-name]
   (let [original-image (ImageIO/read (File. file-name))
         new-image (create (.getWidth original-image)
@@ -45,8 +48,7 @@
                 0)
     new-image))
 
-(defn get-graphics [buffered-image]
-  (.createGraphics buffered-image))
+
 
 (defn create-child [parent x y width height]
   (-> parent
