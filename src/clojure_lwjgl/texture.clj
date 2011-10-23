@@ -1,6 +1,6 @@
 (ns clojure-lwjgl.texture
   (:refer-clojure :exclude (load))
-  (:import [org.lwjgl.opengl GL11])
+  (:import [org.lwjgl.opengl GL11 ARBMultitexture])
   (:require [clojure-lwjgl.buffered-image :as buffered-image]))
 
 (defn- texture-dimension [value] value)
@@ -73,3 +73,9 @@
 
 (defn create-child [texture x y width height]
   (create-for-buffered-image (buffered-image/create-child (:buffered-image texture) x y width height)))
+
+(defn number-of-texture-units []
+  (GL11/glGetInteger ARBMultitexture/GL_MAX_TEXTURE_UNITS_ARB))
+
+(defn maximum-texture-size []
+  (GL11/glGetInteger GL11/GL_MAX_TEXTURE_SIZE))

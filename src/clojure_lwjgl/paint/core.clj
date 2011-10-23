@@ -37,35 +37,26 @@
     :texture-1 (texture/load (:texture-1 paint))
     :texture-2 (texture/load (:texture-2 paint))))
 
-
-
-(def vertex-shader-source "
-void main(){
-    gl_Position = gl_ModelViewProjectionMatrix*gl_Vertex;
-}
-")
-
 (def vertex-shader-2-source "
 void main() {
   gl_TexCoord[0] = gl_MultiTexCoord0;
-  gl_Position = gl_ModelViewProjectionMatrix*gl_Vertex;
-
-}
-")
-
-(def fragment-shader-source "
-void main(){
-    gl_FragColor = vec4(0.0, 0.0, 1.0, 1.0);
+  gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
 }
 ")
 
 (def fragment-shader-2-source "
-uniform sampler2D tex;
+uniform sampler2D texture;
 uniform float mouseX;
+uniform float mouseY;
 
 void main() {
-        vec4 color = texture2D(tex,gl_TexCoord[0].st);
-        gl_FragColor = color * vec4(1.0, 1.0, 1.0, mouseX);
+        float x = gl_TexCoord[0].s;
+        float y = gl_TexCoord[0].t;
+
+        float dx = x - mouseX;
+        float dy = y - mouseY;
+        float alpha = sqrt(dx*dx + dy*dy) + 0.9;
+        gl_FragColor = texture2D(texture,vec2(x,y)) *  vec4(1.0, 1.0, 1.0, alpha);
 }
 ")
 
@@ -77,7 +68,8 @@ void main() {
    :visible-texture :texture-1
    :frame-buffer-object (frame-buffer-object/create)
    :shader-program (shader/compile-program vertex-shader-2-source
-                                           fragment-shader-2-source)})
+                                           fragment-shader-2-source)
+   :mouse-state (input/create-initial-mouse-state)})
 
 (defn non-visible-texture [paint]
   (if (= (:visible-texture paint)
@@ -90,7 +82,7 @@ void main() {
     :visible-texture (non-visible-texture paint)))
 
 (defn load-image [paint]
-  (let [image (buffered-image/create-from-file "mood_study_by_exphrasis-d4cnrgu.jpg")]
+  (let [image (buffered-image/create-from-file "grass.jpg")]
     (assoc paint
       :texture-1 (texture/create (.getWidth image) (.getHeight image))
       :texture-2 (texture/create-for-buffered-image image))))
@@ -108,7 +100,7 @@ void main() {
 
 (defn update-window [paint]
   (assoc paint :window (window/update (:window paint)
-                                      40)))
+                                      30)))
 
 (defn render-texture [paint texture]
   (GL11/glClearColor 0 0 0 0)
@@ -116,20 +108,13 @@ void main() {
   (GL11/glMatrixMode GL11/GL_MODELVIEW)
   (GL11/glLoadIdentity)
 
-  (shader/enable-program (:shader-program paint))
-
-  (shader/set-float-uniform (:shader-program paint)
-                            "mouseX"
-                            (float (/ (input/mouse-x)
-                                      @(:width (:window paint)))))
-
   (texture/bind texture)
   (draw/draw-quads (:vertex-buffer-id (:quad-buffer paint))
                    (:buffer-id (:texture-coordinate-buffer paint))
                    (:index-buffer-id (:quad-list paint))
                    1)
 
-  (shader/disable-program))
+  )
 
 (defn render [paint]
   (render-texture paint
@@ -159,14 +144,91 @@ void main() {
   (frame-buffer-object/bind 0)
   paint)
 
+(defn enable-brush-program [paint x y]
+
+  (shader/enable-program (:shader-program paint))
+
+  (shader/set-float-uniform (:shader-program paint)
+                            "mouseX"
+                            (float (/ x
+                                      @(:width (:window paint)))))
+
+  (shader/set-float-uniform (:shader-program paint)
+                            "mouseY"
+                            (float (/ y
+                                      @(:height (:window paint)))))
+  paint)
+
+
+(defn disable-brush-program [paint]
+  (shader/disable-program)
+  paint)
+
+(defn blit-brush [paint x y]
+  (-> paint
+      (swap-visible-texture)
+      (enable-brush-program x y)
+      (render-to-texture)
+      (disable-brush-program)))
+
+(defn mouse-event-to-coordinates [mouse-event]
+  {:x (:mouse-x mouse-event)
+   :y (:mouse-y mouse-event)})
+
+
+(defn interpolate [maximum-delta previous-coordinate next-coordinate]
+  (let [dx (- (:x next-coordinate)
+              (:x previous-coordinate))
+        dy (- (:y next-coordinate)
+              (:y previous-coordinate))
+
+        total-delta (Math/sqrt (+ (* dx dx)
+                                  (* dy dy)))
+        number-of-moves (/ total-delta
+                           maximum-delta)]
+    (if (> dx
+           dy)
+      (let [k (/ dx
+                 dy)
+            dx-per-move (/ dx
+                           number-of-moves)]
+        (map (fn [x] {:x x
+                      :y (* k x)})
+             (range (:x previous-coordinate)
+                    (:x next-coordinate)
+                    dx-per-move)))
+      (let [k (/ dy
+                 dx)
+            dy-per-move (/ dy
+                           number-of-moves)]
+        (map (fn [y] {:x (* k y)
+                      :y y})
+             (range (:y previous-coordinate)
+                    (:y next-coordinate)
+                    dy-per-move))))))
+
+(defn stroke-coordinates []
+  (concat interpolate)
+  (map mouse-event-to-coordinates
+       (filter (fn [mouse-event] (= (:type mouse-event)
+                                    :mouse-moved))
+               (input/unread-mouse-events))))
+
+(defn draw-stroke [paint]
+  (reduce (fn [paint mouse-event]
+            (blit-brush paint
+                        (:x mouse-event)
+                        (:y mouse-event)))
+          paint
+          (stroke-coordinates)))
+
 (defn update [paint]
   (-> paint
       (render)
-      ;;      (swap-visible-texture)
-      (render-to-texture)
+      (draw-stroke)
       (update-window)))
 
-(let [window (window/create 800 500)]
+(let [window (window/create 1580 695)]
   (try
     (let [initial-paint (-> (create-paint window)
                             (load-image)

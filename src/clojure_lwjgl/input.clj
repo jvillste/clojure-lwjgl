@@ -9,6 +9,7 @@
                        right-mouse-button-down
                        mouse-x
                        mouse-y])
+
 (defn create-initial-mouse-state []
   (MouseState. false
                false
@@ -16,10 +17,7 @@
                0
                0))
 
-
 (defn ^:dynamic get-time [] (System/nanoTime))
-
-
 
 
 
@@ -35,26 +33,28 @@
     [2 false] :middle-mouse-button-up
     nil))
 
-(defn update-mouse-state [gui event]
-  (update-in gui :mouse-state (fn [mouse-state]
-                                (case (:type event)
-                                  :mouse-moved (assoc mouse-state
-                                                 :mouse-x (:mouse-x event)
-                                                 :mouse-y (:mouse-y event))
-                                  :left-mouse-button-down (assoc mouse-state :left-mouse-button-down true)
-                                  :right-mouse-button-down (assoc mouse-state :right-mouse-button-down true)
-                                  :middle-mouse-button-down (assoc mouse-state :middle-mouse-button-down true)
-                                  :left-mouse-button-up (assoc mouse-state :left-mouse-button-down false)
-                                  :right-mouse-button-up (assoc mouse-state :right-mouse-button-down false)
-                                  :middle-mouse-button-up (assoc mouse-state :middle-mouse-button-down false)
-                                  mouse-state))))
+(defn update-mouse-state [mouse-state event]
+  (case (:type event)
+      :mouse-moved (assoc mouse-state
+                     :mouse-x (:mouse-x event)
+                     :mouse-y (:mouse-y event))
+      :left-mouse-button-down (assoc mouse-state :left-mouse-button-down true)
+      :right-mouse-button-down (assoc mouse-state :right-mouse-button-down true)
+      :middle-mouse-button-down (assoc mouse-state :middle-mouse-button-down true)
+      :left-mouse-button-up (assoc mouse-state :left-mouse-button-down false)
+      :right-mouse-button-up (assoc mouse-state :right-mouse-button-down false)
+      :middle-mouse-button-up (assoc mouse-state :middle-mouse-button-down false)
+      mouse-state))
+
+(defn update-mouse-state-in-gui [gui event]
+  (update-in gui :mouse-state (fn [mouse-state] (update-mouse-state mouse-state event))))
 
 (defn create-mouse-event [lwjgl-event]
   (cond (or (> (:mouse-delta-x lwjgl-event) 0)
             (> (:mouse-delta-y lwjgl-event) 0))
         {:type :mouse-moved
-         :mouse-delta-y (:mouse-delta-y lwjgl-event)
-         :mouse-delta-x (:mouse-delta-x lwjgl-event)}
+         :mouse-x (:mouse-x lwjgl-event)
+         :mouse-y (:mouse-y lwjgl-event)}
 
         (not (= 0 (:mouse-wheel-delta lwjgl-event)))
         {:type :mouse-wheel-moved
@@ -75,11 +75,14 @@
 
 (defn unread-mouse-input-exists? [] (Mouse/next))
 
+(defn unread-mouse-events []
+  (take-while (fn [_] (unread-mouse-input-exists?))
+              (repeatedly #(create-mouse-event (read-lwjgl-mouse-event)))))
+
 (defn create-mouse-events [gui]
   (reduce event-queue/add-event
           gui
-          (take-while unread-mouse-input-exists?
-                      (repeatedly #(create-mouse-event (read-lwjgl-mouse-event))))))
+          (unread-mouse-events)))
 
 (defn mouse-x []
   (Mouse/getX))
@@ -138,4 +141,4 @@
                                        :middle-mouse-button-down
                                        :left-mouse-button-up
                                        :right-mouse-button-up
-                                       :middle-mouse-button-up] update-mouse-state)))
+                                       :middle-mouse-button-up] update-mouse-state-in-gui)))
