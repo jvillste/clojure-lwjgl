@@ -69,7 +69,8 @@ void main() {
    :frame-buffer-object (frame-buffer-object/create)
    :shader-program (shader/compile-program vertex-shader-2-source
                                            fragment-shader-2-source)
-   :mouse-state (input/create-initial-mouse-state)})
+   :mouse-state (input/create-initial-mouse-state)
+   :last-blit-coordinates {:x 0 :y 0}})
 
 (defn non-visible-texture [paint]
   (if (= (:visible-texture paint)
@@ -82,7 +83,7 @@ void main() {
     :visible-texture (non-visible-texture paint)))
 
 (defn load-image [paint]
-  (let [image (buffered-image/create-from-file "grass.jpg")]
+  (let [image (buffered-image/create-from-file "mood_study_by_exphrasis-d4cnrgu.jpg")]
     (assoc paint
       :texture-1 (texture/create (.getWidth image) (.getHeight image))
       :texture-2 (texture/create-for-buffered-image image))))
@@ -175,6 +176,17 @@ void main() {
   {:x (:mouse-x mouse-event)
    :y (:mouse-y mouse-event)})
 
+(defn interpolate2 [dx dy x-coordinate-key y-coordinate-key number-of-moves previous-coordinate next-coordinate]
+  (let [k (/ dy
+             dx)
+        dx-per-move (/ dx
+                       number-of-moves)]
+    (map (fn [x] {x-coordinate-key x
+                  y-coordinate-key (+ (* k x)
+                                      (y-coordinate-key previous-coordinate))})
+         (range (x-coordinate-key previous-coordinate)
+                (x-coordinate-key next-coordinate)
+                dx-per-move))))
 
 (defn interpolate [maximum-delta previous-coordinate next-coordinate]
   (let [dx (- (:x next-coordinate)
@@ -186,41 +198,55 @@ void main() {
                                   (* dy dy)))
         number-of-moves (/ total-delta
                            maximum-delta)]
-    (if (> dx
-           dy)
-      (let [k (/ dx
-                 dy)
-            dx-per-move (/ dx
-                           number-of-moves)]
-        (map (fn [x] {:x x
-                      :y (* k x)})
-             (range (:x previous-coordinate)
-                    (:x next-coordinate)
-                    dx-per-move)))
-      (let [k (/ dy
-                 dx)
-            dy-per-move (/ dy
-                           number-of-moves)]
-        (map (fn [y] {:x (* k y)
-                      :y y})
-             (range (:y previous-coordinate)
-                    (:y next-coordinate)
-                    dy-per-move))))))
+    (if (and (= dx 0)
+             (= dy 0))
+      [previous-coordinate]
+      (if (> dx
+             dy)
+        (interpolate2 dx dy :x :y number-of-moves previous-coordinate next-coordinate)
+        (interpolate2 dy dx :y :x number-of-moves previous-coordinate next-coordinate)))))
 
-(defn stroke-coordinates []
-  (concat interpolate)
+(defn interpolate-coordinates [coordinates last-coordinate maximum-delta]
+  (concat (reduce (fn [coordinates next-coordinate] (concat coordinates
+                                                          (next (interpolate maximum-delta
+                                                                             (last coordinates)
+                                                                             next-coordinate))))
+                [last-coordinate]
+                coordinates)
+          (if (empty? coordinates)
+            []
+            [(last coordinates)])))
+
+(defn filter-mouse-move-events [mouse-events]
+  (filter (fn [mouse-event] (= (:type mouse-event)
+                               :mouse-moved))
+          mouse-events))
+
+(defn mouse-events-to-coordinates [mouse-events]
   (map mouse-event-to-coordinates
-       (filter (fn [mouse-event] (= (:type mouse-event)
-                                    :mouse-moved))
-               (input/unread-mouse-events))))
+       mouse-events))
+
+(defn stroke-coordinates [last-coordinate maximum-delta]
+  (-> (input/unread-mouse-events)
+      (filter-mouse-move-events)
+      (mouse-events-to-coordinates)
+      (interpolate-coordinates last-coordinate maximum-delta)))
+
+(defn blit-coordinates [paint coordinates]
+  (println "blit " coordinates)
+  (reduce (fn [paint coordinates]
+            (blit-brush paint
+                        (:x coordinates)
+                        (:y coordinates)))
+          paint
+          coordinates))
 
 (defn draw-stroke [paint]
-  (reduce (fn [paint mouse-event]
-            (blit-brush paint
-                        (:x mouse-event)
-                        (:y mouse-event)))
-          paint
-          (stroke-coordinates)))
+  (let [coordinates (stroke-coordinates (:last-blit-coordinates paint)
+                                        100)]
+    (-> paint
+        (blit-coordinates coordinates)
+        (assoc :last-blit-coordinates (last coordinates)))))
 
 (defn update [paint]
   (-> paint
@@ -228,22 +254,23 @@ void main() {
       (draw-stroke)
       (update-window)))
 
-(let [window (window/create 1580 695)]
-  (try
-    (let [initial-paint (-> (create-paint window)
-                            (load-image)
-                            (add-quad)
-                            (load)
-                            (render-to-texture))]
-      (loop [paint initial-paint]
-        (if (not @(:close-requested (:window paint)))
-          (recur (update paint))
-          (window/close window))))
+(comment
+(let [window (window/create 700 500)]
+    (try
+      (let [initial-paint (-> (create-paint window)
+                              (load-image)
+                              (add-quad)
+                              (load)
+                              (render-to-texture))]
+        (loop [paint initial-paint]
+          (if (not @(:close-requested (:window paint)))
+            (recur (update paint))
+            (window/close window))))
 
-    (catch Exception e
-      (println e)
-      (.printStackTrace e)
-      (window/close window))))
+      (catch Exception e
+        (println e)
+        (.printStackTrace e)
+        (window/close window)))))
 
 
 
