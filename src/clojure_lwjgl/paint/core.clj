@@ -177,18 +177,27 @@ void main() {
   {:x (:mouse-x mouse-event)
    :y (:mouse-y mouse-event)})
 
-(defn interpolate-coordinates [coordinates maximum-delta]
+(defn interpolate-coordinates [coordinates maximum-distance]
   (if (second coordinates)
     (concat [(first coordinates)]
-            (vector2d/interpolate maximum-delta
+            (vector2d/interpolate maximum-distance
                                   (first coordinates)
                                   (second coordinates))
-            (interpolate-coordinates (rest coordinates) maximum-delta))
+            (interpolate-coordinates (rest coordinates) maximum-distance))
     coordinates))
 
 
-(defn simplify-coordinates [coordinates minimum-delta]
-  )
+(defn simplify-vectors [vectors minimum-distance]
+  (loop [previous-vector (first vectors)
+         vectors (rest vectors)]
+    (let [distance (vector2d/substract previous-vector
+                                       (first vectors))]
+      (if (> distance
+             minimum-distance)
+        (recur (first vectors)
+               (rest vectors))
+        (recur (second vectors)
+               (rest (rest vectors)))))))
 
 (defn filter-mouse-move-events [mouse-events]
   (filter (fn [mouse-event] (= (:type mouse-event)

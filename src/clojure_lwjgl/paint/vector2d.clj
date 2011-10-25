@@ -25,16 +25,16 @@
                    (:y vector)))))
 
 
-(defn interpolate [maximum-delta-length vector1 vector2]
+(defn interpolate [maximum-distance vector1 vector2]
   (let [delta (substract vector2
                          vector1)
 
-        delta-length (length delta)
+        distance (length delta)
 
-        number-of-moves (/ delta-length
-                           maximum-delta-length)]
+        number-of-moves (/ distance
+                           maximum-distance)]
     (if (= 0
-           delta-length)
+           distance)
       '()
       (map (fn [n] (add vector1
                         (multiply (/ n number-of-moves)
