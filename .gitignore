@@ -6,3 +6,4 @@ pom.xml
 .lein-deps-sum
 .idea
 *.iml
+*.jpg
