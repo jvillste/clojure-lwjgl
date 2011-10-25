@@ -9,7 +9,8 @@
                            [frame-buffer-object :as frame-buffer-object]
                            [shader :as shader]
                            [buffered-image :as buffered-image]
-                           [input :as input]))
+                           [input :as input])
+            (clojure-lwjgl.paint [vector2d :as vector2d]))
   (:import [java.awt Color Font  RenderingHints]
            [org.lwjgl.opengl GL11]))
 
@@ -176,46 +177,18 @@ void main() {
   {:x (:mouse-x mouse-event)
    :y (:mouse-y mouse-event)})
 
-(defn interpolate2 [dx dy x-coordinate-key y-coordinate-key number-of-moves previous-coordinate next-coordinate]
-  (let [k (/ dy
-             dx)
-        dx-per-move (/ dx
-                       number-of-moves)]
-    (map (fn [x] {x-coordinate-key x
-                  y-coordinate-key (+ (* k x)
-                                      (y-coordinate-key previous-coordinate))})
-         (range (x-coordinate-key previous-coordinate)
-                (x-coordinate-key next-coordinate)
-                dx-per-move))))
+(defn interpolate-coordinates [coordinates maximum-delta]
+  (if (second coordinates)
+    (concat [(first coordinates)]
+            (vector2d/interpolate maximum-delta
+                                  (first coordinates)
+                                  (second coordinates))
+            (interpolate-coordinates (rest coordinates) maximum-delta))
+    coordinates))
 
-(defn interpolate [maximum-delta previous-coordinate next-coordinate]
-  (let [dx (- (:x next-coordinate)
-              (:x previous-coordinate))
-        dy (- (:y next-coordinate)
-              (:y previous-coordinate))
 
-        total-delta (Math/sqrt (+ (* dx dx)
-                                  (* dy dy)))
-        number-of-moves (/ total-delta
-                           maximum-delta)]
-    (if (and (= dx 0)
-             (= dy 0))
-      [previous-coordinate]
-      (if (> dx
-             dy)
-        (interpolate2 dx dy :x :y number-of-moves previous-coordinate next-coordinate)
-        (interpolate2 dy dx :y :x number-of-moves previous-coordinate next-coordinate)))))
-
-(defn interpolate-coordinates [coordinates last-coordinate maximum-delta]
-  (concat (reduce (fn [coordinates next-coordinate] (concat coordinates
-                                                          (next (interpolate maximum-delta
-                                                                             (last coordinates)
-                                                                             next-coordinate))))
-                [last-coordinate]
-                coordinates)
-          (if (empty? coordinates)
-            []
-            [(last coordinates)])))
+(defn simplify-coordinates [coordinates minimum-delta]
+  )
 
 (defn filter-mouse-move-events [mouse-events]
   (filter (fn [mouse-event] (= (:type mouse-event)
@@ -227,10 +200,11 @@ void main() {
        mouse-events))
 
 (defn stroke-coordinates [last-coordinate maximum-delta]
-  (-> (input/unread-mouse-events)
-      (filter-mouse-move-events)
-      (mouse-events-to-coordinates)
-      (interpolate-coordinates last-coordinate maximum-delta)))
+  (let [coordinates (-> (input/unread-mouse-events)
+                        (filter-mouse-move-events)
+                        (mouse-events-to-coordinates))]
+    (rest (interpolate-coordinates (cons last-coordinate coordinates)
+                                   maximum-delta))))
 
 (defn blit-coordinates [paint coordinates]
   (println "blit " coordinates)
@@ -243,7 +217,7 @@ void main() {
 
 (defn draw-stroke [paint]
   (let [coordinates (stroke-coordinates (:last-blit-coordinates paint)
-                                        100)]
+                                        10)]
     (-> paint
         (blit-coordinates coordinates)
         (assoc :last-blit-coordinates (last coordinates)))))
@@ -255,7 +229,7 @@ void main() {
       (update-window)))
 
 (comment
-(let [window (window/create 700 500)]
+  (let [window (window/create 700 500)]
     (try
       (let [initial-paint (-> (create-paint window)
                               (load-image)
