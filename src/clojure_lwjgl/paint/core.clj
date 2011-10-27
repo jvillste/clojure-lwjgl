@@ -49,6 +49,7 @@ void main() {
 uniform sampler2D texture;
 uniform float mouseX;
 uniform float mouseY;
+uniform vec3 color;
 
 void main() {
         float x = gl_TexCoord[0].s;
@@ -57,7 +58,7 @@ void main() {
         float dx = x - mouseX;
         float dy = y - mouseY;
         float alpha = sqrt(dx*dx + dy*dy) + 0.9;
-        gl_FragColor = texture2D(texture,vec2(x,y)) *  vec4(1.0, 1.0, 1.0, alpha);
+        gl_FragColor = texture2D(texture,vec2(x,y)) *  vec4(color[0], color[1], color[2], alpha);
 }
 ")
 
@@ -147,13 +148,19 @@ void main() {
   paint)
 
 (defn enable-brush-program [paint x y]
-
+  (println "enable " x y)
   (shader/enable-program (:shader-program paint))
 
   (shader/set-float-uniform (:shader-program paint)
                             "mouseX"
                             (float (/ x
                                       @(:width (:window paint)))))
+
+  (shader/set-float3-uniform (:shader-program paint)
+                             "color"
+                             1.0
+                             0.0
+                             0.0)
 
   (shader/set-float-uniform (:shader-program paint)
                             "mouseY"
@@ -167,6 +174,7 @@ void main() {
   paint)
 
 (defn blit-brush [paint x y]
+
   (-> paint
       (swap-visible-texture)
       (enable-brush-program x y)
@@ -186,18 +194,25 @@ void main() {
             (interpolate-coordinates (rest coordinates) maximum-distance))
     coordinates))
 
-
-(defn simplify-vectors [vectors minimum-distance]
-  (loop [previous-vector (first vectors)
-         vectors (rest vectors)]
-    (let [distance (vector2d/substract previous-vector
-                                       (first vectors))]
-      (if (> distance
-             minimum-distance)
-        (recur (first vectors)
-               (rest vectors))
-        (recur (second vectors)
-               (rest (rest vectors)))))))
+(defn simplify-polyline [polyline minimum-distance]
+  (if (empty? polyline)
+    polyline
+    (loop [simplified-polyline [(first polyline)]
+           previous-vector (first polyline)
+           polyline (rest polyline)]
+      (if (empty? polyline)
+        simplified-polyline
+        (let [next-vector (first polyline)
+              distance (vector2d/length (vector2d/substract previous-vector
+                                                            next-vector))]
+          (if (> distance
+                 minimum-distance)
+            (recur (conj simplified-polyline next-vector)
+                   next-vector
+                   (rest polyline))
+            (recur simplified-polyline
+                   previous-vector
+                   (rest polyline))))))))
 
 (defn filter-mouse-move-events [mouse-events]
   (filter (fn [mouse-event] (= (:type mouse-event)
@@ -208,15 +223,19 @@ void main() {
   (map mouse-event-to-coordinates
        mouse-events))
 
-(defn stroke-coordinates [last-coordinate maximum-delta]
-  (let [coordinates (-> (input/unread-mouse-events)
-                        (filter-mouse-move-events)
-                        (mouse-events-to-coordinates))]
-    (rest (interpolate-coordinates (cons last-coordinate coordinates)
-                                   maximum-delta))))
+(defn prepend [sequence element]
+  (cons element sequence))
+
+(defn stroke-coordinates [mouse-events last-coordinate minimum-delta maximum-delta]
+  (-> mouse-events
+      (filter-mouse-move-events)
+      (mouse-events-to-coordinates)
+      (prepend last-coordinate)
+;;      (interpolate-coordinates maximum-delta)
+;;      (simplify-polyline minimum-delta)
+      (rest)))
 
 (defn blit-coordinates [paint coordinates]
-  (println "blit " coordinates)
   (reduce (fn [paint coordinates]
             (blit-brush paint
                         (:x coordinates)
@@ -225,11 +244,15 @@ void main() {
           coordinates))
 
 (defn draw-stroke [paint]
-  (let [coordinates (stroke-coordinates (:last-blit-coordinates paint)
-                                        10)]
-    (-> paint
-        (blit-coordinates coordinates)
-        (assoc :last-blit-coordinates (last coordinates)))))
+  (let [coordinates (stroke-coordinates (input/unread-mouse-events)
+                                        (:last-blit-coordinates paint)
+                                        50
+                                        50)]
+    (if (empty? coordinates)
+      paint
+      (-> paint
+          (blit-coordinates coordinates)
+          (assoc :last-blit-coordinates (last coordinates))))))
 
 (defn update [paint]
   (-> paint
@@ -238,7 +261,7 @@ void main() {
       (update-window)))
 
 (comment
-  (let [window (window/create 700 500)]
+(let [window (window/create 700 500)]
     (try
       (let [initial-paint (-> (create-paint window)
                               (load-image)

@@ -10,4 +10,12 @@
          (core/interpolate-coordinates [{:x 594 :y 44}]
                                        51))))
 
+(deftest simplify-polyline-test
+  (is (= [{:y 1, :x 1} {:y 1, :x 3} {:x 5, :y 1}]
+         (core/simplify-polyline [{:x 1 :y 1} {:x 2 :y 1} {:x 3 :y 1} {:x 5 :y 1}]
+                                 1.5)))
+  (is (= [{:y 1, :x 1}]
+         (core/simplify-polyline [{:x 1 :y 1} {:x 2 :y 1} {:x 3 :y 1}]
+                                 3))))
+
 (run-tests 'clojure-lwjgl.test.paint.core)

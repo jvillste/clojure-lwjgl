@@ -37,6 +37,13 @@
                                                          name)
                                    value))
 
+(defn set-float3-uniform [program name value1 value2 value3]
+  (ARBShaderObjects/glUniform3fARB (get-uniform-location program
+                                                         name)
+                                   value1
+                                   value2
+                                   value3))
+
 (defn compile-program [vertex-shader-source fragment-shader-source]
   (let [vertex-shader-id (create-vertex-shader)
         fragment-shader-id (create-fragment-shader)]
