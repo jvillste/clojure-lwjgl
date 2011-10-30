@@ -58,7 +58,20 @@ void main() {
         float dx = x - mouseX;
         float dy = y - mouseY;
         float alpha = sqrt(dx*dx + dy*dy) + 0.9;
-        gl_FragColor = texture2D(texture,vec2(x,y)) *  vec4(color[0], color[1], color[2], alpha);
+
+        texture_color = texture2D(texture,vec2(x,y));
+        
+        gl_FragColor = vec4((1-alpha) * texture_color[0),
+                            (1-alpha) * texture_color[1),
+                            (1-alpha) * texture_color[2),
+                             1.0)
+
+                        +
+
+                        vec4(alpha * color[0],
+                             alpha * color[1],
+                             alpha * color[2],
+                             1.0);
 }
 ")
 
@@ -273,7 +286,7 @@ void main() {
             (recur (update paint))
             (window/close window))))
 
-      (catch Exception e
+      (Catch Exception e
         (println e)
         (.printStackTrace e)
         (window/close window)))))
