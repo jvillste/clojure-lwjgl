@@ -3,7 +3,8 @@
                            [input :as input]
                            [event-queue :as event-queue]
                            [visual-list :as visual-list]
-                           [text-field :as text-field]))
+                           [text-field :as text-field])
+            (clojure-lwjgl.frp [event-stream :as event-stream]))
   (:import [org.lwjgl.opengl GL11]))
 
 
@@ -17,14 +18,15 @@
 
 (defn open-view [gui]
   (assoc gui
-    :clojure-lwjgl.component-manager/component-manager (visual-list/add-visual (:component-manager/component-manager gui)
-                                                                               (text-field/create "Foobar"))))
+    :visual-list (visual-list/add-visual (:visual-list gui)
+                                         (text-field/create "Foobar"))))
 
 (defn create []
   (-> {}
       (event-queue/initialize)
       (window/initialize)
       (input/initialize)
+      (event-stream/initialize)
       (visual-list/initialize)
       (initialize-gl)
       (open-view)))
@@ -41,6 +43,8 @@
 
 (defn create-update-event [gui]
   (event-queue/add-event gui {:type :update}))
+
+
 
 (defn run []
   (let [initial-gui (create)]

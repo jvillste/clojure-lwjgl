@@ -1,5 +1,5 @@
 (ns clojure-lwjgl.frp.event-stream
-  (:require (clojure-lwjgl [input :as input])))
+  (:require (clojure-lwjgl [event-queue :as event-queue)))
 
 (defrecord EventStream [sources sinks update])
 
@@ -23,3 +23,15 @@
     (when processed-event
       (doseq [sink @(:sinks event-stream)]
         (send-event sink processed-event)))))
+
+
+
+(defn handle-key-pressed-event [gui key-pressed-event]
+  (send-event (:key-pressed-event-stream gui)
+              key-pressed-event) 
+  gui)
+
+(defn initialize [gui]
+  (-> gui
+      (event-queue/add-event-handlers [:key-pressed] handle-key-pressed-event)
+      (assoc :key-pressed-event-stream (create))))

@@ -90,7 +90,8 @@
   (reset! (:close-requested window) false))
 
 (defn initialize [gui]
-  (assoc ::window (create)
-         (event-queue/add-event-handler :update update)))
+  (-> gui
+      (assoc ::window (create))
+      (event-queue/add-event-handler :update update)))
 
 
