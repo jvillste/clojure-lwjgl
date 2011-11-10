@@ -3,11 +3,13 @@
 
 (defrecord Signal [sources sinks update current-value])
 
-(defn create [source initial-value]
+(defn create [source initial-value function]
   (let [current-value (atom initial-value)
-        event-stream (event-stream/create source
-                                          (fn [event]
-                                            (if (not (= event current-value))
+        changes-event-stream (event-stream/create source
+                                                  (fn [event]
+                                                    (let [new-value (function event)]
+                                                      )
+                                            (if (not (= event @current-value))
                                               (do (reset! current-value
                                                           event)
                                                   event)

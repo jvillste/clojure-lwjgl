@@ -1,7 +1,7 @@
 (ns clojure-lwjgl.frp.event-stream
-  (:require (clojure-lwjgl [event-queue :as event-queue)))
+  (:require (clojure-lwjgl [event-queue :as event-queue])))
 
-(defrecord EventStream [sources sinks update])
+(defrecord EventStream [sources sinks function])
 
 (defn add-sink [event-stream sink]
   (swap! (:sinks event-stream)
@@ -11,20 +11,18 @@
   ([] (EventStream. (atom [])
                     (atom [])
                     (fn [event] event)))
-  ([source update]
+  ([source function]
      (let [event-stream  (EventStream. (atom [source])
                                        (atom [])
-                                       update)]
+                                       function)]
        (add-sink source event-stream)
        event-stream)))
 
 (defn send-event [event-stream event]
-  (let [processed-event ((:update event-stream) event)]
+  (let [processed-event ((:function event-stream) event)]
     (when processed-event
       (doseq [sink @(:sinks event-stream)]
         (send-event sink processed-event)))))
-
-
 
 (defn handle-key-pressed-event [gui key-pressed-event]
   (send-event (:key-pressed-event-stream gui)

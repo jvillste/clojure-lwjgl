@@ -1,7 +1,8 @@
 (ns clojure-lwjgl.visual-list
   (:require (clojure-lwjgl [image-list :as image-list]
                            [visual :as visual]
-                           [free-layout :as free-layout])))
+                           [free-layout :as free-layout]
+                           [event-queue :as event-queue])))
 
 (defrecord VisualList [visuals image-list])
 

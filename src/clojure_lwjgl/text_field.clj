@@ -1,11 +1,18 @@
 (ns clojure-lwjgl.text-field
   (:require (clojure-lwjgl [text :as text]
                            [component :as component]
-                           [event-queue :as event-queue])))
+                           [event-queue :as event-queue])
+            (clojure-lwjgl.frp [event-stream :as event-stream]
+                               [signal :as signal])))
 
-(defrecord TextField [content])
+(defrecord TextField [content-signal visual-signal])
 
-(defn create [content]
+
+(defn key-pressed-to-content [key-pressed initial-content]
+  (signal/c))
+
+(defn create [content key-pressed-event-stream]
+  
   (TextField. content))
 
 
