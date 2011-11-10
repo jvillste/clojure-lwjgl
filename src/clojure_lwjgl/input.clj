@@ -35,16 +35,16 @@
 
 (defn update-mouse-state [mouse-state event]
   (case (:type event)
-      :mouse-moved (assoc mouse-state
-                     :mouse-x (:mouse-x event)
-                     :mouse-y (:mouse-y event))
-      :left-mouse-button-down (assoc mouse-state :left-mouse-button-down true)
-      :right-mouse-button-down (assoc mouse-state :right-mouse-button-down true)
-      :middle-mouse-button-down (assoc mouse-state :middle-mouse-button-down true)
-      :left-mouse-button-up (assoc mouse-state :left-mouse-button-down false)
-      :right-mouse-button-up (assoc mouse-state :right-mouse-button-down false)
-      :middle-mouse-button-up (assoc mouse-state :middle-mouse-button-down false)
-      mouse-state))
+    :mouse-moved (assoc mouse-state
+                   :mouse-x (:mouse-x event)
+                   :mouse-y (:mouse-y event))
+    :left-mouse-button-down (assoc mouse-state :left-mouse-button-down true)
+    :right-mouse-button-down (assoc mouse-state :right-mouse-button-down true)
+    :middle-mouse-button-down (assoc mouse-state :middle-mouse-button-down true)
+    :left-mouse-button-up (assoc mouse-state :left-mouse-button-down false)
+    :right-mouse-button-up (assoc mouse-state :right-mouse-button-down false)
+    :middle-mouse-button-up (assoc mouse-state :middle-mouse-button-down false)
+    mouse-state))
 
 (defn update-mouse-state-in-gui [gui event]
   (update-in gui :mouse-state (fn [mouse-state] (update-mouse-state mouse-state event))))
@@ -101,8 +101,8 @@
 
 (defn create-keyboard-event [lwjgl-event]
   {:type (if (:key-state lwjgl-event)
-           :key-pressed
-           :key-released)
+           :key-released
+           :key-pressed)
    :key-code (:key-code lwjgl-event)
    :character (:character lwjgl-event)})
 
@@ -114,6 +114,10 @@
                                 keys-down))))
 
 (defn unread-keyboard-input-exists? [] (Keyboard/next))
+
+(defn unread-keyboard-events []
+  (take-while (fn [_] (unread-keyboard-input-exists?))
+              (repeatedly #(create-keyboard-event (read-lwjgl-keyboard-event)))))
 
 (defn create-keyboard-events [gui]
   (if (unread-keyboard-input-exists?)

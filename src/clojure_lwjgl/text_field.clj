@@ -7,13 +7,12 @@
 
 (defrecord TextField [content-signal visual-signal])
 
+;; (defn key-pressed-to-content [key-pressed initial-content]
+;;   )
 
-(defn key-pressed-to-content [key-pressed initial-content]
-  (signal/c))
-
-(defn create [content key-pressed-event-stream]
+;; (defn create [content key-pressed-event-stream]
   
-  (TextField. content))
+;;   (TextField. content))
 
 
 (defn handle-key-pressed-event [text-field event]
