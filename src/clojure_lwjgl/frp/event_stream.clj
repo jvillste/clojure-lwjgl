@@ -26,8 +26,15 @@
 
 (defn handle-key-pressed-event [gui key-pressed-event]
   (send-event (:key-pressed-event-stream gui)
-              key-pressed-event) 
+              key-pressed-event)
   gui)
+
+
+(defn filter [source predicate]
+  (create source
+          (fn [event] (if (predicate event)
+                        event
+                        nil))))
 
 (defn initialize [gui]
   (-> gui

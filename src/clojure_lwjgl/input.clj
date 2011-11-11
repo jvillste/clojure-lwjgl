@@ -101,8 +101,8 @@
 
 (defn create-keyboard-event [lwjgl-event]
   {:type (if (:key-state lwjgl-event)
-           :key-released
-           :key-pressed)
+           :key-pressed
+           :key-released)
    :key-code (:key-code lwjgl-event)
    :character (:character lwjgl-event)})
 

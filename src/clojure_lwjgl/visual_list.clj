@@ -76,14 +76,18 @@
              (rest new-visuals))
       visual-list)))
 
+(defn draw
+  ([visual-list]
+     (image-list/draw (:image-list visual-list)))
+  ([gui draw-event]
+     (draw (:visual-list gui))
+     gui))
 
-(defn draw [gui draw-event]
-  (image-list/draw (:image-list (:visual-list gui)))
-  gui)
-
+(defn create []
+  (VisualList. []
+               (image-list/create)))
 
 (defn initialize [gui]
   (-> gui
-      (assoc :visual-list (VisualList. []
-                                       (image-list/create)))
+      (assoc :visual-list (create))
       (event-queue/add-event-handlers [:draw] draw)))
