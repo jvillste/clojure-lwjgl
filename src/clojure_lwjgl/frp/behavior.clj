@@ -17,3 +17,8 @@
     (Behavior. changes
                current-value)))
 
+
+(defn create-from-behavior [source-behavior function]
+  (create (:changes source-behavior)
+          (function @(:current-value source-behavior))
+          function))

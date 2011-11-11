@@ -2,14 +2,19 @@
   (:require [clojure-lwjgl.layoutable :as layoutable]
             [clojure-lwjgl.component :as component]))
 
-(defrecord FreeLayout [children])
 
-(defn layout [component]
-  (assoc component
-    :width (layoutable/preferred-width component)
-    :height (layoutable/preferred-height component)
-    :x (::x component)
-    :y (::y component)))
+(defn layout [x y layoutable]
+  (assoc layoutable
+    :width (layoutable/preferred-width layoutable)
+    :height (layoutable/preferred-height layoutable)
+    :x x
+    :y y))
+
+
+
+
+
+(defrecord FreeLayout [children])
 
 (defn set-location [component x y]
   (assoc component
