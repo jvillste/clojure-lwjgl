@@ -72,7 +72,7 @@
     (concat [(first text-buffer-list)]
             (move-focus-down (rest text-buffer-list)))))
 
-(defn create-text-buffer-list [keyboard-state keys-down]
+(defn create-text-buffer-list [keyboard-state]
   (behavior/create (behavior/changes keyboard-state)
                    [(assoc (create-text-buffer keyboard-state)
                       :has-focus true)]
@@ -104,28 +104,22 @@
   ;;                                  ))
   )
 
-(defn create-key-pressed-events [keyboard-events]
-  (event-stream/filter keyboard-events
-                       #(= (:type %)
-                           :key-pressed)))
 
 (defn create []
-  (let [keyboard-events (event-stream/create)
-        keys-down (create-keys-down keyboard-events)
-        key-pressed-events (create-key-pressed-events)]
+  (let [keyboard-events (event-stream/create)]
     (-> {:window (window/create 200 200)
          :keyboard-events keyboard-events
-         :text-buffer-list (create-text-buffer-list key-pressed-events
-                                                    keys-down)
+         :text-buffer-list (create-text-buffer-list (create-keyboard-state keyboard-events))
          ;; :visual-list (-> (visual-list/create)
          ;;                  (visual-list/add-visual (create-view-visuals text-buffer)))
          })))
 
 (defn handle-input [gui]
   (doseq [event (input/unread-keyboard-events)]
-    (println event)
+
     (event-stream/send-event (:keyboard-events gui)
-                             event))
+                             event)
+    (println "text buffer list: " (behavior/value (:text-buffer-list gui))))
   gui)
 
 (defn update [gui]
@@ -148,7 +142,7 @@
         (window/close (:window initial-gui))))))
 
 (comment
-  (run))
+(run))
 
 
 
