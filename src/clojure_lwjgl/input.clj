@@ -1,5 +1,6 @@
 (ns clojure-lwjgl.input
-  (:require [clojure-lwjgl.event-queue :as event-queue])
+  (:require [clojure-lwjgl.event-queue :as event-queue]
+            [clojure.set :as set])
   (:import
    (java.awt.event KeyListener MouseAdapter KeyAdapter WindowAdapter)
    (org.lwjgl.input Mouse Keyboard)))
@@ -94,6 +95,22 @@
 
 ;; KEYBOARD
 
+(def up 200)
+(def left 203)
+(def down 208)
+(def right 205)
+(def enter 28)
+(def left-shift 42)
+(def right-shift 54)
+(def left-control 29)
+(def right-control 157)
+(def alt 56)
+(def alt-gr 184)
+
+(def shift :shift)
+(def control :control)
+(def alt :alt)
+
 (defn read-lwjgl-keyboard-event []
   {:key-state (Keyboard/getEventKeyState)
    :key-code (Keyboard/getEventKey)
@@ -106,12 +123,34 @@
    :key-code (:key-code lwjgl-event)
    :character (:character lwjgl-event)})
 
+(defn combined-key-code [key-code]
+  (case key-code
+    left-shift :shift
+    right-shift :shift
+    left-control :control
+    right-control :control
+    left-alt :alt
+    alt-gr :alt
+    nil))
+
+(defn conj-if-not-nil [collection value]
+  (if value
+    (conj collection value)
+    collection))
+
+(defn update-keys-down [keys-down keyboard-event]
+  (case (:type keyboard-event)
+    :key-pressed (-> keys-down
+                     (conj (:key-code keyboard-event))
+                     (conj-if-not-nil (combined-key-code (:key-code keyboard-event))))
+    :key-released (-> keys-down
+                     (disj (:key-code keyboard-event))
+                     (disj (combined-key-code (:key-code keyboard-event))))
+    keys-down))
+
 (defn update-keyboard-state [gui event]
   (update-in gui :keys-down (fn [keys-down]
-                              (case (:type event)
-                                :key-pressed (conj keys-down (:key-code event))
-                                :key-released (disj keys-down (:key-code event))
-                                keys-down))))
+                              (update-keys-down keys-down event))))
 
 (defn unread-keyboard-input-exists? [] (Keyboard/next))
 
@@ -147,8 +186,3 @@
                                        :right-mouse-button-up
                                        :middle-mouse-button-up] update-mouse-state-in-gui)))
 
-(def up 200)
-(def left 203)
-(def down 208)
-(def right 205)
-(def enter 28)
