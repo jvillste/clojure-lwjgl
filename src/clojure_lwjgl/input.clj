@@ -146,3 +146,9 @@
                                        :left-mouse-button-up
                                        :right-mouse-button-up
                                        :middle-mouse-button-up] update-mouse-state-in-gui)))
+
+(def up 200)
+(def left 203)
+(def down 208)
+(def right 205)
+(def enter 28)
