@@ -77,6 +77,7 @@
                    [(assoc (create-text-buffer keyboard-state)
                       :has-focus true)]
                    (fn [text-buffer-list new-keyboard-state]
+                     (println "updating text-buffer-list " text-buffer-list)
                      (cond
                       (add-text-buffer-action? new-keyboard-state)
                       (conj text-buffer-list (create-text-buffer keyboard-state))
@@ -119,7 +120,7 @@
 
     (event-stream/send-event (:keyboard-events gui)
                              event)
-    (println "text buffer list: " (behavior/value (:text-buffer-list gui))))
+    (println "text buffer list: " (:text-buffer-list gui)))
   gui)
 
 (defn update [gui]

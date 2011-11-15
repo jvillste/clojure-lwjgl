@@ -3,6 +3,8 @@
 
 (defrecord Behavior [changes current-value])
 
+
+
 (defn create [source initial-value function]
   (let [current-value (atom initial-value)
         changes (event-stream/create source
@@ -23,6 +25,9 @@
 
 (defn value [behavior]
   @(:current-value behavior))
+
+(defmethod print-method Behavior [behavior writer]
+  (print-method (str "(Behavior " (value behavior) ")") writer))
 
 (defn create-from-behavior [source-behavior function]
   (create (:changes source-behavior)
