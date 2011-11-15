@@ -10,13 +10,14 @@
 (defn create
   ([] (EventStream. (atom [])
                     (atom [])
-                    (fn [event] event)))
-  ([source function]
-     (let [event-stream  (EventStream. (atom [source])
-                                       (atom [])
-                                       function)]
-       (add-sink source event-stream)
-       event-stream)))
+                    (fn [event] event))))
+
+(defn map [source function]
+  (let [event-stream  (EventStream. (atom [source])
+                                    (atom [])
+                                    function)]
+    (add-sink source event-stream)
+    event-stream))
 
 (defn send-event [event-stream event]
   (let [processed-event ((:function event-stream) event)]
