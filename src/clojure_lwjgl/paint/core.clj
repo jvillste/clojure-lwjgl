@@ -14,6 +14,7 @@
   (:import [java.awt Color Font  RenderingHints]
            [org.lwjgl.opengl GL11]))
 
+
 (defn width [paint]
   (:width (:texture-1 paint)))
 
