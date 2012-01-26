@@ -7,9 +7,7 @@
 (defrecord VisualList [visuals image-list])
 
 (defn- render-visual [visual-list index visual]
-  (visual/render (free-layout/layout visual
-                                     0
-                                     0)
+  (visual/render visual
                  (image-list/get-graphics (:image-list visual-list)
                                           index))
   visual-list)
