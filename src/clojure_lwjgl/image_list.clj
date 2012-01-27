@@ -80,6 +80,7 @@
   image-list)
 
 (defn draw [image-list]
+  (println image-list)
   (-> image-list
       (load)
       (draw-image-list)))
