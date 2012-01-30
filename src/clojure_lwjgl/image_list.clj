@@ -74,13 +74,12 @@
 
 (defn- draw-image-list [image-list]
   (draw/draw-quads (:vertex-buffer-id (:quad-buffer image-list))
-                   (:texture-coordinate-buffer-id (:texture-atlas image-list))
+                   (:buffer-id  (:texture-coordinate-buffer (:texture-atlas image-list)))
                    (:index-buffer-id (:quad-list image-list))
                    (:image-count image-list))
   image-list)
 
 (defn draw [image-list]
-  (println image-list)
   (-> image-list
       (load)
       (draw-image-list)))

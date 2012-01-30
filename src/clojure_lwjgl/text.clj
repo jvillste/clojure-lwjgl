@@ -6,7 +6,7 @@
   (:require (clojure-lwjgl [visual :as visual]
                            [layoutable :as layoutable])))
 
-(def font (Font. "Arial" Font/BOLD 20))
+(def font (Font. "Arial" Font/BOLD 11))
 
 (defn get-font-metrics [font]
   (let [graphics (.getGraphics (BufferedImage. 1 1 BufferedImage/TYPE_INT_ARGB))]

@@ -16,7 +16,7 @@
   (assoc gui
     :visual-list (visual-list/add-visual (:visual-list gui)
                                          (free-layout/layout 10
-                                                             10
+                                                             100
                                                              (text/create "Foo")))))
 
 (defn update-window [gui]
@@ -33,6 +33,9 @@
 (defn render [gui]
   (visual-list/draw (:visual-list gui))
   gui)
+
+(defn animate [gui]
+  gui )
 
 (defn update [gui]
   (-> gui
