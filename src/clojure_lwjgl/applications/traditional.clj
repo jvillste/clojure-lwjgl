@@ -3,21 +3,24 @@
   (:require (clojure-lwjgl [window :as window]
                            [visual-list :as visual-list]
                            [input :as input]
+                           [group :as group]
                            [text :as text]
                            [free-layout :as free-layout]))
   (:import [org.lwjgl.opengl GL11]))
 
+
+;; 
+
 (defn create-gui [window]
   {:window window
+   :root-group (group/create)
    :visual-list (visual-list/create)
    :mouse-state (input/create-initial-mouse-state)})
 
 (defn add-content [gui]
   (assoc gui
-    :visual-list (visual-list/add-visual (:visual-list gui)
-                                         (free-layout/layout 10
-                                                             100
-                                                             (text/create "Foo")))))
+    :root-group (group/add-component (:root-group gui)
+                                     (text/create "Foo"))))
 
 (defn update-window [gui]
   (assoc gui :window (window/update (:window gui)
@@ -42,6 +45,9 @@
       (clear)
       (render)
       (update-window)))
+
+
+
 
 (comment
 (let [window (window/create 500 500)]

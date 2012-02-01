@@ -22,12 +22,12 @@
 (defn get-event-handlers
   {:key-pressed handle-key-pressed-event})
 
-(defn get-visual [text-field]
-  (text/create (:content text-field)))
+(defn get-visuals [text-field]
+  [(text/create (:content text-field))])
 
 (extend TextField
   component/Component
-  {:get-visual get-visual
+  {:get-visuals get-visuals
    :get-event-handlers get-event-handlers})
 
 

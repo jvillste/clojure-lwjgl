@@ -2,5 +2,5 @@
 
 (defprotocol Component
   (handle-input [component input-state])
-  (get-visual [component]))
+  (get-visuals [component]))
 
