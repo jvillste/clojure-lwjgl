@@ -18,7 +18,6 @@
 (defn handle-key-pressed-event [text-field event]
   (assoc text-field :content (str (:content text-field)
                                   (:character event))))
-
 (defn get-event-handlers
   {:key-pressed handle-key-pressed-event})
 

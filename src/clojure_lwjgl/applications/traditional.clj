@@ -9,8 +9,6 @@
   (:import [org.lwjgl.opengl GL11]))
 
 
-;; 
-
 (defn create-gui [window]
   {:window window
    :root-group (group/create)
@@ -45,9 +43,6 @@
       (clear)
       (render)
       (update-window)))
-
-
-
 
 (comment
 (let [window (window/create 500 500)]

@@ -27,3 +27,14 @@ visual elements = animations(visual elements, time)
 
 
 every application can have different set of components, visual elements, layouts, styles and animations. 
+
+
+
+component
+
+visual
+
+visual list
+
+
+(component/get-visuals
