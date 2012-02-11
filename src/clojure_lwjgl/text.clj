@@ -13,16 +13,16 @@
     (.setFont graphics font)
     (.getFontMetrics graphics)))
 
-(defn get-width [text] (.stringWidth (get-font-metrics font) (:content text)))
+(defn width [text] (.stringWidth (get-font-metrics font) (:content text)))
 
-(defn get-height [text] (.getHeight (get-font-metrics font)))
+(defn height [text] (.getHeight (get-font-metrics font)))
 
 (defn render [text graphics]
   (doto graphics
     (.setColor Color/BLACK)
     (.setFont font)
     (.setRenderingHint RenderingHints/KEY_TEXT_ANTIALIASING RenderingHints/VALUE_TEXT_ANTIALIAS_LCD_HBGR )
-    (.drawString (:content text) 0 (get-height text))))
+    (.drawString (:content text) 0 (height text))))
 
 (defrecord Text [content])
 
@@ -34,5 +34,5 @@
 
 (extend Text
   layoutable/Layoutable
-  {:preferred-width get-width
-   :preferred-height get-height})
+  {:preferred-width width
+   :preferred-height height})
