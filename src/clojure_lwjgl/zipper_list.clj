@@ -1,4 +1,5 @@
 (ns clojure-lwjgl.zipper-list
+  (:refer-clojure :exclude (count))
   (:require [clojure.zip :as zip])
   (:use midje.sweet))
 
@@ -25,11 +26,24 @@
         (recur (zip/next zipper-list)
                (+ 1 index))))))
 
+(defn count [zipper-list]
+  (-> zipper-list
+      (zip/node)
+      (clojure.core/count)
+      (- 1)))
+
 (fact "item index grows when items are inserted before it"
   (-> (create)
       (insert-item :item-1 0)
       (insert-item :item-2 0)
-      (item-index :item-1))  => 1)
+      (item-index :item-1))
+  => 1)
 
+(fact "count should return the number of items inserted"
+  (-> (create)
+      (insert-item :item-1 0)
+      (insert-item :item-2 0)
+      (count))
+  => 2)
 
 
