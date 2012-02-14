@@ -39,6 +39,13 @@
       (item-index :item-1))
   => 1)
 
+(fact "item index must not grow when items are inserted after it"
+  (-> (create)
+      (insert-item :item-1 0)
+      (insert-item :item-2 1)
+      (item-index :item-1))
+  => 0)
+
 (fact "count should return the number of items inserted"
   (-> (create)
       (insert-item :item-1 0)
