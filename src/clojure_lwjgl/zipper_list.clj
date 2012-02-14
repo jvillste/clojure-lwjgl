@@ -5,7 +5,7 @@
 
 (defn create [] (zip/vector-zip [nil]))
 
-(defn insert-item [zipper-list item-id index]
+(defn insert [zipper-list item-id index]
   (loop [zipper-list (zip/down zipper-list)
          index index]
     (if (> index 0)
@@ -15,7 +15,37 @@
           (zip/insert-right item-id)
           (zip/up)))))
 
-(defn item-index [zipper-list item-id]
+(defn add [zipper-list item-id]
+  (-> zipper-list
+      (zip/down)
+      (zip/rightmost)
+      (zip/insert-right item-id)
+      (zip/up)))
+
+(defn- find [zipper-list item-id]
+  (loop [zipper-list (zip/right (zip/down zipper-list))]
+    (if (= nil zipper-list)
+      nil
+      (if (= (zip/node zipper-list)
+             item-id)
+        zipper-list
+        (recur (zip/next zipper-list))))))
+
+(defn insert-after [zipper-list old-item-id new-item-id]
+  (let [item-location (find zipper-list old-item-id)]
+    (if (= nil item-location)
+      nil
+      (-> (zip/insert-right item-location new-item-id)
+          (zip/up)))))
+
+(defn remove [zipper-list item-id]
+  (let [item-location (find zipper-list item-id)]
+    (if (= nil item-location)
+      nil
+      (-> (zip/remove item-location)
+          (zip/up)))))
+
+(defn index [zipper-list item-id]
   (loop [zipper-list (zip/right (zip/down zipper-list))
          index 0]
     (if (= nil zipper-list)
@@ -34,23 +64,49 @@
 
 (fact "item index grows when items are inserted before it"
   (-> (create)
-      (insert-item :item-1 0)
-      (insert-item :item-2 0)
-      (item-index :item-1))
+      (insert :item-1 0)
+      (insert :item-2 0)
+      (index :item-1))
+  => 1)
+
+(fact "add adds items as last items"
+  (-> (create)
+      (add :item-1)
+      (add :item-2)
+      (add :item-3)
+      (index :item-3))
+  => 2)
+
+(fact "item index shrinks when items are removed before it"
+  (-> (create)
+      (insert :item-1 0)
+      (insert :item-2 1)
+      (insert :item-3 2)
+      (remove :item-2)
+      (index :item-3))
   => 1)
 
 (fact "item index must not grow when items are inserted after it"
   (-> (create)
-      (insert-item :item-1 0)
-      (insert-item :item-2 1)
-      (item-index :item-1))
+      (insert :item-1 0)
+      (insert :item-2 1)
+      (index :item-1))
   => 0)
 
 (fact "count should return the number of items inserted"
   (-> (create)
-      (insert-item :item-1 0)
-      (insert-item :item-2 0)
+      (insert :item-1 0)
+      (insert :item-2 0)
       (count))
   => 2)
+
+
+(fact "count should return the number of items inserted"
+  (-> (create)
+      (add :item-1)
+      (add :item-2)
+      (insert-after :item-2 :item-3)
+      (index :item-3))
+  => 1)
 
 
