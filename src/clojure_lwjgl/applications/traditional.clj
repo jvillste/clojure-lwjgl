@@ -22,24 +22,16 @@
 (unfinished)
 
 
-
-(comment
-  (loop [loc dz]
-    (if (zip/end? loc)
-      (zip/root loc)
-      (recur
-       (zip/next
-        (if (= (zip/node loc) '*)
-          (zip/replace loc '/)
-          loc))))))
-
+(defn view [model]
+  )
 
 (defn create-gui [window]
   (let [label (text/create "Foo")]
     {:window window
      :label label
      :image-list (-> (image-list/create)
-                     (image-list/add-image 10
+                     (image-list/add-image :label
+                                           10
                                            10
                                            (text/width label)
                                            (text/height label)))}))

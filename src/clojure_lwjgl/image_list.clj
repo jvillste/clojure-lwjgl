@@ -3,10 +3,12 @@
   (:require (clojure-lwjgl [quad-buffer :as quad-buffer]
                            [quad-list :as quad-list]
                            [draw :as draw]
-                           [texture-atlas :as texture-atlas]))
+                           [texture-atlas :as texture-atlas]
+                           [zipper-list :as zipper-list]))
   (:import [java.awt Color AlphaComposite]))
 
 (defrecord ImageList [image-count
+                      image-ids
                       needs-to-load
                       quad-buffer
                       quad-list
@@ -14,6 +16,7 @@
 
 (defn create []
   (ImageList. 0
+              (zipper-list/create)
               false
               (quad-buffer/create)
               (quad-list/create)
@@ -22,10 +25,12 @@
 (defn next-index [image-list]
   (:image-count image-list))
 
-(defn add-image [image-list x y width height]
+(defn add-image [image-list id x y width height]
   (assoc image-list
     :image-count (+ 1
                     (:image-count image-list))
+    :image-ids (zipper-list/add (:image-ids image-list)
+                                id)
     :quad-buffer (quad-buffer/add-quad (:quad-buffer image-list)
                                        x
                                        y
@@ -36,35 +41,41 @@
                                                    width
                                                    height)))
 
-(defn move-image [image-list index x y]
+(defn move-image [image-list id x y]
   (assoc image-list
     :quad-buffer (quad-buffer/move-quad (:quad-buffer image-list)
-                                        index
+                                        (zipper-list/index (:image-ids image-list)
+                                                           id)
                                         x
                                         y)))
 
-(defn resize-image [image-list index width height]
+(defn resize-image [image-list id width height]
   (assoc image-list
     :quad-buffer (quad-buffer/resize-quad (:quad-buffer image-list)
-                                          index
+                                          (zipper-list/index (:image-ids image-list)
+                                                             id)
                                           width
                                           height)
     :texture-atlas (texture-atlas/resize-texture (:texture-atlas image-list)
-                                                 index
+                                                 (zipper-list/index (:image-ids image-list)
+                                                                    id)
                                                  width
                                                  height)))
 
-(defn get-graphics [image-list index]
+(defn get-graphics [image-list id]
   (texture-atlas/get-graphics (:texture-atlas image-list)
-                              index))
+                              (zipper-list/index (:image-ids image-list)
+                                                 id)))
 
-(defn clear-image [image-list index]
+(defn clear-image [image-list id]
   (doto (get-graphics image-list index)
     (.setComposite (AlphaComposite/getInstance AlphaComposite/CLEAR (float 0)))
     (.fillRect 0
                0
-               (quad-buffer/quad-width (:quad-buffer image-list) index)
-               (quad-buffer/quad-height (:quad-buffer image-list) index))))
+               (quad-buffer/quad-width (:quad-buffer image-list) (zipper-list/index (:image-ids image-list)
+                                                                                    id))
+               (quad-buffer/quad-height (:quad-buffer image-list) (zipper-list/index (:image-ids image-list)
+                                                                                     id)))))
 
 (defn- load [image-list]
   (assoc image-list

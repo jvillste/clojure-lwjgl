@@ -100,12 +100,11 @@
       (count))
   => 2)
 
-
 (fact "count should return the number of items inserted"
   (-> (create)
       (add :item-1)
       (add :item-2)
-      (insert-after :item-2 :item-3)
+      (insert-after :item-1 :item-3)
       (index :item-3))
   => 1)
 
