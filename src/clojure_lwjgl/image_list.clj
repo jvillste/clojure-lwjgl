@@ -68,7 +68,7 @@
                                                  id)))
 
 (defn clear-image [image-list id]
-  (doto (get-graphics image-list index)
+  (doto (get-graphics image-list id)
     (.setComposite (AlphaComposite/getInstance AlphaComposite/CLEAR (float 0)))
     (.fillRect 0
                0

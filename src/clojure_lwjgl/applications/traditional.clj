@@ -6,8 +6,11 @@
                            [input :as input]
                            [group :as group]
                            [text :as text]
-                           [free-layout :as free-layout])
-            [clojure.zip :as zip])
+                           [free-layout :as free-layout]
+                           [layoutable :as layoutable]
+                           [rectangle :as rectangle])
+            [clojure.zip :as zip]
+            [clojure.contrib.dataflow :as dataflow])
 
   (:use midje.sweet)
   (:import [org.lwjgl.opengl GL11]))
@@ -19,11 +22,32 @@
 ;; currytään bufferi funktiolle ennen kuin funktio annetaan sille funktiolle joka sitä kutsuu
 ;; state monad
 
-(unfinished)
 
+(defn box [margin parent child]
+  [(assoc parent
+     :width (+ (* 2 margin)
+               (layoutable/preferred-width child))
+     :heiht (+ (* 2 margin)
+               (layoutable/preferred-height child)))
+   (assoc child
+     :x (+ margin
+           (:x parent))
+     :y (+ margin
+           (:y parent)))])
+
+(fact "box adds a margin"
+  (box 10
+       {:x 5 :y 10}
+       (text/create "Foo"))
+  => [{:heiht 33, :width 40, :y 10, :x 5}
+      #clojure_lwjgl.text.Text{:content "Foo", :y 20, :x 15}])
 
 (defn view [model]
-  )
+  (box 10 (rectangle/create {:red 1
+                             :green 0
+                             :blue 0
+                             :alpha 1})
+       (text/create (:text model))))
 
 (defn create-gui [window]
   (let [label (text/create "Foo")]
