@@ -72,6 +72,7 @@
 
 (defn move-quad [quad-buffer index x y]
   (set-quad-coordinates quad-buffer
+                        index
                         x
                         y
                         (quad-width quad-buffer index)

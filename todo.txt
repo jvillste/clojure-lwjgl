@@ -26,6 +26,10 @@ visual elements = animations(visual elements, time)
   (draw))
 
 
+
+
+
+
 every application can have different set of components, visual elements, layouts, styles and animations. 
 
 
@@ -38,3 +42,49 @@ visual list
 
 
 (component/get-visuals
+
+
+
+
+gui architectures
+----------------------
+
+Microsoft MVC
+-------------
+
+(defn todo-list-view [model]
+  (:form
+    (for [todo-item <- (:todo-items model)]
+      (text-box :value todo-item))
+    (button :submit-to "/home/save-changes"
+            :text "save changes"))
+
+(defn todo-list-action []
+  (view {:todo-items (get-todo-items-from-database))))
+
+(defn save-changes-action [view]
+  (save-todo-list-to-database (map :value (text-boxes view)))
+  (redirect "home/todo-list"))
+
+
+Swing
+-------------
+
+
+(defn create-view [model]
+  (doseq
+    (for [todo-item <- (:todo-items model)]
+      (let [text-box (text-box/create @(:value todo-item))]
+         (observable/add-observer (:value-changed text-box)
+                                  (fn [text-box] (reset! (:value todo-item) @(:value text-box))))))))
+
+Ideal
+------
+
+(defn view [model]
+  (for [string <- (:strings model)]
+    (text-box string)))
+
+(defn model []
+      {:strings }
+      )

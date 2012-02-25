@@ -27,8 +27,8 @@
   [(assoc parent
      :width (+ (* 2 margin)
                (layoutable/preferred-width child))
-     :heiht (+ (* 2 margin)
-               (layoutable/preferred-height child)))
+     :heihgt (+ (* 2 margin)
+                (layoutable/preferred-height child)))
    (assoc child
      :x (+ margin
            (:x parent))
@@ -39,7 +39,7 @@
   (box 10
        {:x 5 :y 10}
        (text/create "Foo"))
-  => [{:heiht 33, :width 40, :y 10, :x 5}
+  => [{:height 33, :width 40, :y 10, :x 5}
       #clojure_lwjgl.text.Text{:content "Foo", :y 20, :x 15}])
 
 (defn view [model]
@@ -49,16 +49,20 @@
                              :alpha 1})
        (text/create (:text model))))
 
+
+
 (defn create-gui [window]
-  (let [label (text/create "Foo")]
+  (let [label (text/create "Foo")
+        image-list (-> (image-list/create)
+                       (image-list/add-image :label
+                                             10
+                                             10
+                                             (text/width label)
+                                             (text/height label)))]
+    (text/render label (image-list/get-graphics image-list :label))
     {:window window
      :label label
-     :image-list (-> (image-list/create)
-                     (image-list/add-image :label
-                                           10
-                                           10
-                                           (text/width label)
-                                           (text/height label)))}))
+     :image-list image-list}))
 
 (defn update-window [gui]
   (assoc gui :window (window/update (:window gui)
@@ -80,20 +84,29 @@
     :label ))
 
 (defn update-view [gui]
-
-  gui )
+  (image-list/move-image (:image-list gui)
+                         :label
+                         (+ 50
+                            (* (Math/sin (* (* 2
+                                               Math/PI)
+                                            (/ (mod (System/currentTimeMillis)
+                                                    1000)
+                                               1000)))
+                               50))
+                         50)
+  gui)
 
 (defn update [gui]
   (-> gui
+      (update-view)
       (clear)
       (render)
       (update-window)))
 
 (comment
-  (let [window (window/create 500 500)]
+(let [window (window/create 500 500)]
     (try
-      (let [initial-gui (-> (create-gui window)
-                            (add-content))]
+      (let [initial-gui (create-gui window)]
         (loop [gui initial-gui]
           (if (not @(:close-requested (:window gui)))
             (recur (update gui))
