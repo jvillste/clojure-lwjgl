@@ -2,6 +2,7 @@
   (:refer-clojure :exclude (load))
   (:require (clojure-lwjgl [window :as window]
                            [visual-list :as visual-list]
+                           [visual :as visual]
                            [image-list :as image-list]
                            [input :as input]
                            [group :as group]
@@ -100,17 +101,39 @@
                             label)
               :image-list image-list))))
 
+(defn add-visual [image-list visual x y]
+  (let [image-list (image-list/add-image image-list
+                                         (:id visual)
+                                         x
+                                         y
+                                         (layoutable/preferred-width visual)
+                                         (layoutable/preferred-height visual))]
+
+    (visual/render visual (image-list/get-graphics image-list (:id visual)))
+
+    image-list))
+
 (defn create-gui [window]
-  (-> {:window window
-       :labels []
-       :image-list (image-list/create)}
-      (add-label "Foo 1")
-      (add-label "Foo 2")
-      (add-label "Foo 3")
-      (add-label "Foo 4")
-      (add-label "Foo 5")
-      (add-label "Foo 6")
-      ))
+  (let [selection-rectangle (assoc (rectangle/create {:red 0 :green 0 :blue 1 :alpha 1}
+                                                     100
+                                                     15
+                                                     10)
+                              :id (generate-id))
+        image-list (add-visual (image-list/create)
+                               selection-rectangle
+                               5
+                               5)]
+    (-> {:window window
+         :labels []
+         :selection-rectangle selection-rectangle
+         :image-list image-list}
+        (add-label "Foo 1")
+;;        (add-label "Foo 2")
+;;        (add-label "Foo 3")
+;;        (add-label "Foo 4")
+;;        (add-label "Foo 5")
+;;        (add-label "Foo 6")
+        )))
 
 (defn update-window [gui]
   (assoc gui :window (window/update (:window gui)
