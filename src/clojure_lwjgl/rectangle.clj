@@ -10,16 +10,16 @@
   (Rectangle. color width height arc))
 
 (defn color-to-java-color [color]
-  (Color. (:red color)
-          (:green color)
-          (:blue color)
-          (:alpha color)))
+  (Color. (float (:red color))
+          (float (:green color))
+          (float (:blue color))
+          (float (:alpha color))))
 
 (defn render [rectangle graphics]
   (println "render rectangle " rectangle)
   (doto graphics
-;;    (.setColor (color-to-java-color (:color rectangle)))
-    (.setColor Color/BLUE)
+    (.setColor (color-to-java-color (:color rectangle)))
+;;    (.setColor Color/BLUE)
     (.setRenderingHint RenderingHints/KEY_ANTIALIASING RenderingHints/VALUE_ANTIALIAS_ON )
     (.fill (RoundRectangle2D$Float. 0 0 (:width rectangle) (:height rectangle) (:arc rectangle) (:arc rectangle)))))
 
