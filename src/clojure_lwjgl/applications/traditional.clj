@@ -85,23 +85,7 @@
 
 (defn generate-id [] (rand-int 100000000))
 
-(defn add-label [gui message]
-  (let [label (assoc (text/create message)
-                :id (generate-id))
-        image-list (image-list/add-image (:image-list gui)
-                                         (:id label)
-                                         10
-                                         10
-                                         (text/width label)
-                                         (text/height label))]
-    (text/render label (image-list/get-graphics image-list (:id label)))
-
-    (layout (assoc gui
-              :labels (conj (:labels gui)
-                            label)
-              :image-list image-list))))
-
-(defn add-visual [image-list visual x y]
+(defn add-visual-to-image-list [image-list visual x y]
   (let [image-list (image-list/add-image image-list
                                          (:id visual)
                                          x
@@ -113,26 +97,44 @@
 
     image-list))
 
+(defn create-visual [visual]
+  (assoc visual
+    :id (generate-id)))
+
+(defn add-visual [gui visual x y]
+  (assoc gui
+    :image-list (add-visual-to-image-list (:image-list gui)
+                                          visual
+                                          x
+                                          y)))
+
+(defn add-label [gui message]
+  (let [label (create-visual (text/create message))]
+    (-> gui
+        (assoc :labels (conj (:labels gui)
+                             label))
+        (add-visual label
+                    10
+                    10)
+        (layout))))
+
 (defn create-gui [window]
-  (let [selection-rectangle (assoc (rectangle/create {:red 0 :green 1 :blue 1 :alpha 1}
-                                                     100
-                                                     15
-                                                     10)
-                              :id (generate-id))
-        image-list (add-visual (image-list/create)
-                               selection-rectangle
-                               5
-                               5)]
-    (-> {:window window
-         :labels []
-         :selection-rectangle selection-rectangle
-         :image-list image-list}
+  (let [selection-rectangle (create-visual (rectangle/create {:red 0 :green 1 :blue 1 :alpha 1}
+                                                             100
+                                                             15
+                                                             10))
+        gui {:window window
+             :labels []
+             :selection-rectangle selection-rectangle
+             :image-list (image-list/create)}]
+    (-> gui
+        (add-visual selection-rectangle 5 5)
         (add-label "Foo 1")
-;;        (add-label "Foo 2")
-;;        (add-label "Foo 3")
-;;        (add-label "Foo 4")
-;;        (add-label "Foo 5")
-;;        (add-label "Foo 6")
+        (add-label "Foo 2")
+        (add-label "Foo 3")
+        (add-label "Foo 4")
+        (add-label "Foo 5")
+        (add-label "Foo 6")
         )))
 
 (defn update-window [gui]
@@ -167,7 +169,7 @@
       (update-window)))
 
 (comment
-(let [window (window/create 500 500)]
+  (let [window (window/create 500 500)]
     (try
       (let [initial-gui (create-gui window)]
         (loop [gui initial-gui]
