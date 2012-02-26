@@ -114,7 +114,7 @@
     image-list))
 
 (defn create-gui [window]
-  (let [selection-rectangle (assoc (rectangle/create {:red 0 :green 0 :blue 1 :alpha 1}
+  (let [selection-rectangle (assoc (rectangle/create {:red 0 :green 1 :blue 1 :alpha 1}
                                                      100
                                                      15
                                                      10)
