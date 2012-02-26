@@ -23,13 +23,13 @@
   (coordinate quad-buffer index 0))
 
 (defn quad-y1 [quad-buffer index]
-  (coordinate quad-buffer index 7))
+  (coordinate quad-buffer index 1))
 
 (defn quad-x2 [quad-buffer index]
   (coordinate quad-buffer index 3))
 
 (defn quad-y2 [quad-buffer index]
-  (coordinate quad-buffer index 1))
+  (coordinate quad-buffer index 7))
 
 (defn quad-width [quad-buffer index]
   (- (quad-x2 quad-buffer index)
@@ -44,17 +44,16 @@
         y1 y
         x2 (+ x1 width)
         y2 (+ y1 height)]
-
     (buffer/update-buffer (:vertex-buffer quad-buffer)
                           (quad-index-to-vertex-buffer-index index)
-                          ;; (float-array [x1 y1 0.0
-                          ;;               x2 y1 0.0
-                          ;;               x2 y2 0.0
-                          ;;               x1 y2 0.0])
-                          (float-array [x1 y2 0.0
-                                       x2 y2 0.0
-                                        x2 y1 0.0
-                                        x1 y1 0.0])
+                            (float-array [x1 y1 0.0
+                                          x2 y1 0.0
+                                          x2 y2 0.0
+                                          x1 y2 0.0])
+                            ;; (float-array [x1 y2 0.0
+                            ;;              x2 y2 0.0
+                            ;;               x2 y1 0.0
+                            ;;              x1 y1 0.0])
                           )
     (assoc quad-buffer :needs-to-load true)))
 

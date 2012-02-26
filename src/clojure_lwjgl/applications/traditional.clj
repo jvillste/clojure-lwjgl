@@ -71,10 +71,9 @@
       #clojure_lwjgl.applications.traditional.TestLayoutable{:height 10, :x 10, :y 45}])
 
 (defn layout [gui]
-  (let [labels (vertical-stack 10
-                               10
+  (let [labels (vertical-stack 5
+                               5
                                (:labels gui))]
-    (println labels)
     (doseq [label labels]
       (image-list/move-image (:image-list gui)
                              (:id label)
@@ -109,18 +108,23 @@
       (add-label "Foo 2")
       (add-label "Foo 3")
       (add-label "Foo 4")
-      (add-label "Foo 5")))
+      (add-label "Foo 5")
+      (add-label "Foo 6")
+      ))
 
 (defn update-window [gui]
   (assoc gui :window (window/update (:window gui)
-                                    30)))
+                                    1)))
 
 (defn clear [gui]
-  (GL11/glClearColor 1 1 1 0)
-  (GL11/glClear GL11/GL_COLOR_BUFFER_BIT)
-  (GL11/glMatrixMode GL11/GL_MODELVIEW)
-  (GL11/glLoadIdentity)
-  (GL11/glScalef 1 1.2 1)
+  (let [scale 3]
+    (GL11/glClearColor 1 1 1 0)
+    (GL11/glClear GL11/GL_COLOR_BUFFER_BIT)
+    (GL11/glMatrixMode GL11/GL_MODELVIEW)
+    (GL11/glLoadIdentity)
+    (GL11/glScalef scale (- scale) 1)
+    (GL11/glTranslatef 0 (- (* (/ 1 scale) @(:height (:window gui)))) 0))
+
   gui)
 
 (defn render [gui]
@@ -128,22 +132,14 @@
   gui)
 
 (defn update-view [gui]
-  (comment (image-list/move-image (:image-list gui)
-                                  :label
-                                  (+ 50
-                                     (* (Math/sin (* (* 2
-                                                        Math/PI)
-                                                     (/ (mod (System/currentTimeMillis)
-                                                             1000)
-                                                        1000)))
-                                        50))
-                                  50))
-  gui)
+  (layout gui)
+  ;;gui
+  )
 
 (defn update [gui]
   (-> gui
-      (update-view)
       (clear)
+      (update-view)
       (render)
       (update-window)))
 
