@@ -27,7 +27,7 @@
   [(assoc parent
      :width (+ (* 2 margin)
                (layoutable/preferred-width child))
-     :heihgt (+ (* 2 margin)
+     :height (+ (* 2 margin)
                 (layoutable/preferred-height child)))
    (assoc child
      :x (+ margin
@@ -42,27 +42,72 @@
   => [{:height 33, :width 40, :y 10, :x 5}
       #clojure_lwjgl.text.Text{:content "Foo", :y 20, :x 15}])
 
-(defn view [model]
-  (box 10 (rectangle/create {:red 1
-                             :green 0
-                             :blue 0
-                             :alpha 1})
-       (text/create (:text model))))
+(defn vertical-stack [x0 y0 visuals]
+  (loop [visuals visuals
+         layouted-visuals []
+         y y0]
+    (if (seq visuals)
+      (let [visual (assoc (first visuals)
+                     :y y
+                     :x x0)]
+        (recur (rest visuals)
+               (conj layouted-visuals
+                     visual)
+               (+ y (layoutable/preferred-height visual))))
+      layouted-visuals)))
 
+(defrecord TestLayoutable [height]
+  layoutable/Layoutable
+  (layoutable/preferred-height [test-layoutable] (:height test-layoutable)))
 
+(fact "vertical stack sets x and y coordinates"
+  (vertical-stack 10
+                  20
+                  [(TestLayoutable. 10)
+                   (TestLayoutable. 15)
+                   (TestLayoutable. 10)])
+  => [#clojure_lwjgl.applications.traditional.TestLayoutable{:height 10, :x 10, :y 20}
+      #clojure_lwjgl.applications.traditional.TestLayoutable{:height 15, :x 10, :y 30}
+      #clojure_lwjgl.applications.traditional.TestLayoutable{:height 10, :x 10, :y 45}])
+
+(defn layout [gui]
+  (let [labels (vertical-stack 10
+                               10
+                               (:labels gui))]
+    (println labels)
+    (doseq [label labels]
+      (image-list/move-image (:image-list gui)
+                             (:id label)
+                             (:x label)
+                             (:y label)))
+    (assoc gui
+      :labels labels)))
+
+(defn generate-id [] (rand-int 100000000))
+
+(defn add-label [gui]
+  (let [label (assoc (text/create "Foo")
+                :id (generate-id))
+        image-list (image-list/add-image (:image-list gui)
+                                         (:id label)
+                                         10
+                                         10
+                                         (text/width label)
+                                         (text/height label))]
+    (text/render label (image-list/get-graphics image-list (:id label)))
+
+    (layout (assoc gui
+              :labels (conj (:labels gui)
+                            label)
+              :image-list image-list))))
 
 (defn create-gui [window]
-  (let [label (text/create "Foo")
-        image-list (-> (image-list/create)
-                       (image-list/add-image :label
-                                             10
-                                             10
-                                             (text/width label)
-                                             (text/height label)))]
-    (text/render label (image-list/get-graphics image-list :label))
-    {:window window
-     :label label
-     :image-list image-list}))
+  (-> {:window window
+       :labels []
+       :image-list (image-list/create)}
+      (add-label)
+      (add-label)
+      ))
 
 (defn update-window [gui]
   (assoc gui :window (window/update (:window gui)
@@ -79,21 +124,17 @@
   (image-list/draw (:image-list gui))
   gui)
 
-(defn handle-input [gui]
-  (assoc gui
-    :label ))
-
 (defn update-view [gui]
-  (image-list/move-image (:image-list gui)
-                         :label
-                         (+ 50
-                            (* (Math/sin (* (* 2
-                                               Math/PI)
-                                            (/ (mod (System/currentTimeMillis)
-                                                    1000)
-                                               1000)))
-                               50))
-                         50)
+  (comment (image-list/move-image (:image-list gui)
+                                  :label
+                                  (+ 50
+                                     (* (Math/sin (* (* 2
+                                                        Math/PI)
+                                                     (/ (mod (System/currentTimeMillis)
+                                                             1000)
+                                                        1000)))
+                                        50))
+                                  50))
   gui)
 
 (defn update [gui]
@@ -104,7 +145,7 @@
       (update-window)))
 
 (comment
-(let [window (window/create 500 500)]
+  (let [window (window/create 500 500)]
     (try
       (let [initial-gui (create-gui window)]
         (loop [gui initial-gui]
