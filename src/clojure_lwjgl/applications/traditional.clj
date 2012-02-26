@@ -85,8 +85,8 @@
 
 (defn generate-id [] (rand-int 100000000))
 
-(defn add-label [gui]
-  (let [label (assoc (text/create "Foo")
+(defn add-label [gui message]
+  (let [label (assoc (text/create message)
                 :id (generate-id))
         image-list (image-list/add-image (:image-list gui)
                                          (:id label)
@@ -105,9 +105,11 @@
   (-> {:window window
        :labels []
        :image-list (image-list/create)}
-      (add-label)
-      (add-label)
-      ))
+      (add-label "Foo 1")
+      (add-label "Foo 2")
+      (add-label "Foo 3")
+      (add-label "Foo 4")
+      (add-label "Foo 5")))
 
 (defn update-window [gui]
   (assoc gui :window (window/update (:window gui)
@@ -118,6 +120,7 @@
   (GL11/glClear GL11/GL_COLOR_BUFFER_BIT)
   (GL11/glMatrixMode GL11/GL_MODELVIEW)
   (GL11/glLoadIdentity)
+  (GL11/glScalef 1 1.2 1)
   gui)
 
 (defn render [gui]
@@ -145,7 +148,7 @@
       (update-window)))
 
 (comment
-  (let [window (window/create 500 500)]
+(let [window (window/create 500 500)]
     (try
       (let [initial-gui (create-gui window)]
         (loop [gui initial-gui]
