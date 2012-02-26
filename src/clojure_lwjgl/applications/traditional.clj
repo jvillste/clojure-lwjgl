@@ -169,7 +169,7 @@
       (update-window)))
 
 (comment
-  (let [window (window/create 500 500)]
+(let [window (window/create 500 500)]
     (try
       (let [initial-gui (create-gui window)]
         (loop [gui initial-gui]
