@@ -80,6 +80,11 @@
                              (:id label)
                              (:x label)
                              (:y label)))
+
+    (image-list/move-image (:image-list gui)
+                           (:id (:selection-rectangle gui))
+                           5
+                           (:y (nth labels (:selection gui))))
     (assoc gui
       :labels labels)))
 
@@ -126,7 +131,8 @@
         gui {:window window
              :labels []
              :selection-rectangle selection-rectangle
-             :image-list (image-list/create)}]
+             :image-list (image-list/create)
+             :selection 0}]
     (-> gui
         (add-visual selection-rectangle 5 5)
         (add-label "Foo 1")
@@ -139,7 +145,7 @@
 
 (defn update-window [gui]
   (assoc gui :window (window/update (:window gui)
-                                    1)))
+                                    20)))
 
 (defn clear [gui]
   (let [scale 3]
@@ -156,10 +162,30 @@
   (image-list/draw (:image-list gui))
   gui)
 
+(defn key-pressed [keyboard-event key]
+  (and (= (:key-code keyboard-event)
+          key)
+       (= (:type keyboard-event)
+          :key-pressed)))
+
+(defn handle-event [gui keyboard-event]
+  (cond
+   (key-pressed keyboard-event input/down)
+   (assoc gui
+     :selection (min (+ 1
+                        (:selection gui))
+                     (- (count (:labels gui))
+                        1)))
+   (key-pressed keyboard-event input/up)
+   (assoc gui
+     :selection (max (- (:selection gui)
+                        1)
+                     0))
+   :default
+   gui))
+
 (defn update-view [gui]
-  (layout gui)
-  ;;gui
-  )
+  (layout (reduce handle-event gui (input/unread-keyboard-events))))
 
 (defn update [gui]
   (-> gui
