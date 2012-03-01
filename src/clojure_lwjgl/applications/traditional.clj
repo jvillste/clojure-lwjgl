@@ -71,10 +71,21 @@
       #clojure_lwjgl.applications.traditional.TestLayoutable{:height 15, :x 10, :y 30}
       #clojure_lwjgl.applications.traditional.TestLayoutable{:height 10, :x 10, :y 45}])
 
+(defn ids-to-visuals [gui ids]
+  (reduce (fn [visuals visual-id] (conj visuals ((:visuals gui) visual-id)))
+          []
+          ids))
+
+(defn update-visuals [gui visuals]
+  (assoc gui
+    :visuals (reduce (fn [visuals visual] (assoc visuals (:id visual) visual))
+                     (:visuals gui)
+                     visuals)))
+
 (defn layout [gui]
   (let [labels (vertical-stack 5
                                5
-                               (:labels gui))]
+                               (ids-to-visuals gui (:labels gui)))]
     (doseq [label labels]
       (image-list/move-image (:image-list gui)
                              (:id label)
@@ -82,13 +93,16 @@
                              (:y label)))
 
     (image-list/move-image (:image-list gui)
-                           (:id (:selection-rectangle gui))
+                           (:selection-rectangle gui)
                            5
                            (:y (nth labels (:selection gui))))
-    (assoc gui
-      :labels labels)))
+
+    (update-visuals gui labels)))
 
 (defn generate-id [] (rand-int 100000000))
+
+(defn render-visual [visual image-list]
+  (visual/render visual (image-list/get-graphics image-list (:id visual))))
 
 (defn add-visual-to-image-list [image-list visual x y]
   (let [image-list (image-list/add-image image-list
@@ -98,7 +112,7 @@
                                          (layoutable/preferred-width visual)
                                          (layoutable/preferred-height visual))]
 
-    (visual/render visual (image-list/get-graphics image-list (:id visual)))
+    (render-visual visual image-list)
 
     image-list))
 
@@ -111,17 +125,19 @@
     :image-list (add-visual-to-image-list (:image-list gui)
                                           visual
                                           x
-                                          y)))
+                                          y)
+    :visuals (assoc (:visuals gui) (:id visual) visual)))
 
 (defn add-label [gui message]
   (let [label (create-visual (text/create message))]
     (-> gui
         (assoc :labels (conj (:labels gui)
-                             label))
+                             (:id label)))
         (add-visual label
                     10
                     10)
         (layout))))
+
 
 (defn create-gui [window]
   (let [selection-rectangle (create-visual (rectangle/create {:red 0 :green 1 :blue 1 :alpha 1}
@@ -129,8 +145,9 @@
                                                              15
                                                              10))
         gui {:window window
+             :visuals {}
+             :selection-rectangle (:id selection-rectangle)
              :labels []
-             :selection-rectangle selection-rectangle
              :image-list (image-list/create)
              :selection 0}]
     (-> gui
@@ -168,6 +185,17 @@
        (= (:type keyboard-event)
           :key-pressed)))
 
+(defn add-character [label character]
+  (assoc label :content
+         (str (:content label)
+              character)))
+
+(defn resize-visual [image-list visual]
+  (image-list/resize-image image-list
+                           (:id visual)
+                           (layoutable/preferred-width visual)
+                           (layoutable/preferred-height visual)))
+
 (defn handle-event [gui keyboard-event]
   (cond
    (key-pressed keyboard-event input/down)
@@ -181,6 +209,18 @@
      :selection (max (- (:selection gui)
                         1)
                      0))
+   (re-find #"\w" (str (:character keyboard-event)))
+   (let [label-id (nth (:labels gui) (:selection gui))
+         label ((:visuals gui) label-id)
+         new-label (add-character label (:character keyboard-event))]
+     (println "character " label new-label)
+     (resize-visual (:image-list gui) new-label)
+     (render-visual new-label (:image-list gui))
+     (assoc gui
+       :visuals (assoc (:visuals gui)
+                  label-id
+                  new-label)))
+
    :default
    gui))
 

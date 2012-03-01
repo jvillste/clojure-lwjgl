@@ -79,6 +79,7 @@
 
 (defn resize-quad [quad-buffer index width height]
   (set-quad-coordinates quad-buffer
+                        index
                         (quad-x1 quad-buffer index)
                         (quad-y1 quad-buffer index)
                         width
