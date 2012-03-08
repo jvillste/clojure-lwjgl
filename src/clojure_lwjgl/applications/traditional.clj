@@ -162,7 +162,7 @@
 
 (defn update-window [gui]
   (assoc gui :window (window/update (:window gui)
-                                    20)))
+                                    30)))
 
 (defn clear [gui]
   (let [scale 3]
