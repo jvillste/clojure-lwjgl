@@ -16,7 +16,6 @@
           (float (:alpha color))))
 
 (defn render [rectangle graphics]
-  (println "render rectangle " rectangle)
   (doto graphics
     (.setColor (color-to-java-color (:color rectangle)))
 ;;    (.setColor Color/BLUE)

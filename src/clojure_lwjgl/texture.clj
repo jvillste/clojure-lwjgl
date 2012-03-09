@@ -10,7 +10,9 @@
 
 (defn delete [texture] (GL11/glDeleteTextures (:id texture)))
 
-(defn bind [texture]  (GL11/glBindTexture GL11/GL_TEXTURE_2D (:id texture)))
+(defn bind [texture]
+  (println "binding " (:id texture))
+  (GL11/glBindTexture GL11/GL_TEXTURE_2D (:id texture)))
 
 (defn load [texture]
   (bind texture)

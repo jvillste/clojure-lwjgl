@@ -4,7 +4,8 @@
                            [quad-list :as quad-list]
                            [draw :as draw]
                            [texture-atlas :as texture-atlas]
-                           [zipper-list :as zipper-list]))
+                           [zipper-list :as zipper-list]
+                           [texture :as texture]))
   (:import [java.awt Color AlphaComposite]))
 
 (defrecord ImageList [image-count
@@ -84,6 +85,7 @@
     :texture-atlas (texture-atlas/load (:texture-atlas image-list))))
 
 (defn- draw-image-list [image-list]
+  (texture/bind (:texture (:texture-atlas image-list)))
   (draw/draw-quads (:vertex-buffer-id (:quad-buffer image-list))
                    (:buffer-id  (:texture-coordinate-buffer (:texture-atlas image-list)))
                    (:index-buffer-id (:quad-list image-list))
