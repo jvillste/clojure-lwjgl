@@ -165,7 +165,7 @@
                                     30)))
 
 (defn clear [gui]
-  (let [scale 3]
+  (let [scale 1]
     (GL11/glClearColor 1 1 1 0)
     (GL11/glClear GL11/GL_COLOR_BUFFER_BIT)
     (GL11/glMatrixMode GL11/GL_MODELVIEW)
