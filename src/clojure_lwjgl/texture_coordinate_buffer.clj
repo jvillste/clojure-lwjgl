@@ -1,10 +1,16 @@
 (ns clojure-lwjgl.texture-coordinate-buffer
+  (:import [org.lwjgl.opengl GL11 GL12])
   (:require [clojure-lwjgl.buffer :as buffer]))
 
 
 (defrecord TextureCoordinateBuffer [buffer
                                     buffer-id
                                     needs-to-load])
+
+(defn bind [texture-coordinate-buffer]
+  (GL11/glEnableClientState GL11/GL_TEXTURE_COORD_ARRAY)
+  (buffer/bind-buffer (:buffer-id  texture-coordinate-buffer))
+  (GL11/glTexCoordPointer 2 GL11/GL_FLOAT 0 (long 0)))
 
 (defn texture-index-to-texture-coordinate-index [texture-index]
   (* texture-index

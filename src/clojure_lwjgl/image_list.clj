@@ -85,10 +85,10 @@
     :texture-atlas (texture-atlas/load (:texture-atlas image-list))))
 
 (defn- draw-image-list [image-list]
-  (texture/bind (:texture (:texture-atlas image-list)))
-  (draw/draw-quads (:vertex-buffer-id (:quad-buffer image-list))
-                   (:buffer-id  (:texture-coordinate-buffer (:texture-atlas image-list)))
-                   (:index-buffer-id (:quad-list image-list))
+  (draw/draw-quads (:texture (:texture-atlas image-list))
+                   (:quad-buffer image-list)
+                   (:texture-coordinate-buffer (:texture-atlas image-list))
+                   (:quad-list image-list)
                    (:image-count image-list))
   image-list)
 

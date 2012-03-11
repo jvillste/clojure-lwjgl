@@ -1,5 +1,6 @@
 (ns clojure-lwjgl.quad-buffer
   (:refer-clojure :exclude (load))
+  (:import [org.lwjgl.opengl GL11 GL12])
   (:require [clojure-lwjgl.buffer :as buffer]))
 
 (defn- quad-index-to-vertex-buffer-index [index] (* index 3 4))
@@ -7,6 +8,12 @@
 (defrecord QuadBuffer [quad-count
                        vertex-buffer
                        vertex-buffer-id])
+
+
+(defn bind [quad-buffer]
+  (GL11/glEnableClientState GL11/GL_VERTEX_ARRAY)
+  (buffer/bind-buffer (:vertex-buffer-id quad-buffer))
+  (GL11/glVertexPointer 3 GL11/GL_FLOAT 0 (long 0)))
 
 (defn create []
   (let [maximum-number-of-quads 10]
@@ -46,14 +53,14 @@
         y2 (+ y1 height)]
     (buffer/update-buffer (:vertex-buffer quad-buffer)
                           (quad-index-to-vertex-buffer-index index)
-                            (float-array [x1 y1 0.0
-                                          x2 y1 0.0
-                                          x2 y2 0.0
-                                          x1 y2 0.0])
-                            ;; (float-array [x1 y2 0.0
-                            ;;              x2 y2 0.0
-                            ;;               x2 y1 0.0
-                            ;;              x1 y1 0.0])
+                          (float-array [x1 y1 0.0
+                                        x2 y1 0.0
+                                        x2 y2 0.0
+                                        x1 y2 0.0])
+                          ;; (float-array [x1 y2 0.0
+                          ;;              x2 y2 0.0
+                          ;;               x2 y1 0.0
+                          ;;              x1 y1 0.0])
                           )
     (assoc quad-buffer :needs-to-load true)))
 

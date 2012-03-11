@@ -116,13 +116,11 @@ void main() {
   (GL11/glMatrixMode GL11/GL_MODELVIEW)
   (GL11/glLoadIdentity)
 
-  (texture/bind texture)
-  (draw/draw-quads (:vertex-buffer-id (:quad-buffer paint))
-                   (:buffer-id (:texture-coordinate-buffer paint))
-                   (:index-buffer-id (:quad-list paint))
-                   1)
-
-  )
+  (draw/draw-quads texture
+                   (:quad-buffer paint)
+                   (:texture-coordinate-buffer paint)
+                   (:quad-list paint)
+                   1))
 
 (defn render [paint]
   (render-texture paint

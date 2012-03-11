@@ -8,6 +8,9 @@
                      index-buffer
                      index-buffer-id])
 
+(defn bind [quad-list]
+  (buffer/bind-element-buffer (:index-buffer-id quad-list)))
+
 (defn create []
   (let [maximum-number-of-quads 10]
     (QuadList. 0
