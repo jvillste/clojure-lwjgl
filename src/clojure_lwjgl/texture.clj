@@ -57,6 +57,14 @@
 (defn get-graphics [texture]
   (buffered-image/get-graphics (:buffered-image texture)))
 
+(defn texture-x-to-texel-x [texture texture-x]
+  (* texture-x
+     (:width texture)))
+
+(defn texture-y-to-texel-y [texture texture-y]
+  (* texture-y
+     (:height texture)))
+
 (defn create-for-buffered-image [buffered-image]
   (Texture. (create-gl-texture)
             (.getWidth buffered-image)

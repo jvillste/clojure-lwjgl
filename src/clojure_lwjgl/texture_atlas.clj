@@ -16,32 +16,24 @@
                    (texture-coordinate-buffer/create)
                    (texture/create initial-base-texture-size initial-base-texture-size))))
 
-(defn texture-x-to-texel-x [texture-atlas texture-x]
-  (* texture-x
-     (:width (:texture texture-atlas))))
-
-(defn texture-y-to-texel-y [texture-atlas texture-y]
-  (* texture-y
-     (:height (:texture texture-atlas))))
-
 (defn get-graphics [texture-atlas index]
   (buffered-image/get-graphics (buffered-image/create-child (:buffered-image (:texture texture-atlas))
 
-                                                            (texture-x-to-texel-x texture-atlas
-                                                                                  (texture-coordinate-buffer/x1 (:texture-coordinate-buffer texture-atlas)
-                                                                                                                index))
+                                                            (texture/texture-x-to-texel-x (:texture texture-atlas)
+                                                                                          (texture-coordinate-buffer/x1 (:texture-coordinate-buffer texture-atlas)
+                                                                                                                        index))
 
-                                                            (texture-y-to-texel-y texture-atlas
+                                                            (texture/texture-y-to-texel-y (:texture texture-atlas)
                                                                                   (texture-coordinate-buffer/y1 (:texture-coordinate-buffer texture-atlas)
                                                                                                                 index))
 
-                                                            (texture-x-to-texel-x texture-atlas
+                                                            (texture/texture-x-to-texel-x (:texture texture-atlas)
                                                                                   (texture-coordinate-buffer/width (:texture-coordinate-buffer texture-atlas)
-                                                                                                                index))
+                                                                                                                   index))
 
-                                                            (texture-y-to-texel-y texture-atlas
+                                                            (texture/texture-y-to-texel-y (:texture texture-atlas)
                                                                                   (texture-coordinate-buffer/height (:texture-coordinate-buffer texture-atlas)
-                                                                                                                index)))))
+                                                                                                                    index)))))
 
 
 (defn- new-texture-coordinates-with-y1 [texture-atlas width height y1]

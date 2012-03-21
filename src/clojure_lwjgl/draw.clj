@@ -19,6 +19,16 @@
   
   (GL12/glDrawRangeElements GL11/GL_QUADS 0 (- (* 4 3 quad-count) 1) (* 4 quad-count) GL11/GL_UNSIGNED_INT 0))
 
+(defn draw-quad [texture
+                 quad-buffer
+                 index]
+  
+  (texture/bind texture)
+  (GL11/glDisableClientState GL11/GL_TEXTURE_COORD_ARRAY)
+  (quad-buffer/bind quad-buffer)
+  
+  (GL11/glDrawArrays GL11/GL_QUADS index 1))
+
 (defn draw-triangles [color-buffer-id
                       vertex-buffer-id
                       index-buffer-id
