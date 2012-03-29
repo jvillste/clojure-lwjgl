@@ -57,3 +57,6 @@
 
 (defn disable-program []
   (enable-program 0))
+
+(defn delete-program [program-id]
+  (ARBShaderObjects/glDeleteObjectARB program-id))

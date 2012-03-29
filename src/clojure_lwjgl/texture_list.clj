@@ -5,9 +5,7 @@
             [clojure-lwjgl.buffered-image :as buffered-image]
             [clojure-lwjgl.texture-coordinate-buffer :as texture-coordinate-buffer]))
 
-(defrecord TextureAtlas [texture-count
-                         texture-coordinate-buffer
-                         textures])
+(defrecord TextureAtlas [textures])
 
 (defn create []
   (let [initial-number-of-textures 10

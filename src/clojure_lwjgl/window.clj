@@ -18,6 +18,7 @@
 (defn resize [window]
   (if @(:resize-requested window)
     (do
+      (println "resize")
       (GL11/glViewport 0 0 @(:width window)  @(:height window))
       (GL11/glMatrixMode GL11/GL_PROJECTION)
       (GL11/glLoadIdentity)
