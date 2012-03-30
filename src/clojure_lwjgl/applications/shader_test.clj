@@ -50,7 +50,7 @@ varying vec2 texture_coordinate;
 
 void main() {
 
-    gl_FragColor =texture2D(texture,texture_coordinate); // vec4(1.0f, 0.2f, 0.2f, 1.0f);
+    gl_FragColor = texture2D(texture,texture_coordinate); // vec4(1.0f, 0.2f, 0.2f, 1.0f);
 }
 ")
 
