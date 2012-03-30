@@ -28,22 +28,28 @@
     :texture (texture/load (:texture paint))))
 
 (def vertex-shader-source "
+#version 120
+
 attribute vec4 position;
 varying vec2 texture_coordinate;
 
 void main() {
+
     gl_Position = position;
+//    float index = mod(gl_VertexID, 3.0);
     texture_coordinate = vec2(0.5, 0.5);
 }
 
 ")
 
 (def fragment-shader-source "
+#version 120
+
 uniform sampler2D texture;
 varying vec2 texture_coordinate;
 
 void main() {
-    float index = mod(gl_VertexID, 3.0);
+
     gl_FragColor =texture2D(texture,texture_coordinate); // vec4(1.0f, 0.2f, 0.2f, 1.0f);
 }
 ")
