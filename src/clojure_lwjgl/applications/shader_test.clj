@@ -30,12 +30,11 @@
 (def vertex-shader-source "
 #version 120
 
-attribute vec4 position;
+attribute vec2 position;
 varying vec2 texture_coordinate;
 
 void main() {
-
-    gl_Position = position;
+    gl_Position = gl_ProjectionMatrix * vec4(position[0],position[1],0.0,1.0);
 //    float index = mod(gl_VertexID, 3.0);
     texture_coordinate = vec2(0.5, 0.5);
 }
@@ -67,11 +66,12 @@ void main() {
 (defn create-paint [window]
   {:window window
    :vertex-buffer-id (buffer/create-gl-buffer)
-   :vertex-buffer (buffer/update-buffer (buffer/create-float-buffer (* 4 4))
+   :vertex-buffer (buffer/update-buffer (buffer/create-float-buffer (* 4 2))
                                         0
-                                        (map float [0.75 0.75 0.0 1.0
-                                                    0.75 -0.75 0.0 1.0
-                                                    -0.75 -0.75 0.0 1.0]))})
+                                        (map float [100 100 
+                                                    100 0 
+                                                    0   0
+                                                    0   100]))})
 
 (defn load-images [paint]
   (assoc paint
@@ -94,12 +94,12 @@ void main() {
   (let [position-index (ARBVertexShader/glGetAttribLocationARB (:shader-program paint) "position")]
     (ARBVertexProgram/glEnableVertexAttribArrayARB position-index)
     (ARBVertexProgram/glVertexAttribPointerARB (int position-index)
-                                               (int 4)
+                                               (int 2)
                                                (int GL11/GL_FLOAT)
                                                (boolean GL11/GL_FALSE)
                                                (int 0)
                                                (long 0)))
-  (GL11/glDrawArrays GL11/GL_TRIANGLES 0 3)
+  (GL11/glDrawArrays GL11/GL_QUADS 0 4)
 
   ;;  (GL11/glEnableClientState GL11/GL_VERTEX_ARRAY)
   ;;  (GL11/glVertexPointer 3 GL11/GL_FLOAT 0 (long 0))
