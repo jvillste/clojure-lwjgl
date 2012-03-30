@@ -24,6 +24,8 @@
 (defn load [paint]
   (buffer/load-buffer (:vertex-buffer-id paint)
                       (:vertex-buffer paint))
+  (buffer/load-buffer (:texture-coordinate-buffer-id paint)
+                      (:texture-coordinate-buffer paint))
   (assoc paint
     :texture (texture/load (:texture paint))))
 
@@ -31,12 +33,13 @@
 #version 120
 
 attribute vec2 position;
+attribute vec2 texture_coordinate_attribute;
+
 varying vec2 texture_coordinate;
 
 void main() {
     gl_Position = gl_ProjectionMatrix * vec4(position[0],position[1],0.0,1.0);
-//    float index = mod(gl_VertexID, 3.0);
-    texture_coordinate = vec2(0.5, 0.5);
+    texture_coordinate = texture_coordinate_attribute;
 }
 
 ")
@@ -58,20 +61,30 @@ void main() {
   (when (not (= (:shader-program paint)
                 nil))
     (shader/delete-program (:shader-program paint)))
-  
+
   (assoc paint
     :shader-program (shader/compile-program vertex-shader-source
                                             fragment-shader-source)))
+
+(defn quad [width height]
+  [width height
+   width 0
+   0   0
+   0   height])
 
 (defn create-paint [window]
   {:window window
    :vertex-buffer-id (buffer/create-gl-buffer)
    :vertex-buffer (buffer/update-buffer (buffer/create-float-buffer (* 4 2))
                                         0
-                                        (map float [100 100 
-                                                    100 0 
-                                                    0   0
-                                                    0   100]))})
+                                        (map float (quad 300 200)))
+   :texture-coordinate-buffer-id (buffer/create-gl-buffer)
+   :texture-coordinate-buffer (buffer/update-buffer (buffer/create-float-buffer (* 4 2))
+                                                    0
+                                                    (map float [1 1
+                                                                1 0
+                                                                0 0
+                                                                0 1]))})
 
 (defn load-images [paint]
   (assoc paint
@@ -88,12 +101,23 @@ void main() {
   (GL11/glLoadIdentity)
 
   (shader/enable-program (:shader-program paint))
-  ;;  (texture/bind texture)
-  ;;  (buffer/bind-buffer (:vertex-buffer-id paint))
+  (texture/bind texture)
 
+
+  (buffer/bind-buffer (:vertex-buffer-id paint))
   (let [position-index (ARBVertexShader/glGetAttribLocationARB (:shader-program paint) "position")]
     (ARBVertexProgram/glEnableVertexAttribArrayARB position-index)
     (ARBVertexProgram/glVertexAttribPointerARB (int position-index)
+                                               (int 2)
+                                               (int GL11/GL_FLOAT)
+                                               (boolean GL11/GL_FALSE)
+                                               (int 0)
+                                               (long 0)))
+
+  (buffer/bind-buffer (:texture-coordinate-buffer-id paint))
+  (let [texture-coordinate-attribute-index (ARBVertexShader/glGetAttribLocationARB (:shader-program paint) "texture_coordinate_attribute")]
+    (ARBVertexProgram/glEnableVertexAttribArrayARB texture-coordinate-attribute-index)
+    (ARBVertexProgram/glVertexAttribPointerARB (int texture-coordinate-attribute-index)
                                                (int 2)
                                                (int GL11/GL_FLOAT)
                                                (boolean GL11/GL_FALSE)
@@ -119,7 +143,7 @@ void main() {
       (update-window)))
 
 (comment
-(let [window (window/create 700 500)]
+  (let [window (window/create 700 500)]
     (try
       (let [initial-paint (-> (create-paint window)
                               (load-images)
