@@ -23,7 +23,7 @@ attribute vec2 texture_coordinate_attribute;
 varying vec2 texture_coordinate;
 
 void main() {
-    gl_Position = gl_ProjectionMatrix * vec4(vertex_coordinate_attribute[0], vertex_coordinate_attribute[1], 0.0, 1.0);
+    gl_Position = gl_ProjectionMatrix * gl_ModelViewMatrix * vec4(vertex_coordinate_attribute[0], vertex_coordinate_attribute[1], 0.0, 1.0);
     texture_coordinate = texture_coordinate_attribute;
 }
 
