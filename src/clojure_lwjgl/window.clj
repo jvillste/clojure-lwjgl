@@ -58,7 +58,8 @@
                              (componentResized [e]
                                (println "Resizing")
                                (reset! width (-> canvas .getSize .getWidth))
-                               (reset! height (-> canvas .getSize .getHeight)))))
+                               (reset! height (-> canvas .getSize .getHeight))
+                               (reset! resize-requested true))))
 
     (doto frame
       (.add canvas)

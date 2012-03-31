@@ -112,11 +112,11 @@ void main() {
 
 (defn delete [image]
   (texture/delete (:texture image))
-  (buffer/delete (:vertex-coordinate-buffer-id)))
+  (buffer/delete (:vertex-coordinate-buffer-id image)))
 
 (defn delete-shared-resources [shared-resources]
   (shader/delete-program (:shader-program shared-resources))
-  (buffer/delete (:texture-coordinate-buffer-id)))
+  (buffer/delete (:texture-coordinate-buffer-id shared-resources)))
 
 (defn render [image]
   (shader/enable-program (:shader-program image))

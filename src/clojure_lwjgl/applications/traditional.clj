@@ -71,7 +71,8 @@
       #clojure_lwjgl.applications.traditional.TestLayoutable{:height 10, :x 10, :y 45}])
 
 (defn ids-to-visuals [gui ids]
-  (reduce (fn [visuals visual-id] (conj visuals ((:visuals gui) visual-id)))
+  (reduce (fn [visuals visual-id] (conj visuals (get (:visuals gui)
+                                                     visual-id)))
           []
           ids))
 
@@ -80,6 +81,16 @@
     :visuals (reduce (fn [visuals visual] (assoc visuals (:id visual) visual))
                      (:visuals gui)
                      visuals)))
+(defn render-visual [image-list visual]
+  (image-list/draw-on-image image-list
+                            (:id visual)
+                            #(visual/render visual %)))
+
+(defn resize-visual [image-list visual]
+  (image-list/resize-image image-list
+                           (:id visual)
+                           (layoutable/preferred-width visual)
+                           (layoutable/preferred-height visual)))
 
 (defn layout [gui]
   (let [labels (vertical-stack 5
@@ -93,17 +104,11 @@
 
     (image-list/move-image (:image-list gui)
                            (:selection-rectangle gui)
-                           5
+                           0
                            (:y (nth labels (:selection gui))))
-
     (update-visuals gui labels)))
 
 (defn generate-id [] (rand-int 100000000))
-
-(defn render-visual [image-list visual]
-  (image-list/draw-on-image image-list
-                            (:id visual)
-                            #(visual/render visual %)))
 
 (defn add-visual-to-image-list [image-list visual x y]
   (-> (image-list/add-image image-list
@@ -137,7 +142,7 @@
         (layout))))
 
 (defn create-gui [window]
-  (let [selection-rectangle (create-visual (rectangle/create {:red 0 :green 1 :blue 1 :alpha 1}
+  (let [selection-rectangle (create-visual (rectangle/create {:red 0.5 :green 0.5 :blue 0.5 :alpha 1}
                                                              100
                                                              15
                                                              10))
@@ -154,15 +159,14 @@
         (add-label "Foo 3")
         (add-label "Foo 4")
         (add-label "Foo 5")
-        (add-label "Foo 6")
-        )))
+        (add-label "Foo 6"))))
 
 (defn update-window [gui]
   (assoc gui :window (window/update (:window gui)
-                                    20)))
+                                    10)))
 
 (defn clear [gui]
-  (let [scale 4]
+  (let [scale 1]
     (GL11/glClearColor 1 1 1 0)
     (GL11/glClear GL11/GL_COLOR_BUFFER_BIT)
     (GL11/glMatrixMode GL11/GL_MODELVIEW)
@@ -174,6 +178,16 @@
 
 (defn render [gui]
   (image-list/draw (:image-list gui))
+  (let [text (text/create "JWXY")]
+    (-> (image-list/create)
+        (image-list/add-image :text
+                              0
+                              400
+                              (text/width text)
+                              (text/height text))
+        (image-list/draw-on-image :text #(text/render text %))
+        (image-list/draw)
+        (image-list/delete)))
   gui)
 
 (defn key-pressed [keyboard-event key]
@@ -187,11 +201,7 @@
          (str (:content label)
               character)))
 
-(defn resize-visual [image-list visual]
-  (image-list/resize-image image-list
-                           (:id visual)
-                           (layoutable/preferred-width visual)
-                           (layoutable/preferred-height visual)))
+
 
 (defn handle-event [gui keyboard-event]
   (cond
@@ -219,20 +229,29 @@
                   new-label)))
 
    :default
-   gui))
+   gui
+   ))
 
-(defn update-view [gui]
-  (layout (reduce handle-event gui (input/unread-keyboard-events))))
+(defn update-view [gui unread-keyboard-events]
+  (layout (reduce handle-event gui unread-keyboard-events)))
 
 (defn update [gui]
-  (-> gui
-      (clear)
-      (update-view)
-      (render)
-      (update-window)))
+  (let [unread-keyboard-events (input/unread-keyboard-events)]
+    (if (empty? unread-keyboard-events)
+      (-> gui
+          (clear)
+          (update-view unread-keyboard-events)
+          (render)
+          (update-window))
+      (-> gui
+          (clear)
+          (update-view unread-keyboard-events)
+          (render)
+          (update-window)))))
 
-(comment
-(let [window (window/create 500 500)]
+
+(defn start []
+  (let [window (window/create 500 500)]
     (try
       (let [initial-gui (create-gui window)]
         (loop [gui initial-gui]
@@ -244,5 +263,9 @@
         (println e)
         (.printStackTrace e)
         (window/close window)))))
+
+(comment
+(start)
+  )
 
 
