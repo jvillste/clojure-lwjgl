@@ -167,9 +167,8 @@
     (GL11/glClear GL11/GL_COLOR_BUFFER_BIT)
     (GL11/glMatrixMode GL11/GL_MODELVIEW)
     (GL11/glLoadIdentity)
-    ;;    (GL11/glScalef scale (- scale) 1)
-    ;;    (GL11/glTranslatef 0 (- (* (/ 1 scale) @(:height (:window gui)))) 0)
-    )
+    (GL11/glScalef scale (- scale) 1)
+    (GL11/glTranslatef 0 (- (* (/ 1 scale) @(:height (:window gui)))) 0))
 
   gui)
 
