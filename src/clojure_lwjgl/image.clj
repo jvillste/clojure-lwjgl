@@ -17,13 +17,13 @@
 (def vertex-shader-source "
 #version 120
 
-attribute vec2 position;
+attribute vec2 vertex_coordinate_attribute;
 attribute vec2 texture_coordinate_attribute;
 
 varying vec2 texture_coordinate;
 
 void main() {
-    gl_Position = gl_ProjectionMatrix * vec4(position[0],position[1], 0.0, 1.0);
+    gl_Position = gl_ProjectionMatrix * vec4(vertex_coordinate_attribute[0], vertex_coordinate_attribute[1], 0.0, 1.0);
     texture_coordinate = texture_coordinate_attribute;
 }
 
@@ -44,22 +44,24 @@ void main() {
 (defn create-shared-resources []
   (let [shader-program (shader/compile-program vertex-shader-source
                                                fragment-shader-source)
+        vertex-coordinate-attribute-index (ARBVertexShader/glGetAttribLocationARB shader-program "vertex_coordinate_attribute")
+        texture-coordinate-attribute-index (ARBVertexShader/glGetAttribLocationARB shader-program "texture_coordinate_attribute")
+
         texture-coordinate-buffer-id (buffer/create-gl-buffer)
         texture-coordinate-buffer (buffer/update-buffer (buffer/create-float-buffer (* 4 2))
                                                         0
                                                         (map float [1 1
                                                                     1 0
                                                                     0 0
-                                                                    0 1]))
-        position-index (ARBVertexShader/glGetAttribLocationARB shader-program "position")
-        texture-coordinate-attribute-index (ARBVertexShader/glGetAttribLocationARB shader-program "texture_coordinate_attribute")]
+                                                                    0 1]))]
     (buffer/load-buffer texture-coordinate-buffer-id
                         texture-coordinate-buffer)
+
 
     {:shader-program shader-program
      :texture-coordinate-buffer-id texture-coordinate-buffer-id
      :texture-coordinate-buffer texture-coordinate-buffer
-     :position-index position-index
+     :vertex-coordinate-attribute-index vertex-coordinate-attribute-index
      :texture-coordinate-attribute-index texture-coordinate-attribute-index}))
 
 (defn quad [x y width height]
@@ -83,6 +85,7 @@ void main() {
                      {:texture texture
                       :vertex-coordinate-buffer-id (buffer/create-gl-buffer)
                       :vertex-coordinate-buffer (buffer/create-float-buffer (* 4 2))})]
+
     (move image x y)
     image))
 
@@ -91,8 +94,8 @@ void main() {
   (texture/bind (:texture image))
 
   (buffer/bind-buffer (:vertex-coordinate-buffer-id image))
-  (ARBVertexProgram/glEnableVertexAttribArrayARB (:position-index image))
-  (ARBVertexProgram/glVertexAttribPointerARB (int (:position-index image))
+  (ARBVertexProgram/glEnableVertexAttribArrayARB (:vertex-coordinate-attribute-index image))
+  (ARBVertexProgram/glVertexAttribPointerARB (int (:vertex-coordinate-attribute-index image))
                                              (int 2)
                                              (int GL11/GL_FLOAT)
                                              (boolean GL11/GL_FALSE)
