@@ -15,11 +15,6 @@
   (:import [java.awt Color Font  RenderingHints]
            [org.lwjgl.opengl GL11 GL20 ARBVertexBufferObject ARBVertexProgram ARBVertexShader]))
 
-(defn width [paint]
-  (:width (:texture paint)))
-
-(defn height [paint]
-  (:height (:texture paint)))
 
 (defn load [paint]
   (buffer/load-buffer (:vertex-buffer-id paint)
@@ -38,7 +33,7 @@ attribute vec2 texture_coordinate_attribute;
 varying vec2 texture_coordinate;
 
 void main() {
-    gl_Position = gl_ProjectionMatrix * vec4(position[0],position[1],0.0,1.0);
+    gl_Position = gl_ProjectionMatrix * vec4(position[0],position[1], 0.0, 1.0);
     texture_coordinate = texture_coordinate_attribute;
 }
 
@@ -51,8 +46,7 @@ uniform sampler2D texture;
 varying vec2 texture_coordinate;
 
 void main() {
-
-    gl_FragColor = texture2D(texture,texture_coordinate); // vec4(1.0f, 0.2f, 0.2f, 1.0f);
+    gl_FragColor = texture2D(texture, texture_coordinate);
 }
 ")
 
@@ -103,7 +97,6 @@ void main() {
   (shader/enable-program (:shader-program paint))
   (texture/bind texture)
 
-
   (buffer/bind-buffer (:vertex-buffer-id paint))
   (let [position-index (ARBVertexShader/glGetAttribLocationARB (:shader-program paint) "position")]
     (ARBVertexProgram/glEnableVertexAttribArrayARB position-index)
@@ -123,12 +116,7 @@ void main() {
                                                (boolean GL11/GL_FALSE)
                                                (int 0)
                                                (long 0)))
-  (GL11/glDrawArrays GL11/GL_QUADS 0 4)
-
-  ;;  (GL11/glEnableClientState GL11/GL_VERTEX_ARRAY)
-  ;;  (GL11/glVertexPointer 3 GL11/GL_FLOAT 0 (long 0))
-  ;;  (GL12/glDrawRangeElements GL11/GL_QUADS 0 (- (* 4 3 quad-count) 1) (* 4 quad-count) GL11/GL_UNSIGNED_INT 0)
-  )
+  (GL11/glDrawArrays GL11/GL_QUADS 0 4))
 
 (defn render [paint]
   (render-texture paint
@@ -143,7 +131,7 @@ void main() {
       (update-window)))
 
 (comment
-  (let [window (window/create 700 500)]
+(let [window (window/create 700 500)]
     (try
       (let [initial-paint (-> (create-paint window)
                               (load-images)

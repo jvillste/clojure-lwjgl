@@ -95,4 +95,15 @@
       (assoc ::window (create))
       (event-queue/add-event-handler :update update)))
 
-
+(defn start [width height framerate initialize update-state]
+  (let [window (create width height)]
+    (try
+      (loop [state (initialize)]
+        (if (not @(:close-requested window))
+          (do (update window framerate)
+              (recur (update-state state)))
+          (close window)))
+      (catch Exception e
+        (println e)
+        (.printStackTrace e)
+        (close window)))))
