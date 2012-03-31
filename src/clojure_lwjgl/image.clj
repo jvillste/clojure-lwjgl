@@ -70,24 +70,53 @@ void main() {
    x   y
    x   (+ y height)])
 
-(defn move [image x y]
+(defn width [image]
+  (:width (:texture image)))
+
+(defn height [image]
+  (:height (:texture image)))
+
+(defn update-vertexes [image]
   (buffer/update-buffer (:vertex-coordinate-buffer image)
                         0
-                        (map float (quad x
-                                         y
-                                         (:width (:texture image))
-                                         (:height (:texture image)))))
+                        (map float (quad (:x image)
+                                         (:y image)
+                                         (width image)
+                                         (height image))))
   (buffer/load-buffer (:vertex-coordinate-buffer-id image)
-                      (:vertex-coordinate-buffer image)))
+                      (:vertex-coordinate-buffer image))
+  image)
+
+(defn move [image x y]
+  (-> (assoc image
+        :x x
+        :y y)
+      (update-vertexes)))
+
+(defn set-texture [image texture]
+  (texture/delete (:texture image))
+  (-> (assoc image
+        :texture texture)
+      (update-vertexes)))
 
 (defn create [shared-resources x y texture]
   (let [image (merge shared-resources
-                     {:texture texture
+                     {:x x
+                      :y y
+                      :texture texture
                       :vertex-coordinate-buffer-id (buffer/create-gl-buffer)
                       :vertex-coordinate-buffer (buffer/create-float-buffer (* 4 2))})]
 
-    (move image x y)
+    (update-vertexes image)
     image))
+
+(defn delete [image]
+  (texture/delete (:texture image))
+  (buffer/delete (:vertex-coordinate-buffer-id)))
+
+(defn delete-shared-resources [shared-resources]
+  (shader/delete-program (:shader-program shared-resources))
+  (buffer/delete (:texture-coordinate-buffer-id)))
 
 (defn render [image]
   (shader/enable-program (:shader-program image))

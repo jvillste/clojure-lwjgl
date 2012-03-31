@@ -1,7 +1,6 @@
 (ns clojure-lwjgl.applications.traditional
   (:refer-clojure :exclude (load))
   (:require (clojure-lwjgl [window :as window]
-                           [visual-list :as visual-list]
                            [visual :as visual]
                            [image-list :as image-list]
                            [input :as input]
@@ -101,20 +100,19 @@
 
 (defn generate-id [] (rand-int 100000000))
 
-(defn render-visual [visual image-list]
-  (visual/render visual (image-list/get-graphics image-list (:id visual))))
+(defn render-visual [image-list visual]
+  (image-list/draw-on-image image-list
+                            (:id visual)
+                            #(visual/render visual %)))
 
 (defn add-visual-to-image-list [image-list visual x y]
-  (let [image-list (image-list/add-image image-list
-                                         (:id visual)
-                                         x
-                                         y
-                                         (layoutable/preferred-width visual)
-                                         (layoutable/preferred-height visual))]
-
-    (render-visual visual image-list)
-
-    image-list))
+  (-> (image-list/add-image image-list
+                            (:id visual)
+                            x
+                            y
+                            (layoutable/preferred-width visual)
+                            (layoutable/preferred-height visual))
+      (render-visual visual)))
 
 (defn create-visual [visual]
   (assoc visual
@@ -137,7 +135,6 @@
                     10
                     10)
         (layout))))
-
 
 (defn create-gui [window]
   (let [selection-rectangle (create-visual (rectangle/create {:red 0 :green 1 :blue 1 :alpha 1}
@@ -170,8 +167,9 @@
     (GL11/glClear GL11/GL_COLOR_BUFFER_BIT)
     (GL11/glMatrixMode GL11/GL_MODELVIEW)
     (GL11/glLoadIdentity)
-    (GL11/glScalef scale (- scale) 1)
-    (GL11/glTranslatef 0 (- (* (/ 1 scale) @(:height (:window gui)))) 0))
+    ;;    (GL11/glScalef scale (- scale) 1)
+    ;;    (GL11/glTranslatef 0 (- (* (/ 1 scale) @(:height (:window gui)))) 0)
+    )
 
   gui)
 
@@ -213,10 +211,10 @@
    (let [label-id (nth (:labels gui) (:selection gui))
          label ((:visuals gui) label-id)
          new-label (add-character label (:character keyboard-event))]
-     (println "character " label new-label)
-     (resize-visual (:image-list gui) new-label)
-     (render-visual new-label (:image-list gui))
      (assoc gui
+       :image-list (-> (:image-list gui)
+                       (resize-visual new-label)
+                       (render-visual new-label))
        :visuals (assoc (:visuals gui)
                   label-id
                   new-label)))

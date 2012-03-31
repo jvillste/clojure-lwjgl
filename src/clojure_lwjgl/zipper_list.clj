@@ -56,6 +56,11 @@
         (recur (zip/next zipper-list)
                (+ 1 index))))))
 
+(defn items [zipper-list]
+  (-> zipper-list
+      (zip/children)
+      (rest)))
+
 (defn count [zipper-list]
   (-> zipper-list
       (zip/node)
@@ -100,12 +105,19 @@
       (count))
   => 2)
 
-(fact "count should return the number of items inserted"
+(fact "inte index should correspond to the insertion point"
   (-> (create)
       (add :item-1)
       (add :item-2)
       (insert-after :item-1 :item-3)
       (index :item-3))
   => 1)
+
+(fact "items should return the inserted items"
+  (-> (create)
+      (add :item-1)
+      (add :item-2)
+      (items))
+  => [:item-1 :item-2])
 
 
