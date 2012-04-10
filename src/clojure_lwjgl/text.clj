@@ -8,7 +8,7 @@
                            [layoutable :as layoutable])))
 
 (def font (-> (Font/createFont Font/TRUETYPE_FONT (File. "Vera.ttf"))
-              (.deriveFont (float 50))))
+              (.deriveFont (float 20))))
 
 (defn get-font-metrics [font]
   (let [graphics (.getGraphics (BufferedImage. 1 1 BufferedImage/TYPE_INT_ARGB))]

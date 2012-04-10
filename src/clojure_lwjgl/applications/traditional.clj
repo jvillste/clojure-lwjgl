@@ -240,7 +240,7 @@
     (if (empty? unread-keyboard-events)
       (-> gui
           (clear)
-          (update-view unread-keyboard-events)
+;;          (update-view unread-keyboard-events)
           (render)
           (update-window))
       (-> gui

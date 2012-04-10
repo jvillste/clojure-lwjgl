@@ -4,9 +4,7 @@
            [org.lwjgl BufferUtils]
            [java.awt Frame Canvas]
            [java.awt.event WindowAdapter ComponentAdapter]
-           [java.nio IntBuffer FloatBuffer]
-           [jpen.owner.multiAwt AwtPenToolkit]
-           [jpen.event PenAdapter])
+           [java.nio IntBuffer FloatBuffer])
   (:require [clojure-lwjgl.event-queue :as event-queue]))
 
 (defrecord Window [frame
@@ -70,11 +68,6 @@
            (reset! close-requested true))))
       (.setSize initial-width initial-height)
       .show)
-
-    (AwtPenToolkit/addPenListener frame
-                                  (proxy [PenAdapter] []
-                                    (penLevelEvent [e]
-                                      (println "pen level event " e))))
 
     (Display/setParent canvas)
     (Display/create)
