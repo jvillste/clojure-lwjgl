@@ -36,7 +36,7 @@
            (:y parent)))])
 
 (fact "box adds a margin"
-  (box 10
+  (box 100
        {:x 5 :y 10}
        (text/create "Foo"))
   => [{:height 33, :width 40, :y 10, :x 5}
