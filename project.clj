@@ -8,4 +8,5 @@
                  [org.clojure/data.priority-map "0.0.1"]
                  [jpen/jpen "2.111002"]
                  [jpen/jpen-native "2.111002"]
-                 [midje "1.3.1"]])
+                 [midje "1.3.1"]
+                 [analyze "0.1.5"]])
