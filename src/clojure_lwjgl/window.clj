@@ -69,6 +69,8 @@
       (.setSize initial-width initial-height)
       .show)
 
+    (.requestFocus canvas)
+    
     (Display/setParent canvas)
     (Display/create)
     (initialize-gl)
@@ -77,6 +79,9 @@
                   :resize-requested resize-requested
                   :width width
                   :height height})))
+
+(defn request-close [window]
+  (reset! (:close-requested window) true))
 
 (defn close [window]
   (println "Destroying window")

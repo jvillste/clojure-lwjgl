@@ -3,6 +3,7 @@
   (:require (clojure-lwjgl [window :as window]
                            [visual :as visual]
                            [image-list :as image-list]
+                           [visual-list :as visual-list]
                            [input :as input]
                            [group :as group]
                            [text :as text]
@@ -22,25 +23,6 @@
 ;; currytään bufferi funktiolle ennen kuin funktio annetaan sille funktiolle joka sitä kutsuu
 ;; state monad
 
-
-(defn box [margin parent child]
-  [(assoc parent
-     :width (+ (* 2 margin)
-               (layoutable/preferred-width child))
-     :height (+ (* 2 margin)
-                (layoutable/preferred-height child)))
-   (assoc child
-     :x (+ margin
-           (:x parent))
-     :y (+ margin
-           (:y parent)))])
-
-(fact "box adds a margin"
-  (box 100
-       {:x 5 :y 10}
-       (text/create "Foo"))
-  => [{:height 33, :width 40, :y 10, :x 5}
-      #clojure_lwjgl.text.Text{:content "Foo", :y 20, :x 15}])
 
 (defn vertical-stack [x0 y0 visuals]
   (loop [visuals visuals
@@ -71,99 +53,81 @@
       #clojure_lwjgl.applications.traditional.TestLayoutable{:height 10, :x 10, :y 45}])
 
 (defn ids-to-visuals [gui ids]
-  (reduce (fn [visuals visual-id] (conj visuals (get (:visuals gui)
-                                                     visual-id)))
+  (reduce (fn [visuals visual-id] (conj visuals (assoc (visual-list/get-visual (:visual-list gui)
+                                                                               visual-id)
+                                                  :id visual-id)))
           []
           ids))
 
 (defn update-visuals [gui visuals]
   (assoc gui
-    :visuals (reduce (fn [visuals visual] (assoc visuals (:id visual) visual))
-                     (:visuals gui)
-                     visuals)))
-(defn render-visual [image-list visual]
-  (image-list/draw-on-image image-list
-                            (:id visual)
-                            #(visual/render visual %)))
-
-(defn resize-visual [image-list visual]
-  (image-list/resize-image image-list
-                           (:id visual)
-                           (layoutable/preferred-width visual)
-                           (layoutable/preferred-height visual)))
+    :visual-list (reduce (fn [visual-list visual] (visual-list/update-visual visual-list (:id visual) visual))
+                         (:visual-list gui)
+                         visuals)))
 
 (defn layout [gui]
   (let [labels (vertical-stack 5
                                5
                                (ids-to-visuals gui (:labels gui)))]
-    (doseq [label labels]
-      (image-list/move-image (:image-list gui)
-                             (:id label)
-                             (:x label)
-                             (:y label)))
+    (-> gui
+        (update-in [:visual-list] #(visual-list/apply-to-visual %
+                                                                :selection-rectangle
+                                                                (fn [selection-rectangle]
+                                                                  (assoc selection-rectangle
+                                                                    :x 0
+                                                                    :y (:y (nth labels (:selection gui)))))))
+        (update-visuals labels))))
 
-    (image-list/move-image (:image-list gui)
-                           (:selection-rectangle gui)
-                           0
-                           (:y (nth labels (:selection gui))))
-    (update-visuals gui labels)))
+(defn generate-id [] (keyword (str (rand-int 100000000))))
 
-(defn generate-id [] (rand-int 100000000))
+(defn set-size [layoutable]
+  (assoc layoutable
+    :width (layoutable/preferred-width layoutable)
+    :height (layoutable/preferred-height layoutable)))
 
-(defn add-visual-to-image-list [image-list visual x y]
-  (-> (image-list/add-image image-list
-                            (:id visual)
-                            x
-                            y
-                            (layoutable/preferred-width visual)
-                            (layoutable/preferred-height visual))
-      (render-visual visual)))
+(defn absolute-layout [layoutable x y]
+  (-> layoutable
+      set-size
+      (assoc :x x
+             :y y)))
 
-(defn create-visual [visual]
-  (assoc visual
-    :id (generate-id)))
-
-(defn add-visual [gui visual x y]
-  (assoc gui
-    :image-list (add-visual-to-image-list (:image-list gui)
-                                          visual
-                                          x
-                                          y)
-    :visuals (assoc (:visuals gui) (:id visual) visual)))
+(defn add-visual [gui id visual x y]
+  (update-in gui [:visual-list] #(visual-list/add-visual %
+                                                         id
+                                                         (absolute-layout visual x y))))
 
 (defn add-label [gui message]
-  (let [label (create-visual (text/create message))]
+  (let [id (generate-id)]
     (-> gui
-        (assoc :labels (conj (:labels gui)
-                             (:id label)))
-        (add-visual label
+        (update-in [:labels] #(conj %
+                                    id))
+        (add-visual id
+                    (text/create message)
                     10
-                    10)
-        (layout))))
+                    10))))
 
 (defn create-gui [window]
-  (let [selection-rectangle (create-visual (rectangle/create {:red 0.5 :green 0.5 :blue 0.5 :alpha 1}
-                                                             100
-                                                             15
-                                                             10))
-        gui {:window window
-             :visuals {}
-             :selection-rectangle (:id selection-rectangle)
-             :labels []
-             :image-list (image-list/create)
-             :selection 0}]
-    (-> gui
-        (add-visual selection-rectangle 5 5)
-        (add-label "Foo 1")
-        (add-label "Foo 2")
-        (add-label "Foo 3")
-        (add-label "Foo 4")
-        (add-label "Foo 5")
-        (add-label "Foo 6"))))
+  (-> {:window window
+       :visual-list (visual-list/create)
+       :labels []
+       :selection 0}
+
+      (add-visual :selection-rectangle
+                  (rectangle/create {:red 0.5 :green 0.5 :blue 0.5 :alpha 1}
+                                    100
+                                    15
+                                    10)
+                  5 5)
+      (add-label "Foo 1")
+      (add-label "Foo 2")
+      (add-label "Foo 3")
+      (add-label "Foo 4")
+      (add-label "Foo 5")
+      (add-label "Foo 6")))
 
 (defn update-window [gui]
   (assoc gui :window (window/update (:window gui)
-                                    10)))
+                                    30)))
 
 (defn clear [gui]
   (let [scale 1]
@@ -177,7 +141,7 @@
   gui)
 
 (defn render [gui]
-  (image-list/draw (:image-list gui))
+  (visual-list/draw (:visual-list gui))
   (let [text (text/create "JWXY")]
     (-> (image-list/create)
         (image-list/add-image :text
@@ -196,15 +160,24 @@
        (= (:type keyboard-event)
           :key-pressed)))
 
-(defn add-character [label character]
-  (assoc label :content
-         (str (:content label)
-              character)))
+;; text editing
 
+(defn edit-text [text keyboard-event]
+  (if (re-find #"\w" (str (:character keyboard-event)))
+    (str text (:character keyboard-event))
+    text))
 
+(defn update-label [label keyboard-event]
+  (-> label
+      (update-in [:content] #(edit-text % keyboard-event))
+      set-size))
 
 (defn handle-event [gui keyboard-event]
   (cond
+   (key-pressed keyboard-event input/escape)
+   (do (window/request-close (:window gui))
+       gui)
+
    (key-pressed keyboard-event input/down)
    (assoc gui
      :selection (min (+ 1
@@ -216,31 +189,25 @@
      :selection (max (- (:selection gui)
                         1)
                      0))
+
    (re-find #"\w" (str (:character keyboard-event)))
-   (let [label-id (nth (:labels gui) (:selection gui))
-         label ((:visuals gui) label-id)
-         new-label (add-character label (:character keyboard-event))]
-     (assoc gui
-       :image-list (-> (:image-list gui)
-                       (resize-visual new-label)
-                       (render-visual new-label))
-       :visuals (assoc (:visuals gui)
-                  label-id
-                  new-label)))
+   (update-in gui [:visual-list] (visual-list/apply-to-visual (nth (:labels gui) (:selection gui))
+                                                              #(update-label % keyboard-event)))
 
    :default
    gui
    ))
 
 (defn update-view [gui unread-keyboard-events]
-  (layout (reduce handle-event gui unread-keyboard-events)))
+  (-> (reduce handle-event gui unread-keyboard-events)
+      layout))
 
 (defn update [gui]
   (let [unread-keyboard-events (input/unread-keyboard-events)]
     (if (empty? unread-keyboard-events)
       (-> gui
           (clear)
-;;          (update-view unread-keyboard-events)
+          ;;          (update-view unread-keyboard-events)
           (render)
           (update-window))
       (-> gui

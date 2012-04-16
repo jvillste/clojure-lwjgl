@@ -95,6 +95,7 @@
 
 ;; KEYBOARD
 
+(def escape 1)
 (def up 200)
 (def left 203)
 (def down 208)
