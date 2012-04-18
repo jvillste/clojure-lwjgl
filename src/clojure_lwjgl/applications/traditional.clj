@@ -61,7 +61,10 @@
 
 (defn update-visuals [gui visuals]
   (assoc gui
-    :visual-list (reduce (fn [visual-list visual] (visual-list/update-visual visual-list (:id visual) visual))
+    :visual-list (reduce (fn [visual-list visual]
+                           (visual-list/update-visual visual-list
+                                                      (:id visual)
+                                                      visual))
                          (:visual-list gui)
                          visuals)))
 
@@ -76,7 +79,9 @@
                                                                   (assoc selection-rectangle
                                                                     :x 0
                                                                     :y (:y (nth labels (:selection gui)))))))
-        (update-visuals labels))))
+        (update-visuals labels)
+        )
+    ))
 
 (defn generate-id [] (keyword (str (rand-int 100000000))))
 
@@ -123,7 +128,8 @@
       (add-label "Foo 3")
       (add-label "Foo 4")
       (add-label "Foo 5")
-      (add-label "Foo 6")))
+      (add-label "Foo 6")
+      (layout)))
 
 (defn update-window [gui]
   (assoc gui :window (window/update (:window gui)
@@ -191,8 +197,9 @@
                      0))
 
    (re-find #"\w" (str (:character keyboard-event)))
-   (update-in gui [:visual-list] (visual-list/apply-to-visual (nth (:labels gui) (:selection gui))
-                                                              #(update-label % keyboard-event)))
+   (assoc gui :visual-list (visual-list/apply-to-visual (:visual-list gui)
+                                                        (nth (:labels gui) (:selection gui))
+                                                        #(update-label % keyboard-event)))
 
    :default
    gui
@@ -216,20 +223,12 @@
           (render)
           (update-window)))))
 
-
 (defn start []
-  (let [window (window/create 500 500)]
-    (try
-      (let [initial-gui (create-gui window)]
-        (loop [gui initial-gui]
-          (if (not @(:close-requested (:window gui)))
-            (recur (update gui))
-            (window/close window))))
-
-      (catch Exception e
-        (println e)
-        (.printStackTrace e)
-        (window/close window)))))
+  (window/start 500
+                500
+                20
+                create-gui
+                update))
 
 (comment
 (start)

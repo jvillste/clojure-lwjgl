@@ -97,7 +97,7 @@
 (defn start [width height framerate initialize update-state]
   (let [window (create width height)]
     (try
-      (loop [state (initialize)]
+      (loop [state (initialize window)]
         (if (not @(:close-requested window))
           (do (update window framerate)
               (recur (update-state state)))

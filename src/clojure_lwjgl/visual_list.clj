@@ -48,8 +48,8 @@
                                                   (:height new-visual))))
                                    (image-list/resize-image (:image-list visual-list)
                                                             id
-                                                            (:x new-visual)
-                                                            (:y new-visual))
+                                                            (:width new-visual)
+                                                            (:height new-visual))
                                    (:image-list visual-list))))
 
 (defn update-visual-image [visual-list id visual new-visual]
@@ -64,7 +64,9 @@
         (update-visual-position id old-visual new-visual)
         (update-visual-dimensions id old-visual new-visual)
         (update-visual-image id old-visual new-visual)
-        (update-in [:visuals id] new-visual))))
+        ;;(update-in [:visuals id] new-visual)
+        (assoc :visuals (assoc (:visuals visual-list) id new-visual))
+        )))
 
 
 (defn apply-to-visual [visual-list id f]

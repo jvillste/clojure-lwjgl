@@ -24,7 +24,7 @@
       (texture/create-for-buffered-image)
       (texture/load)))
 
-(defn create-application []
+(defn create-application [window]
   (let [shared-image-resources (image/create-shared-resources)
         texture (load-texture "birdie_logo.png")]
     {:images [(image/create shared-image-resources 0 0 texture)
