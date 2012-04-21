@@ -30,8 +30,6 @@
              (+ y0 (layoutable/preferred-height visual))
              (rest visuals)))))
 
-
-
 (defn vertical-stack [x0 y0 visuals]
   (loop [visuals visuals
          layouted-visuals []
@@ -215,16 +213,17 @@
                     #(update-label % event)
                     (nth (:labels gui) (:selection gui)))))
 
-(defn update-view [gui unread-keyboard-events]
-  (-> (reduce handle-event gui unread-keyboard-events)
+(defn handle-events [gui events]
+  (-> (reduce handle-event gui events)
       layout
       render))
 
 (defn update [gui]
-  (let [unread-keyboard-events (input/unread-keyboard-events)]
-    (if (empty? unread-keyboard-events)
-      (update-view gui unread-keyboard-events)
-      (update-view gui unread-keyboard-events))))
+  (let [unread-events (concat (input/unread-keyboard-events)
+                              (input/unread-mouse-events))]
+    (if (empty? unread-events)
+      gui
+      (handle-events gui unread-events))))
 
 (defn start []
   (window/start 500

@@ -95,7 +95,8 @@
       (event-queue/add-event-handler :update update)))
 
 (defn start [width height framerate initialize update-state]
-  (let [window (create width height)]
+  (let [window (-> (create width height)
+                   (update framerate))]
     (try
       (loop [state (initialize window)]
         (if (not @(:close-requested window))
