@@ -41,7 +41,6 @@
     :visual-list (apply function (cons (:visual-list gui) args))))
 
 (defn layout [gui]
-  (println  "layout" (:selection gui))
   (-> gui
       (apply-to-visual-list visual-list/apply-to-visuals
                             #(layout/vertical-stack 5 5 %)
