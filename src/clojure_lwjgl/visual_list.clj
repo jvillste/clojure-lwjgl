@@ -2,7 +2,8 @@
   (:require (clojure-lwjgl [image-list :as image-list]
                            [visual :as visual]
                            [free-layout :as free-layout]
-                           [event-queue :as event-queue])))
+                           [event-queue :as event-queue]))
+  (:use clojure-lwjgl.thread-it))
 
 (defrecord VisualList [visuals image-list])
 
@@ -71,6 +72,26 @@
 
 (defn apply-to-visual [visual-list id f]
   (update-visual visual-list id (f (get-in visual-list [:visuals id]))))
+
+(defn ids-to-visuals [visual-list ids]
+  (reduce (fn [visuals visual-id] (conj visuals (assoc (get-visual visual-list
+                                                                   visual-id)
+                                                  :id visual-id)))
+          []
+          ids))
+
+(defn update-visuals [visual-list visuals]
+  (reduce (fn [visual-list visual]
+            (update-visual visual-list
+                                       (:id visual)
+                                       visual))
+          visual-list
+          visuals))
+
+(defn apply-to-visuals [visual-list function visual-ids]
+  (thread-it (ids-to-visuals visual-list visual-ids)
+             (function it)
+             (update-visuals visual-list it)))
 
 (defn draw [visual-list]
   (update-in visual-list [:image-list]  #(image-list/draw %)))

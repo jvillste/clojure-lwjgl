@@ -9,7 +9,9 @@
                            [text :as text]
                            [free-layout :as free-layout]
                            [layoutable :as layoutable]
-                           [rectangle :as rectangle])
+                           [rectangle :as rectangle]
+                           [layout :as layout])
+            [clojure-lwjgl.applications application]
             [clojure.zip :as zip]
             [clojure.contrib.dataflow :as dataflow])
 
@@ -22,117 +24,6 @@
 ;; thread local binding
 ;; currytään bufferi funktiolle ennen kuin funktio annetaan sille funktiolle joka sitä kutsuu
 ;; state monad
-(defn vertical-stack2 [x0 y0 visuals]
-  (when (seq visuals)
-    (let [visual (first visuals)]
-      (println x0 " " y0)
-      (recur x0
-             (+ y0 (layoutable/preferred-height visual))
-             (rest visuals)))))
-
-(defn vertical-stack [x0 y0 visuals]
-  (loop [visuals visuals
-         layouted-visuals []
-         y y0]
-    (if (seq visuals)
-      (let [visual (assoc (first visuals)
-                     :y y
-                     :x x0)]
-        (recur (rest visuals)
-               (conj layouted-visuals
-                     visual)
-               (+ y (layoutable/preferred-height visual))))
-      layouted-visuals)))
-
-(defrecord TestLayoutable [height]
-  layoutable/Layoutable
-  (layoutable/preferred-height [test-layoutable] (:height test-layoutable)))
-
-(fact "vertical stack sets x and y coordinates"
-  (vertical-stack 10
-                  20
-                  [(TestLayoutable. 10)
-                   (TestLayoutable. 15)
-                   (TestLayoutable. 10)])
-  => [#clojure_lwjgl.applications.traditional.TestLayoutable{:height 10, :x 10, :y 20}
-      #clojure_lwjgl.applications.traditional.TestLayoutable{:height 15, :x 10, :y 30}
-      #clojure_lwjgl.applications.traditional.TestLayoutable{:height 10, :x 10, :y 45}])
-
-(defn ids-to-visuals [gui ids]
-  (reduce (fn [visuals visual-id] (conj visuals (assoc (visual-list/get-visual (:visual-list gui)
-                                                                               visual-id)
-                                                  :id visual-id)))
-          []
-          ids))
-
-(defn update-visuals [gui visuals]
-  (assoc gui
-    :visual-list (reduce (fn [visual-list visual]
-                           (visual-list/update-visual visual-list
-                                                      (:id visual)
-                                                      visual))
-                         (:visual-list gui)
-                         visuals)))
-
-(defn apply-to-visual [gui function visual-id]
-  (assoc gui :visual-list (visual-list/apply-to-visual (:visual-list gui)
-                                                       visual-id
-                                                       function)))
-
-(defmacro thread-it [& [first-expr & rest-expr]]
-  (if (empty? rest-expr)
-    first-expr
-    `(let [~'it ~first-expr]
-       (thread-it ~@rest-expr))))
-
-(defn apply-to-visuals [gui function visual-ids]
-  (thread-it (ids-to-visuals gui visual-ids)
-             (function it)
-             (update-visuals gui it)))
-
-(defn get-visual [gui visual-id]
-  (visual-list/get-visual (:visual-list gui) visual-id))
-
-
-(defn layout [gui]
-  (-> gui
-      (apply-to-visuals  #(vertical-stack 5 5 %)
-                         (:labels gui))
-      (apply-to-visual #(assoc %
-                          :x 0
-                          :y (:y (get-visual gui
-                                             (nth (:labels gui)
-                                                  (:selection gui)))))
-                       :selection-rectangle)))
-
-(defn generate-id [] (keyword (str (rand-int 100000000))))
-
-(defn set-preferred-size [layoutable]
-  (assoc layoutable
-    :width (layoutable/preferred-width layoutable)
-    :height (layoutable/preferred-height layoutable)))
-
-(defn absolute-layout [layoutable x y]
-  (-> layoutable
-      set-preferred-size
-      (assoc :x x
-             :y y)))
-
-(defn add-visual [gui id visual x y]
-  (update-in gui [:visual-list] #(visual-list/add-visual %
-                                                         id
-                                                         (absolute-layout visual x y))))
-
-(defn add-label [gui message]
-  (let [id (generate-id)]
-    (-> gui
-        (update-in [:labels] #(conj %
-                                    id))
-        (add-visual id
-                    (text/create message)
-                    10
-                    10))))
-
 
 
 (defn clear [gui]
@@ -144,6 +35,40 @@
     (GL11/glScalef scale (- scale) 1)
     (GL11/glTranslatef 0 (- (* (/ 1 scale) @(:height (:window gui)))) 0))
   gui)
+
+(defn apply-to-visual-list [gui function & args]
+  (assoc gui
+    :visual-list (apply function (cons (:visual-list gui) args))))
+
+(defn layout [gui]
+  (println  "layout" (:selection gui))
+  (-> gui
+      (apply-to-visual-list visual-list/apply-to-visuals
+                            #(layout/vertical-stack 5 5 %)
+                            (:labels gui))
+      (apply-to-visual-list visual-list/apply-to-visual
+                            :selection-rectangle
+                            #(assoc %
+                               :x 0
+                               :y (:y (visual-list/get-visual (:visual-list gui)
+                                                              (nth (:labels gui)
+                                                                   (:selection gui))))))))
+
+(defn generate-id [] (keyword (str (rand-int 100000000))))
+
+
+(defn add-visual [gui id visual x y]
+  (apply-to-visual-list gui visual-list/add-visual id (layout/absolute-layout visual x y)))
+
+(defn add-label [gui message]
+  (let [id (generate-id)]
+    (-> gui
+        (update-in [:labels] #(conj %
+                                    id))
+        (add-visual id
+                    (text/create message)
+                    10
+                    10))))
 
 (defn render [gui]
   (-> gui
@@ -187,7 +112,7 @@
 (defn update-label [label keyboard-event]
   (-> label
       (update-in [:content] #(edit-text % keyboard-event))
-      set-preferred-size))
+      layout/set-preferred-size))
 
 (defn handle-event [gui event]
   (cond
@@ -209,9 +134,11 @@
                      0))
 
    :default
-   (apply-to-visual gui
-                    #(update-label % event)
-                    (nth (:labels gui) (:selection gui)))))
+   (apply-to-visual-list gui
+                         visual-list/apply-to-visual
+                         (nth (:labels gui)
+                              (:selection gui))
+                         #(update-label % event))))
 
 (defn handle-events [gui events]
   (-> (reduce handle-event gui events)
@@ -224,6 +151,8 @@
     (if (empty? unread-events)
       gui
       (handle-events gui unread-events))))
+
+
 
 (defn start []
   (window/start 500
