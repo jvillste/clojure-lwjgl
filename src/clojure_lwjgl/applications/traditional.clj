@@ -47,11 +47,14 @@
                             (:labels gui))
       (apply-to-visual-list visual-list/apply-to-visual
                             :selection-rectangle
-                            #(assoc %
-                               :x 0
-                               :y (:y (visual-list/get-visual (:visual-list gui)
-                                                              (nth (:labels gui)
-                                                                   (:selection gui))))))))
+                            #(let [selected-visual (visual-list/get-visual (:visual-list gui)
+                                                                           (nth (:labels gui)
+                                                                                (:selection gui)))]
+                               (assoc %
+                                 :x (:x selected-visual)
+                                 :y (:y selected-visual)
+                                 :width (:width selected-visual)
+                                 :height (:height selected-visual))))))
 
 (defn generate-id [] (keyword (str (rand-int 100000000))))
 

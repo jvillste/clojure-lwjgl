@@ -83,8 +83,8 @@
 (defn update-visuals [visual-list visuals]
   (reduce (fn [visual-list visual]
             (update-visual visual-list
-                                       (:id visual)
-                                       visual))
+                           (:id visual)
+                           visual))
           visual-list
           visuals))
 

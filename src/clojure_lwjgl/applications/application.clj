@@ -16,9 +16,3 @@
   (:import [org.lwjgl.opengl GL11]))
 
 
-
-
-
-
-
-
