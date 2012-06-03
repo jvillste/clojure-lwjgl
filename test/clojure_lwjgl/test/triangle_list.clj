@@ -1,8 +1,5 @@
 (ns clojure-lwjgl.test.triangle-list.clj
   (:require (clojure-lwjgl [triangle-list :as triangle-list]
-                           [image :as image]
-                           [texture :as texture]
-                           [buffered-image :as buffered-image]
                            [window :as window]))
   (:import [org.lwjgl.opengl GL11 GL20 ARBVertexBufferObject ARBVertexProgram ARBVertexShader]))
 
@@ -22,10 +19,10 @@
 (defn create-application [window]
   {:triangle-list (-> (triangle-list/create)
                       (triangle-list/update 0 {:coordinates (map float [0.0 0.0
-                                                                        10.0 0.0
-                                                                        10.0 10.0])
+                                                                        100.0 0.0
+                                                                        100.0 100.0])
                                                :colors (map float [1.0 1.0 1.0 1.0
-                                                                   1.0 1.0 1.0 1.0
+                                                                   0.0 0.0 1.0 1.0
                                                                    1.0 1.0 1.0 1.0])}))})
 
 (comment
