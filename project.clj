@@ -9,4 +9,5 @@
                  [jpen/jpen "2.111002"]
                  [jpen/jpen-native "2.111002"]
                  [midje "1.3.1"]
-                 [analyze "0.1.5"]])
+                 [analyze "0.1.5"]
+                 [clojure-cello/clojure-cello "1.0.0-SNAPSHOT"]])

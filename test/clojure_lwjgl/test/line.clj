@@ -1,4 +1,4 @@
-(ns clojure-lwjgl.applications.image-test
+(ns clojure-lwjgl.test.line
   (:require (clojure-lwjgl [image :as image]
                            [texture :as texture]
                            [buffered-image :as buffered-image]

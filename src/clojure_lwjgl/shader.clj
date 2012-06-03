@@ -26,7 +26,7 @@
     (ARBShaderObjects/glValidateProgramARB program-id)
     (when (> (count (compile-errors program-id))
              0)
-      (throw (Exception. (compile-errors program-id))))
+      (throw (Exception. (str "Error when creating shader program: " (compile-errors program-id)))))
     program-id))
 
 (defn get-uniform-location [program name]
@@ -47,8 +47,15 @@
 (defn compile-program [vertex-shader-source fragment-shader-source]
   (let [vertex-shader-id (create-vertex-shader)
         fragment-shader-id (create-fragment-shader)]
-    (compile-shader vertex-shader-id vertex-shader-source)
-    (compile-shader fragment-shader-id fragment-shader-source)
+    
+    (try (compile-shader vertex-shader-id vertex-shader-source)
+         (catch Exception exception
+           (throw (Exception. (str "Error when compiling vertex shader: " exception)))))
+
+    (try (compile-shader fragment-shader-id fragment-shader-source)
+         (catch Exception exception
+           (throw (Exception. (str "Error when compiling fragment shader: " exception)))))
+    
     (create-program vertex-shader-id
                     fragment-shader-id)))
 

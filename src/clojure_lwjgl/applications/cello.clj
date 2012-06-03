@@ -1,4 +1,4 @@
-(ns clojure-lwjgl.applications.traditional
+(ns clojure-lwjgl.applications.cello
   (:refer-clojure :exclude (load))
   (:require (clojure-lwjgl [window :as window]
                            [visual :as visual]
@@ -13,17 +13,14 @@
                            [layout :as layout])
             [clojure-lwjgl.applications application]
             [clojure.zip :as zip]
-            [clojure.contrib.dataflow :as dataflow])
+            [clojure.contrib.dataflow :as dataflow]
+            [clojure-cello.pitch-detector :as pitch-detector])
 
   (:use midje.sweet)
   (:import [org.lwjgl.opengl GL11]))
 
-
-
-;; miten välitetään component-manageri funktioille joilla lisätään komponentteja?
-;; thread local binding
-;; currytään bufferi funktiolle ennen kuin funktio annetaan sille funktiolle joka sitä kutsuu
-;; state monad
+(defn start2 [] (pitch-detector/create (fn [pitch probability time-stamp progress] (println pitch))))
+(defn stop [detector] (pitch-detector/stop detector))
 
 
 (defn clear [gui]
@@ -40,40 +37,6 @@
   (assoc gui
     :visual-list (apply function (cons (:visual-list gui) args))))
 
-
-
-(comment
-  (let [[visual-list selection-list] (list/create visual-list)])
-  (with-visual-list visual-list
-    (assoc gui :selection-list (list/create)))
-  
-  (defn form []
-    (form
-     [:phone {:margin-left (px 10)}]
-     (layout/vertical-stack
-      (layout/horizontal-stack
-       (label "Name")
-       (textbox :name))
-      (layout/horizontal-stack
-       (label "Phone")
-       (textbox :phone)))))
-
-  (defn layout-list [gui]
-    (apply-to-visuals :labels
-                      #(layout/vertical-stack 5 5 %)))
-
-  (defn layout-selection [gui]
-    (apply-to-visual :selection-rectangle
-                     #(let [selected-visual (visual-list/get-visual (:visual-list gui)
-                                                                    (nth (:labels gui)
-                                                                         (:selection gui)))]
-                        (merge %
-                               (select-keys selected-visual
-                                            [:x :y :width :height])))))
-  (defn layout [gui]
-    (-> gui
-        layout-list
-        layout-selection)))
 
 (defn layout [gui]
   (-> gui
@@ -97,26 +60,18 @@
 (defn add-visual [gui id visual x y]
   (apply-to-visual-list gui visual-list/add-visual id (layout/absolute-layout visual x y)))
 
-(defn add-label [gui message]
-  (let [id (generate-id)]
-    (-> gui
-        (update-in [:labels] #(conj %
-                                    id))
-        (add-visual id
-                    (text/create message)
-                    10
-                    10))))
 
 (defn render [gui]
   (-> gui
       (clear)
       (update-in [:visual-list] visual-list/draw)))
 
+(defn scale)
+
 (defn create-gui [window]
   (-> {:window window
        :visual-list (visual-list/create)
-       :labels []
-       :selection 0}
+       :played-frequency -1}
 
       (add-visual :selection-rectangle
                   (rectangle/create {:red 0.5 :green 0.5 :blue 0.5 :alpha 1}
@@ -124,12 +79,6 @@
                                     15
                                     10)
                   5 5)
-      (add-label "Foo 1")
-      (add-label "Foo 2")
-      (add-label "Foo 3")
-      (add-label "Foo 4")
-      (add-label "Foo 5")
-      (add-label "Foo 6")
       (layout)
       (render)))
 
@@ -139,17 +88,6 @@
        (= (:type keyboard-event)
           :key-pressed)))
 
-;; text editing
-
-(defn edit-text [text keyboard-event]
-  (if (re-find #"\w" (str (:character keyboard-event)))
-    (str text (:character keyboard-event))
-    text))
-
-(defn update-label [label keyboard-event]
-  (-> label
-      (update-in [:content] #(edit-text % keyboard-event))
-      layout/set-preferred-size))
 
 (defn handle-event [gui event]
   (cond
@@ -201,5 +139,3 @@
 (comment
 (start)
   )
-
-
