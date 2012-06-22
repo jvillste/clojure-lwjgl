@@ -32,7 +32,7 @@
   (GL11/glMatrixMode GL11/GL_MODELVIEW)
   (GL11/glLoadIdentity)
 
-  ;;  (triangle-list/render (application :pitch-indicator))
+  (triangle-list/render (application :pitch-indicator))
   (triangle-list/render (application :scale))
   application)
 
@@ -40,7 +40,9 @@
 (def red (map float [1.0 0.0 0.0]))
 (def green (map float [0.0 1.0 0.0]))
 
-(defn set-opacity [color opacity]
+(def major-scale-notes #{0 2 4})
+
+(defn add-opacity [color opacity]
   (concat color [opacity]))
 
 (defn single-color-triangle [coordinates color]
@@ -52,29 +54,39 @@
    :colors (map float (apply concat colors))})
 
 (defn rectangle [x y width height color]
-  [(multi-color-triangle [[x y]
-                          [(+ x width) y]
-                          [x (+ y height)]]
-                         (map #(set-opacity % 1.0) [red green blue]))
-   (multi-color-triangle [[x (+ y height)]
-                          [(+ x width) (+ y height)]
-                          [x y]]
-                         (map #(set-opacity % 1.0) [red green blue]))])
+  [(single-color-triangle [[x y]
+                           [x (+ y height)]
+                           [(+ x width) y]]
+                          color)
 
-(deftest set-opacity-test
-  (is (= (map #(set-opacity % 1.0) [red green blue])
+   (single-color-triangle [[x (+ y height)]
+                           [(+ x width) (+ y height)]
+                           [(+ x width) y]]
+                          color)])
+
+(deftest add-opacity-test
+  (is (= (map #(add-opacity % 1.0) [red green blue])
          '((1.0 0.0 0.0 1.0) (0.0 1.0 0.0 1.0) (0.0 0.0 1.0 1.0)))))
 
 (deftest rectangle-test
   (is (= (rectangle 10 10 20 20 blue)
-         [{:coordinates '(10.0 10.0 30.0 10.0 10.0 30.0), :colors '(1.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 1.0)}
-          {:coordinates '(10.0 30.0 30.0 30.0 10.0 10.0), :colors '(1.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 1.0)}])))
+         '[{:coordinates (10.0 10.0 10.0 30.0 30.0 10.0), :colors (0.0 0.0 1.0 1.0 0.0 0.0 1.0 1.0 0.0 0.0 1.0 1.0)}
+           {:coordinates (10.0 30.0 30.0 30.0 30.0 10.0), :colors (0.0 0.0 1.0 1.0 0.0 0.0 1.0 1.0 0.0 0.0 1.0 1.0)}])))
 
-(run-tests)
+(defn scale-line-y-coordinate [scale-height note]
+  (-> note
+      note-frequency
+      (linearize-frequency 50 800)
+      (* scale-height)))
+
+(defn scale-line-color [note]
+  (if (major-scale-notes (mod note 12))
+    blue
+    red))
 
 (defn scale [width height]
-  (concat (rectangle 10 10 100 20 blue)
-          (rectangle 10 50 100 20 blue)))
+  (apply concat (map (fn [note] (rectangle 0 (scale-line-y-coordinate height note) width 1 (scale-line-color note)))
+                     (range -30 10))))
 
 (defn update-pitch-indicator [application]
   (if (> @(:pitch-atom application)
@@ -83,7 +95,6 @@
                                     50
                                     800)
                @(:height (:window application)))]
-      (println "Y: " y)
       (assoc application
         :pitch-indicator (triangle-list/update (application :pitch-indicator)
                                                0
@@ -112,10 +123,9 @@
                                                    :colors (map float [0.0 0.0 1.0 1.0
                                                                        0.0 0.0 1.0 1.0
                                                                        0.0 0.0 1.0 1.0])}))
-     :scale (let [scale-triangles (scale 500 500)]
+     :scale (let [scale-triangles (scale 700 500)]
               (-> (triangle-list/create (count scale-triangles))
-                  (triangle-list/update-many 0 scale-triangles)))
-     }))
+                  (triangle-list/update-many 0 scale-triangles)))}))
 
 (defn start []
   (window/start 700 500
@@ -123,6 +133,8 @@
                 create-application
                 update
                 stop-pitch-detector))
+
+(run-tests)
 
 (comment
   )
