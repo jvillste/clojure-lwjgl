@@ -35,4 +35,5 @@
 (window/start 700 500
                 3
                 create-application
-                update))
+                update
+                (fn [_])))

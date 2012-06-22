@@ -52,17 +52,29 @@ void main() {
                       (:vertex-color-buffer triangle-list))
   triangle-list)
 
-(defn create []
+(defn update-many [triangle-list start-index triangles]
+  (loop [index start-index
+         triangles triangles]
+    (when (seq triangles)
+      (update triangle-list
+              index
+              (first triangles))
+      (recur (+ index 1) (rest triangles))))
+  triangle-list)
+
+
+
+(defn create [number-of-triangles]
   (let [shader-program (shader/compile-program vertex-shader-source
-                                               fragment-shader-source)
-        number-of-triangles 1]
-    {:shader-program shader-program
+                                               fragment-shader-source)]
+    {:number-of-triangles number-of-triangles
+     :shader-program shader-program
      :vertex-coordinate-attribute-index (ARBVertexShader/glGetAttribLocationARB shader-program "vertex_coordinate_attribute")
      :vertex-color-attribute-index (ARBVertexShader/glGetAttribLocationARB shader-program "vertex_color_attribute")
      :vertex-coordinate-buffer-id (buffer/create-gl-buffer)
-     :vertex-coordinate-buffer (buffer/create-float-buffer (* 3 2 number-of-triangles 1))
+     :vertex-coordinate-buffer (buffer/create-float-buffer (* 3 2 number-of-triangles))
      :vertex-color-buffer-id (buffer/create-gl-buffer)
-     :vertex-color-buffer (buffer/create-float-buffer (* 3 4 number-of-triangles 1))}))
+     :vertex-color-buffer (buffer/create-float-buffer (* 3 4 number-of-triangles))}))
 
 (defn delete [triangle-buffer]
   (buffer/delete (:vertex-coordinate-buffer-id triangle-buffer))
@@ -89,5 +101,5 @@ void main() {
                                              (boolean GL11/GL_FALSE)
                                              (int 0)
                                              (long 0))
-  (GL11/glDrawArrays GL11/GL_TRIANGLES 0 4))
+  (GL11/glDrawArrays GL11/GL_TRIANGLES 0 (* 4 (:number-of-triangles triangle-list))))
 

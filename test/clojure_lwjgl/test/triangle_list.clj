@@ -1,6 +1,7 @@
 (ns clojure-lwjgl.test.triangle-list.clj
   (:require (clojure-lwjgl [triangle-list :as triangle-list]
-                           [window :as window]))
+                           [window :as window]
+                           [vector-rectangle :as vector-rectangle]))
   (:import [org.lwjgl.opengl GL11 GL20 ARBVertexBufferObject ARBVertexProgram ARBVertexShader]))
 
 (defn render [application]
@@ -17,7 +18,7 @@
       (render)))
 
 (defn create-application [window]
-  {:triangle-list (-> (triangle-list/create)
+  {:triangle-list (-> (triangle-list/create 1)
                       (triangle-list/update 0 {:coordinates (map float [0.0 0.0
                                                                         100.0 0.0
                                                                         100.0 100.0])
@@ -29,4 +30,5 @@
 (window/start 700 500
                 3
                 create-application
-                update))
+                update
+                (fn [])))

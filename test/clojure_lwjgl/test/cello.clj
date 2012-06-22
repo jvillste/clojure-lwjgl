@@ -1,18 +1,28 @@
-(ns clojure-lwjgl.test.cello.clj
+(ns clojure-lwjgl.test.cello
   (:require (clojure-lwjgl [triangle-list :as triangle-list]
                            [window :as window])
             [clojure-cello.pitch-detector :as pitch-detector])
-  (:import [org.lwjgl.opengl GL11 GL20 ARBVertexBufferObject ARBVertexProgram ARBVertexShader]))
+  (:import [org.lwjgl.opengl GL11 GL20 ARBVertexBufferObject ARBVertexProgram ARBVertexShader])
+  (:use clojure.test))
 
 
+(defn note-frequency [half-steps-from-a]
+  (* 440
+     (Math/pow 1.059463094359
+               half-steps-from-a)))
+
+(defn linearize-frequency [frequency minimum maximum]
+  (/ (- (Math/log frequency)
+        (Math/log minimum))
+     (- (Math/log maximum)
+        (Math/log minimum))))
 
 (defn start-pitch-detector [pitch-atom]
-  (println "starting")
   (pitch-detector/create (fn [pitch probability time-stamp progress]
-                           (reset! pitch-atom pitch))))
+                           (when (> probability 0.9)
+                             (reset! pitch-atom pitch)))))
 
 (defn stop-pitch-detector [application]
-  (println "stopping")
   (pitch-detector/stop (application :pitch-detector))
   application)
 
@@ -22,27 +32,67 @@
   (GL11/glMatrixMode GL11/GL_MODELVIEW)
   (GL11/glLoadIdentity)
 
-  (triangle-list/render (application :triangle-list))
+  ;;  (triangle-list/render (application :pitch-indicator))
+  (triangle-list/render (application :scale))
   application)
 
+(def blue (map float [0.0 0.0 1.0]))
+(def red (map float [1.0 0.0 0.0]))
+(def green (map float [0.0 1.0 0.0]))
 
+(defn set-opacity [color opacity]
+  (concat color [opacity]))
+
+(defn single-color-triangle [coordinates color]
+  {:coordinates (map float (apply concat coordinates))
+   :colors (apply concat (repeat 3 (concat color [(float 1.0)])))})
+
+(defn multi-color-triangle [coordinates colors]
+  {:coordinates (map float (apply concat coordinates))
+   :colors (map float (apply concat colors))})
+
+(defn rectangle [x y width height color]
+  [(multi-color-triangle [[x y]
+                          [(+ x width) y]
+                          [x (+ y height)]]
+                         (map #(set-opacity % 1.0) [red green blue]))
+   (multi-color-triangle [[x (+ y height)]
+                          [(+ x width) (+ y height)]
+                          [x y]]
+                         (map #(set-opacity % 1.0) [red green blue]))])
+
+(deftest set-opacity-test
+  (is (= (map #(set-opacity % 1.0) [red green blue])
+         '((1.0 0.0 0.0 1.0) (0.0 1.0 0.0 1.0) (0.0 0.0 1.0 1.0)))))
+
+(deftest rectangle-test
+  (is (= (rectangle 10 10 20 20 blue)
+         [{:coordinates '(10.0 10.0 30.0 10.0 10.0 30.0), :colors '(1.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 1.0)}
+          {:coordinates '(10.0 30.0 30.0 30.0 10.0 10.0), :colors '(1.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 1.0)}])))
+
+(run-tests)
+
+(defn scale [width height]
+  (concat (rectangle 10 10 100 20 blue)
+          (rectangle 10 50 100 20 blue)))
 
 (defn update-pitch-indicator [application]
   (if (> @(:pitch-atom application)
          0)
-    (let [y (* (/ @(:pitch-atom application)
-                  600)
+    (let [y (* (linearize-frequency @(:pitch-atom application)
+                                    50
+                                    800)
                @(:height (:window application)))]
       (println "Y: " y)
       (assoc application
-        :triangle-list (triangle-list/update (application :triangle-list)
-                                             0
-                                             {:coordinates (map float [0.0 (+ y 50.0)
-                                                                       100.0 y
-                                                                       0.0 (- y 50.0)])
-                                              :colors (map float [0.0 0.0 1.0 1.0
-                                                                  0.0 0.0 1.0 1.0
-                                                                  0.0 0.0 1.0 1.0])})))
+        :pitch-indicator (triangle-list/update (application :pitch-indicator)
+                                               0
+                                               {:coordinates (map float [0.0 (+ y 50.0)
+                                                                         100.0 y
+                                                                         0.0 (- y 50.0)])
+                                                :colors (map float [0.0 0.0 1.0 1.0
+                                                                    0.0 0.0 1.0 1.0
+                                                                    0.0 0.0 1.0 1.0])})))
     application))
 
 (defn update [application]
@@ -55,17 +105,24 @@
     {:window window
      :pitch-atom pitch-atom
      :pitch-detector (start-pitch-detector pitch-atom)
-     :triangle-list (-> (triangle-list/create)
-                        (triangle-list/update 0 {:coordinates (map float [0.0 0.0
-                                                                          100.0 0.0
-                                                                          100.0 100.0])
-                                                 :colors (map float [0.0 0.0 1.0 1.0
-                                                                     0.0 0.0 1.0 1.0
-                                                                     0.0 0.0 1.0 1.0])}))}))
+     :pitch-indicator (-> (triangle-list/create 1)
+                          (triangle-list/update 0 {:coordinates (map float [0.0 0.0
+                                                                            100.0 0.0
+                                                                            100.0 100.0])
+                                                   :colors (map float [0.0 0.0 1.0 1.0
+                                                                       0.0 0.0 1.0 1.0
+                                                                       0.0 0.0 1.0 1.0])}))
+     :scale (let [scale-triangles (scale 500 500)]
+              (-> (triangle-list/create (count scale-triangles))
+                  (triangle-list/update-many 0 scale-triangles)))
+     }))
 
-(comment
-(window/start 700 500
+(defn start []
+  (window/start 700 500
                 30
                 create-application
                 update
                 stop-pitch-detector))
+
+(comment
+  )
