@@ -118,12 +118,12 @@
       (assoc application
         :pitch-indicator (triangle-list/update (application :pitch-indicator)
                                                0
-                                               {:coordinates (map float [0.0 (+ y 50.0)
+                                               {:coordinates (map float [50.0 (+ y 10.0)
                                                                          100.0 y
-                                                                         0.0 (- y 50.0)])
-                                                :colors (map float [0.0 0.0 1.0 1.0
+                                                                         50.0 (- y 10.0)])
+                                                :colors (map float [0.0 1.0 1.0 1.0
                                                                     0.0 1.0 0.0 1.0
-                                                                    0.0 0.0 1.0 1.0])})))
+                                                                    0.0 1.0 1.0 1.0])})))
     application))
 
 (defn update [application]
@@ -147,12 +147,17 @@
              (rest notes))
       visual-list)))
 
+(def guitar-range {:lowest-note -31
+                   :highest-note 10})
+
+(def cello-range {:lowest-note -34
+                  :highest-note 0})
+
 (defn create-application [window]
   (let [pitch-atom (atom -1)
-        lowest-note -31
-        highest-note 10]
-    {:lowest-note lowest-note
-     :highest-note highest-note
+        scale-range cello-range]
+    {:lowest-note (:lowest-note scale-range)
+     :highest-note (:highest-note scale-range)
      :window window
      :pitch-atom pitch-atom
      :pitch-detector (start-pitch-detector pitch-atom)
@@ -164,11 +169,11 @@
                                                                        0.0 0.0 1.0 1.0
                                                                        0.0 0.0 1.0 1.0])}))
      :scale (let [scale-triangles (scale @(:width window) @(:height window)
-                                         lowest-note highest-note)]
+                                         (:lowest-note scale-range) (:highest-note scale-range))]
               (-> (triangle-list/create (count scale-triangles))
                   (triangle-list/update-many 0 scale-triangles)))
      :note-labels (create-note-labels @(:width window) @(:height window)
-                                      lowest-note highest-note)}))
+                                      (:lowest-note scale-range) (:highest-note scale-range))}))
 
 (defn start []
   (window/start 700 500
