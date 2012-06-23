@@ -40,7 +40,7 @@
 (def red (map float [1.0 0.0 0.0]))
 (def green (map float [0.0 1.0 0.0]))
 
-(def major-scale-notes #{0 2 4})
+(def major-scale-notes #{0 2 4 5 7 9 11})
 
 (defn add-opacity [color opacity]
   (concat color [opacity]))
@@ -73,27 +73,31 @@
          '[{:coordinates (10.0 10.0 10.0 30.0 30.0 10.0), :colors (0.0 0.0 1.0 1.0 0.0 0.0 1.0 1.0 0.0 0.0 1.0 1.0)}
            {:coordinates (10.0 30.0 30.0 30.0 30.0 10.0), :colors (0.0 0.0 1.0 1.0 0.0 0.0 1.0 1.0 0.0 0.0 1.0 1.0)}])))
 
-(defn scale-line-y-coordinate [scale-height note]
+(defn scale-line-y-coordinate [scale-height note lowest-note highest-note]
   (-> note
       note-frequency
-      (linearize-frequency 50 800)
+      (linearize-frequency (note-frequency lowest-note) (note-frequency highest-note))
       (* scale-height)))
 
 (defn scale-line-color [note]
   (if (major-scale-notes (mod note 12))
     blue
-    red))
+    (map float (map #(* 0.3 %) blue))))
 
-(defn scale [width height]
-  (apply concat (map (fn [note] (rectangle 0 (scale-line-y-coordinate height note) width 1 (scale-line-color note)))
-                     (range -30 10))))
+(defn scale [width height lowest-note highest-note]
+  (apply concat (map (fn [note] (rectangle 0
+                                           (scale-line-y-coordinate height note lowest-note highest-note)
+                                           width
+                                           1
+                                           (scale-line-color note)))
+                     (range lowest-note highest-note))))
 
 (defn update-pitch-indicator [application]
   (if (> @(:pitch-atom application)
          0)
     (let [y (* (linearize-frequency @(:pitch-atom application)
-                                    50
-                                    800)
+                                    (note-frequency (:lowest-note application))
+                                    (note-frequency (:highest-note application)))
                @(:height (:window application)))]
       (assoc application
         :pitch-indicator (triangle-list/update (application :pitch-indicator)
@@ -112,8 +116,12 @@
       (render)))
 
 (defn create-application [window]
-  (let [pitch-atom (atom -1)]
-    {:window window
+  (let [pitch-atom (atom -1)
+        lowest-note -20
+        highest-note 10]
+    {:lowest-note lowest-note
+     :highest-note highest-note
+     :window window
      :pitch-atom pitch-atom
      :pitch-detector (start-pitch-detector pitch-atom)
      :pitch-indicator (-> (triangle-list/create 1)
@@ -123,7 +131,8 @@
                                                    :colors (map float [0.0 0.0 1.0 1.0
                                                                        0.0 0.0 1.0 1.0
                                                                        0.0 0.0 1.0 1.0])}))
-     :scale (let [scale-triangles (scale 700 500)]
+     :scale (let [scale-triangles (scale @(:width window) @(:height window)
+                                         lowest-note highest-note)]
               (-> (triangle-list/create (count scale-triangles))
                   (triangle-list/update-many 0 scale-triangles)))}))
 
