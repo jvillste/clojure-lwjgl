@@ -53,7 +53,7 @@
 
 (defn create-gui [window]
   (-> {:window window
-       :image-lists (take 200 (repeatedly #(create-image-list (rand-int 200) (rand-int 200))))}
+       :image-lists (take 2 (repeatedly #(create-image-list (rand-int 200) (rand-int 200))))}
       (fps/initialize)))
 
 (defn update-window [gui]

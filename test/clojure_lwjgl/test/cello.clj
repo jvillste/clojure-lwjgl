@@ -1,10 +1,19 @@
 (ns clojure-lwjgl.test.cello
   (:require (clojure-lwjgl [triangle-list :as triangle-list]
-                           [window :as window])
+                           [window :as window]
+                           [visual-list :as visual-list]
+                           [text :as text])
             [clojure-cello.pitch-detector :as pitch-detector])
   (:import [org.lwjgl.opengl GL11 GL20 ARBVertexBufferObject ARBVertexProgram ARBVertexShader])
   (:use clojure.test))
 
+(defn note-name [note]
+  (["A" "A#" "B" "C" "C#" "D" "D#" "E" "F" "F#" "G" "G#"] (mod note 12)))
+
+(defn note-octave [note]
+  (+ 4
+     (int (Math/floor (/ (+ note 10)
+                         12)))))
 
 (defn note-frequency [half-steps-from-a]
   (* 440
@@ -27,13 +36,18 @@
   application)
 
 (defn render [application]
-  (GL11/glClearColor 0 0 0 0)
-  (GL11/glClear GL11/GL_COLOR_BUFFER_BIT)
-  (GL11/glMatrixMode GL11/GL_MODELVIEW)
-  (GL11/glLoadIdentity)
+  (let [scale 1]
+    (GL11/glClearColor 1 1 1 0)
+    (GL11/glClear GL11/GL_COLOR_BUFFER_BIT)
+    (GL11/glMatrixMode GL11/GL_MODELVIEW)
+    (GL11/glLoadIdentity)
+    (GL11/glScalef scale (- scale) 1)
+    (GL11/glTranslatef 0 (- (* (/ 1 scale) @(:height (:window application)))) 0))
 
   (triangle-list/render (application :pitch-indicator))
   (triangle-list/render (application :scale))
+  (visual-list/draw (application :note-labels))
+
   application)
 
 (def blue (map float [0.0 0.0 1.0]))
@@ -74,15 +88,16 @@
            {:coordinates (10.0 30.0 30.0 30.0 30.0 10.0), :colors (0.0 0.0 1.0 1.0 0.0 0.0 1.0 1.0 0.0 0.0 1.0 1.0)}])))
 
 (defn scale-line-y-coordinate [scale-height note lowest-note highest-note]
-  (-> note
-      note-frequency
-      (linearize-frequency (note-frequency lowest-note) (note-frequency highest-note))
-      (* scale-height)))
+  (- scale-height
+     (-> note
+         note-frequency
+         (linearize-frequency (note-frequency lowest-note) (note-frequency highest-note))
+         (* scale-height))))
 
 (defn scale-line-color [note]
-  (if (major-scale-notes (mod note 12))
+  (if (major-scale-notes (mod (- note 3) 12))
     blue
-    (map float (map #(* 0.3 %) blue))))
+    (map float [0.9 0.9 1.0])))
 
 (defn scale [width height lowest-note highest-note]
   (apply concat (map (fn [note] (rectangle 0
@@ -95,10 +110,11 @@
 (defn update-pitch-indicator [application]
   (if (> @(:pitch-atom application)
          0)
-    (let [y (* (linearize-frequency @(:pitch-atom application)
-                                    (note-frequency (:lowest-note application))
-                                    (note-frequency (:highest-note application)))
-               @(:height (:window application)))]
+    (let [y (- @(:height (:window application))
+               (* (linearize-frequency @(:pitch-atom application)
+                                       (note-frequency (:lowest-note application))
+                                       (note-frequency (:highest-note application)))
+                  @(:height (:window application))))]
       (assoc application
         :pitch-indicator (triangle-list/update (application :pitch-indicator)
                                                0
@@ -106,7 +122,7 @@
                                                                          100.0 y
                                                                          0.0 (- y 50.0)])
                                                 :colors (map float [0.0 0.0 1.0 1.0
-                                                                    0.0 0.0 1.0 1.0
+                                                                    0.0 1.0 0.0 1.0
                                                                     0.0 0.0 1.0 1.0])})))
     application))
 
@@ -115,9 +131,25 @@
       (update-pitch-indicator)
       (render)))
 
+(defn create-note-labels [width height lowest-note highest-note]
+  (loop [visual-list (visual-list/create)
+         notes (range lowest-note highest-note)]
+    (if (seq notes)
+      (recur (visual-list/add-visual visual-list
+                                     (first notes)
+                                     (assoc (text/create (str (note-name (first notes))
+                                                              (note-octave (first notes))))
+                                       :x 10
+                                       :y (- (scale-line-y-coordinate height (first notes) lowest-note highest-note)
+                                             7)
+                                       :width 50
+                                       :height 50))
+             (rest notes))
+      visual-list)))
+
 (defn create-application [window]
   (let [pitch-atom (atom -1)
-        lowest-note -20
+        lowest-note -31
         highest-note 10]
     {:lowest-note lowest-note
      :highest-note highest-note
@@ -134,11 +166,13 @@
      :scale (let [scale-triangles (scale @(:width window) @(:height window)
                                          lowest-note highest-note)]
               (-> (triangle-list/create (count scale-triangles))
-                  (triangle-list/update-many 0 scale-triangles)))}))
+                  (triangle-list/update-many 0 scale-triangles)))
+     :note-labels (create-note-labels @(:width window) @(:height window)
+                                      lowest-note highest-note)}))
 
 (defn start []
   (window/start 700 500
-                30
+                15
                 create-application
                 update
                 stop-pitch-detector))
