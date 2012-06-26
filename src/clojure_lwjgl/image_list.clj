@@ -14,8 +14,6 @@
               (zipper-list/create)
               (image/create-shared-resources)))
 
-
-
 (defn add-image [image-list id x y width height]
   (assoc image-list
     :images (assoc (:images image-list)

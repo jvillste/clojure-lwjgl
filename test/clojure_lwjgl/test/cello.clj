@@ -7,6 +7,8 @@
   (:import [org.lwjgl.opengl GL11 GL20 ARBVertexBufferObject ARBVertexProgram ARBVertexShader])
   (:use clojure.test))
 
+;; Music
+
 (defn note-name [note]
   (["A" "A#" "B" "C" "C#" "D" "D#" "E" "F" "F#" "G" "G#"] (mod note 12)))
 
@@ -26,6 +28,16 @@
      (- (Math/log maximum)
         (Math/log minimum))))
 
+(def major-scale-notes #{0 2 4 5 7 9 11})
+
+(def guitar-range {:lowest-note -31
+                   :highest-note 10})
+
+(def cello-range {:lowest-note -34
+                  :highest-note 0})
+
+;; Pitch
+
 (defn start-pitch-detector [pitch-atom]
   (pitch-detector/create (fn [pitch probability time-stamp progress]
                            (when (> probability 0.9)
@@ -34,6 +46,8 @@
 (defn stop-pitch-detector [application]
   (pitch-detector/stop (application :pitch-detector))
   application)
+
+;; Graphics
 
 (defn render [application]
   (let [scale 1]
@@ -53,8 +67,6 @@
 (def blue (map float [0.0 0.0 1.0]))
 (def red (map float [1.0 0.0 0.0]))
 (def green (map float [0.0 1.0 0.0]))
-
-(def major-scale-notes #{0 2 4 5 7 9 11})
 
 (defn add-opacity [color opacity]
   (concat color [opacity]))
@@ -87,6 +99,9 @@
          '[{:coordinates (10.0 10.0 10.0 30.0 30.0 10.0), :colors (0.0 0.0 1.0 1.0 0.0 0.0 1.0 1.0 0.0 0.0 1.0 1.0)}
            {:coordinates (10.0 30.0 30.0 30.0 30.0 10.0), :colors (0.0 0.0 1.0 1.0 0.0 0.0 1.0 1.0 0.0 0.0 1.0 1.0)}])))
 
+
+;; UI
+
 (defn scale-line-y-coordinate [scale-height note lowest-note highest-note]
   (- scale-height
      (-> note
@@ -96,11 +111,11 @@
 
 (defn scale-line-color [note]
   (if (major-scale-notes (mod (- note 3) 12))
-    blue
-    (map float [0.9 0.9 1.0])))
+    (map float [0.0 0.0 0.0])
+    (map float [0.9 0.9 0.9])))
 
 (defn scale [width height lowest-note highest-note]
-  (apply concat (map (fn [note] (rectangle 0
+  (apply concat (map (fn [note] (rectangle 30
                                            (scale-line-y-coordinate height note lowest-note highest-note)
                                            width
                                            1
@@ -126,6 +141,7 @@
                                                                     0.0 1.0 1.0 1.0])})))
     application))
 
+
 (defn update [application]
   (-> application
       (update-pitch-indicator)
@@ -147,11 +163,6 @@
              (rest notes))
       visual-list)))
 
-(def guitar-range {:lowest-note -31
-                   :highest-note 10})
-
-(def cello-range {:lowest-note -34
-                  :highest-note 0})
 
 (defn create-application [window]
   (let [pitch-atom (atom -1)
@@ -183,6 +194,3 @@
                 stop-pitch-detector))
 
 (run-tests)
-
-(comment
-  )
