@@ -27,12 +27,11 @@
                     (Hashtable.))))
 
 (defn create [width height]
-  (let [raster (Raster/createInterleavedRaster DataBuffer/TYPE_BYTE
-                                               width
-                                               height
-                                               4
-                                               nil)]
-  (create-from-raster raster)))
+  (create-from-raster (Raster/createInterleavedRaster DataBuffer/TYPE_BYTE
+                                                      width
+                                                      height
+                                                      4
+                                                      nil)))
 
 (defn get-graphics [buffered-image]
   (.createGraphics buffered-image))

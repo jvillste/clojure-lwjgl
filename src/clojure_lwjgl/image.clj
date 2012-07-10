@@ -14,6 +14,7 @@
   (:import [java.awt Color Font  RenderingHints]
            [org.lwjgl.opengl GL11 GL20 ARBVertexBufferObject ARBVertexProgram ARBVertexShader]))
 
+
 (def vertex-shader-source "
 #version 120
 

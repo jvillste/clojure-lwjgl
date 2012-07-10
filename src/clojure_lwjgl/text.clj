@@ -8,7 +8,6 @@
                            [layoutable :as layoutable]
                            [font :as font])))
 
-
 (defn width [text] (font/width (:font text)
                                (:content text)))
 

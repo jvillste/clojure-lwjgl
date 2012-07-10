@@ -51,8 +51,8 @@
   (update-in gui :mouse-state (fn [mouse-state] (update-mouse-state mouse-state event))))
 
 (defn create-mouse-event [lwjgl-event]
-  (cond (or (> (:mouse-delta-x lwjgl-event) 0)
-            (> (:mouse-delta-y lwjgl-event) 0))
+  (cond (or (not (= (:mouse-delta-x lwjgl-event) 0))
+            (not (= (:mouse-delta-y lwjgl-event) 0)))
         {:type :mouse-moved
          :mouse-x (:mouse-x lwjgl-event)
          :mouse-y (:mouse-y lwjgl-event)}
@@ -101,6 +101,7 @@
 (def down 208)
 (def right 205)
 (def enter 28)
+(def space 57)
 (def left-shift 42)
 (def right-shift 54)
 (def left-control 29)
