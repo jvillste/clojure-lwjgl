@@ -100,6 +100,8 @@
 (def left 203)
 (def down 208)
 (def right 205)
+(def page-down 209)
+(def page-up 201)
 (def enter 28)
 (def space 57)
 (def left-shift 42)

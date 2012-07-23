@@ -11,8 +11,34 @@
   (:import [org.lwjgl.opengl GL11 GL20 ARBVertexBufferObject ARBVertexProgram ARBVertexShader]
            [java.awt Color Font FontMetrics RenderingHints]))
 
-(defn render [application]
+(defrecord Grid [cell-width cell-height grid-width grid-height])
 
+(defn rows [grid]
+  (quot (:grid-height grid)
+        (:cell-height grid)))
+
+(defn columns [grid]
+  (quot (:grid-width grid)
+        (:cell-width grid)))
+
+(defn cell-x [grid index]
+  (* (:cell-width grid)
+     (quot index (columns grid))))
+
+(defn cell-y [grid index]
+  (* (:cell-height grid)
+     (+ 1 (mod index (rows grid)))))
+
+(defn cells [grid]
+  (* (rows grid)
+     (columns grid)))
+
+(defn cell-in-coordinates [grid x y]
+  (+ (* (rows grid)
+        (quot x (:cell-width grid)))
+     (quot y (:cell-height grid))))
+
+(defn render [application]
   (let [scale 1]
     (GL11/glClearColor 1 1 1 0)
     (GL11/glClear GL11/GL_COLOR_BUFFER_BIT)
@@ -27,27 +53,42 @@
 
   application)
 
-(defn name-for-index [index ratings show-only-rated-names]
+(defn letters-in-name [{:keys [show-only-rated-names name-ratings letters-in-name]}]
+  (if show-only-rated-names
+    (+ 3 (apply max (map count (keys name-ratings))))
+    letters-in-name))
+
+(defn name-for-index [index ratings show-only-rated-names name-generator]
   (if show-only-rated-names
     (if (< index (count (seq ratings)))
-      (str (first (nth (sort-by second (seq ratings))
+      (str (first (nth (sort-by #(str (second %) (first %)) (seq ratings))
                        index)))
       nil)
-    (str index)))
+    (name-generator index)))
 
-(defn name-x [index name-width names-per-line]
+(defn name-x [index name-width lines-per-page]
   (* name-width
-     (mod index names-per-line)))
+     (quot index lines-per-page)))
 
-(defn name-y [index name-height names-per-line]
+(defn name-y [index name-height lines-per-page]
   (* name-height
-     (+ 1 (quot index names-per-line))))
+     (+ 1 (mod index lines-per-page))))
 
-(defn name-text-for-index [index start-index font names-per-line name-width name-height ratings show-only-rated-names]
-  {:x (name-x (- index start-index) name-width names-per-line)
-   :y (name-y (- index start-index) name-height names-per-line)
-   :text (str (name-for-index index ratings show-only-rated-names) " " (get ratings (name-for-index index ratings show-only-rated-names)))
-   :font font})
+(defn name-text-for-index [index start-index font lines-per-page name-width name-height ratings show-only-rated-names name-generator]
+  (let [name (name-for-index index ratings show-only-rated-names name-generator)
+        rating (get ratings name)
+        index-in-page (- index start-index)]
+    {:x (name-x index-in-page name-width lines-per-page)
+     :y (name-y index-in-page name-height lines-per-page)
+     :text (str name " " rating )
+     :font font
+     :color (case rating
+              1 [0.0 0.5 0.0 1.0]
+              2 [0.5 0.0 0.0 1.0]
+              3 [0.0 0.5 0.0 1.0]
+              4 [0.0 0.8 0.0 1.0]
+              5 [0.0 0.7 0.7 1.0]
+              [0.0 0.0 0.0 1.0])}))
 
 (defn name-width [font letters-in-name]
   (font/width font (apply str (repeat letters-in-name "W"))))
@@ -65,20 +106,49 @@
 
 (defn names-per-page [font page-width page-height letters-in-name]
   (* (names-per-line font letters-in-name page-width)
-     (lines-per-page page-width font)))
+     (lines-per-page page-height font)))
 
-(defn names [start-index font letters-in-name width height ratings show-only-rated-names]
-  (let [name-width (name-width font letters-in-name)]
+(defn layout-grid [{:keys [font page-width page-height] :as application}]
+  (assoc application :grid (->Grid (name-width font (letters-in-name application))
+                                   (name-height font)
+                                   page-width
+                                   page-height)))
+
+(defn names [start-index grid font letters-in-name width height ratings show-only-rated-names name-generator]
+  (let [name-width (name-width font letters-in-name)
+        start-index (if show-only-rated-names 0 start-index)]
     (->> (range start-index (+ start-index (names-per-page font width height letters-in-name)))
-         (map #(name-text-for-index % start-index font (quot width name-width) name-width (name-height font) ratings show-only-rated-names)))))
+         (map #(name-text-for-index % start-index font (lines-per-page height font) name-width (name-height font) ratings show-only-rated-names name-generator)))))
 
 (defn draw-text [graphics text]
-  (doto graphics
-    (.setColor Color/BLACK)
-    (.setFont (font/graphics-font (:font text)))
-    (.setRenderingHint RenderingHints/KEY_TEXT_ANTIALIASING RenderingHints/VALUE_TEXT_ANTIALIAS_LCD_HBGR )
-    (.drawString (:text text) (:x text) (:y text))))
+  (let [[r g b a] (map float (:color text))]
+    (doto graphics
+      (.setColor (Color. r g b a))
+      (.setFont (font/graphics-font (:font text)))
+      (.setRenderingHint RenderingHints/KEY_TEXT_ANTIALIASING RenderingHints/VALUE_TEXT_ANTIALIAS_LCD_HBGR )
+      (.drawString (:text text) (:x text) (:y text)))))
 
+
+(defn draw-page-number [application]
+  (let [{:keys [index font page-width page-height letters-in-name maximum-index]} application
+        names-per-page (names-per-page font
+                                       page-width
+                                       page-height
+                                       letters-in-name)]
+    (image-list/draw-on-image (:image-list application)
+                              :names
+                              (fn [graphics]
+                                (draw-text graphics {:color (map float [0.0 0.0 0.0 1.0])
+                                                     :font font
+                                                     :x (int 5)
+                                                     :y (int (- @(:height (:window application))
+                                                                5))
+                                                     :text (str (+ 1 (quot index names-per-page))
+                                                                "/"
+                                                                (+ 1 (quot maximum-index names-per-page))
+                                                                )}))))
+
+  application)
 
 (defn draw-names [application]
   (image-list/clear-image (:image-list application) :names)
@@ -86,16 +156,17 @@
                             :names
                             (fn [graphics]
                               (doseq [text (names (:index application)
+                                                  (:grid application)
                                                   (:font application)
-                                                  (:letters-in-name application)
-                                                  (int @(:width (:window application)))
-                                                  (int @(:height (:window application)))
+                                                  (letters-in-name application)
+                                                  (:page-width application)
+                                                  (:page-height application)
                                                   (:name-ratings application)
-                                                  (:show-only-rated-names application))]
+                                                  (:show-only-rated-names application)
+                                                  (:name-generator application))]
                                 (draw-text graphics text))))
+  (draw-page-number application)
   application)
-
-
 
 (defn key-pressed [keyboard-event key]
   (and (= (:key-code keyboard-event)
@@ -103,17 +174,19 @@
        (= (:type keyboard-event)
           :key-pressed)))
 
-(defn name-index-in-coordinates [x y page-width font letters-in-name]
-  (+ (* (names-per-line font letters-in-name page-width)
-        (quot y (name-height font)))
-     (quot x (name-width font letters-in-name))))
+(defn name-index-in-coordinates [x y page-height font letters-in-name]
+  (+ (* (lines-per-page page-height font)
+        (quot x (name-width font letters-in-name)))
+     (quot y (name-height font))))
 
 (defn save-ratings [application]
   (spit "ratings.txt" (:name-ratings application))
   application)
 
 (defn load-ratings [application]
-  (assoc application :name-ratings (read-string (slurp "ratings.txt"))))
+  (if (.exists (java.io.File. "ratings.txt"))
+    (assoc application :name-ratings (read-string (slurp "ratings.txt")))
+    application))
 
 (defn change-name-rating [application name change]
   (->  application
@@ -135,21 +208,40 @@
          (triangle-list/update-many  (:triangle-list application)
                                      0
                                      (let [width (name-width (:font application)
-                                                             (:letters-in-name application))
+                                                             (letters-in-name application))
                                            height (name-height (:font application))
-                                           names-per-line (names-per-line (:font application)
-                                                                          (:letters-in-name application)
-                                                                          @(:width (:window application)))]
+                                           lines-per-page (lines-per-page (:page-height application)
+                                                                          (:font application))]
                                        (vector-rectangle/rectangle  (name-x index
                                                                             width
-                                                                            names-per-line)
+                                                                            lines-per-page)
                                                                     (- (name-y  index
                                                                                 height
-                                                                                names-per-line)
+                                                                                lines-per-page)
                                                                        height)
                                                                     width
                                                                     height
-                                                                    (map float [0.0 0.0 1.0]))))))
+                                                                    (map float [0.8 0.8 0.8]))))))
+
+(defn change-page [application delta]
+  (-> application
+      (assoc :index (max 0
+                         (+ (* delta
+                               (names-per-page  (:font application)
+                                                (:page-width application)
+                                                (:page-height application)
+                                                (letters-in-name application)))
+                            (:index application))))
+      (draw-names)))
+
+(defn name-in-mouse-coordinates [application]
+  (name-for-index (+ (cell-in-coordinates (:grid application)
+                                          (:mouse-x application)
+                                          (:mouse-y application))
+                     (:index application))
+                  (:name-ratings application)
+                  (:show-only-rated-names application)
+                  (:name-generator application)))
 
 (defn handle-event [application event]
   (cond
@@ -162,39 +254,20 @@
      (-> application
          (assoc :mouse-x x
                 :mouse-y y)
-         (highlight-name (name-index-in-coordinates x
-                                                    y
-                                                    (:page-width application)
-                                                    (:font application)
-                                                    (:letters-in-name application)))))
-
-
-
+         (highlight-name (cell-in-coordinates (:grid application)
+                                              x
+                                              y))))
 
    (= (:type event)
       :left-mouse-button-up)
    (change-name-rating application
-                       (name-for-index (name-index-in-coordinates (:mouse-x application)
-                                                                  (:mouse-y application)
-                                                                  (:page-width application)
-                                                                  (:font application)
-                                                                  (:letters-in-name application))
-                                       (:name-ratings application)
-                                       (:show-only-rated-names application))
-
+                       (name-in-mouse-coordinates application)
                        1)
 
    (= (:type event)
       :right-mouse-button-up)
    (change-name-rating application
-                       (name-for-index (name-index-in-coordinates (:mouse-x application)
-                                                                  (:mouse-y application)
-                                                                  (:page-width application)
-                                                                  (:font application)
-                                                                  (:letters-in-name application))
-                                       (:name-ratings application)
-                                       (:show-only-rated-names application)
-                                       )
+                       (name-in-mouse-coordinates application)
                        -1)
 
    (key-pressed event input/escape)
@@ -204,23 +277,20 @@
    (key-pressed event input/space)
    (-> application
        (assoc :show-only-rated-names (not (:show-only-rated-names application)))
+       (layout-grid)
        (draw-names))
+
+   (key-pressed event input/page-down)
+   (change-page application 10)
+
+   (key-pressed event input/page-up)
+   (change-page application -10)
 
    (key-pressed event input/down)
-   (-> application
-       (assoc :index (min (+ 10
-                             (:index application))
-                          100))
-       (draw-names))
-
+   (change-page application 1)
 
    (key-pressed event input/up)
-   (-> application
-       (assoc :index (max (- (:index application)
-                             10)
-                          0))
-       (draw-names))
-
+   (change-page application -1)
 
    :default application))
 
@@ -237,29 +307,33 @@
       (handle-events)))
 
 
-(defn create-application [window]
-  (-> {:name-ratings {}
-       :font (font/create "LiberationSans-Regular.ttf" 11)
-       :letters-in-name 6
+(defn create-application [window name-generator maximum-index]
+  (-> {:maximum-index maximum-index
+       :name-generator name-generator
+       :name-ratings {}
+       :font (font/create "LiberationSans-Regular.ttf" 17)
+       :letters-in-name (+ 3 (count (name-generator 0)))
        :index 0
        :page-width (int @(:width window))
-       :page-height (int @(:height window))
+       :page-height (- (int @(:height window)) 20)
        :image-list (-> (image-list/create)
                        (image-list/add-image :names 0 0 (int @(:width window)) (int @(:height window))))
        :triangle-list (triangle-list/create 10)
        :window window}
+      (layout-grid)
       (load-ratings)
       (highlight-name 0)
       (draw-names)
       (render)))
 
-(defn start []
-  (window/start 700 500
+(defn start [name-generator maximum-index]
+  (window/start 1000 500
                 20
-                create-application
+                (fn [window] (create-application window name-generator maximum-index))
                 update
                 (fn [_])))
 
 (comment
-  (start)
+(start (fn [index] (str "name" index))
+         300)
   )

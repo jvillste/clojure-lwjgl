@@ -44,11 +44,15 @@
 
 (defn create-float-buffer [size] (BufferUtils/createFloatBuffer size))
 
-(defn update-buffer [buffer start-index values]
-  (.position buffer start-index)
-  (doseq [value values]
-    (.put buffer value))
-  buffer)
+(defn update-buffer
+  ([buffer start-index values coersion]
+     (.position buffer start-index)
+     (doseq [value values]
+       (.put buffer (coersion value)))
+     buffer)
+
+  ([buffer start-index values]
+      (update-buffer buffer start-index values identity)))
 
 
 (defn create-float-buffer-from-values [values]

@@ -7,3 +7,4 @@
 (defn multi-color-triangle [coordinates colors]
   {:coordinates (map float (apply concat coordinates))
    :colors (map float (apply concat colors))})
+

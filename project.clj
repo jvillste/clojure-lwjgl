@@ -1,4 +1,4 @@
-(defproject clojure-lwjgl "1.0.0-SNAPSHOT"
+(defproject clojure-lwjgl "2.0.0-SNAPSHOT"
   :description "FIXME: write description"
   :repositories {"sonatype-oss-public" "https://oss.sonatype.org/content/groups/public/"} ;; for priority-map
   :dependencies [[org.clojure/clojure "1.3.0"]
@@ -10,4 +10,5 @@
                  [jpen/jpen-native "2.111002"]
                  [midje "1.3.1"]
                  [analyze "0.1.5"]
-                 [clojure-cello/clojure-cello "1.0.0-SNAPSHOT"]])
+                 [clojure-cello/clojure-cello "1.0.0"]]
+  :plugins [[lein-swank "1.4.4"]])

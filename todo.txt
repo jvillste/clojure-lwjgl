@@ -1,3 +1,30 @@
+graphics primitive list
+- creates and updates GPU buffers based on a list of primitives such as triangles and bitmaps
+
+view-function
+- model -> graphics primitive list
+
+graphics primitive list manager
+- maintians ordered list of primitive lists based on id:s
+
+model listening
+- decides what view functions need to be evaluated based on a certain change in the model
+
+event handling
+- function from model and event to new model
+
+widget hierarchy
+- widgets can produce events based on input events and events produced by other widgets
+- each widget has it's own model that needs to be containted in the upper level widget's model
+
+layout
+- layout events or measure/layout passess
+
+
+framework should be minimized and library maximized
+
+
+
 everything is just composable functions
 
 component state is function of application state

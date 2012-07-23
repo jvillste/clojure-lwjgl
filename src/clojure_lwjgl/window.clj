@@ -16,12 +16,15 @@
 (defn resize [window]
   (if @(:resize-requested window)
     (do
-      (println "resize")
       (GL11/glViewport 0 0 @(:width window)  @(:height window))
       (GL11/glMatrixMode GL11/GL_PROJECTION)
       (GL11/glLoadIdentity)
       (GL11/glOrtho 0, @(:width window), 0, @(:height window), -1, 1)
+
       (GL11/glMatrixMode GL11/GL_MODELVIEW)
+      (GL11/glLoadIdentity)
+      (GL11/glScalef 1 -1 1)
+      (GL11/glTranslatef 0 (- @(:height window)) 0)
       (reset! (:resize-requested window) false)
       window)
     window))
@@ -70,7 +73,7 @@
       .show)
 
     (.requestFocus canvas)
-    
+
     (Display/setParent canvas)
     (Display/create)
     (initialize-gl)
