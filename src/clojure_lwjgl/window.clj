@@ -92,19 +92,19 @@
   (.dispose (:frame window))
   (reset! (:close-requested window) false))
 
-(defn initialize [gui]
-  (-> gui
-      (assoc ::window (create))
-      (event-queue/add-event-handler :update update)))
-
-(defn start [width height framerate initialize update-state handle-close]
+(defn start [width height framerate initialize update-state handle-close handle-resize]
   (let [window (-> (create width height)
                    (update framerate))]
     (try
       (loop [state (initialize window)]
         (if (not @(:close-requested window))
-          (do (update window framerate)
-              (recur (update-state state)))
+          (do (let [resize-requested @(:resize-requested window)]
+                (update window framerate)
+                (if resize-requested
+                  (recur (-> state
+                             (handle-resize @(:width window) @(:height window))
+                             (update-state)))
+                  (recur (update-state state)))))
           (do (handle-close state)
               (close window))))
       (catch Exception e

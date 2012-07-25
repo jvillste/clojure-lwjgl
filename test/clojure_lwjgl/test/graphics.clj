@@ -9,53 +9,76 @@
                            [triangle-batch :as triangle-batch]
                            [vector-rectangle :as vector-rectangle]
                            [primitive-list :as primitive-list]
+                           [triangle-list :as triangle-list]
                            [primitive :as primitive]))
   (:import [org.lwjgl.opengl GL11 GL20 ARBVertexBufferObject ARBVertexProgram ARBVertexShader]
            [java.awt Color Font FontMetrics RenderingHints]))
+
+(defn draw-view-part [application view-part]
+  (doseq [primitive-list (get-in application [:view-part-primitive-lists view-part])]
+    (primitive-list/draw primitive-list)))
 
 (defn render [application]
   (GL11/glClearColor 0 0 0 0)
   (GL11/glClear GL11/GL_COLOR_BUFFER_BIT)
 
-  (println "render")
-  (doseq [primitive-list (:primitive-lists application)]
-    (println "drawing list")
-    (primitive-list/draw primitive-list))
+  (doseq [view-part (:view application)]
+    (draw-view-part application view-part))
 
   application)
 
-(defn update [application]
-  (-> application
-      (render)))
-
-(def primitives [(text-list/->Text 20
-                                   20
-                                   "Foo"
-                                   (font/create "LiberationSans-Regular.ttf" 17)
-                                   [1.0 0.0 0.0 1.0])
-                 (text-list/->Text 60
-                                   20
-                                   "Foo"
-                                   (font/create "LiberationSans-Regular.ttf" 17)
-                                   [1.0 0.0 0.0 1.0])
-                 (triangle-batch/->TriangleBatch [10 10
-                                                  20 10
-                                                  20 20]
-                                                 [1 0 0 1
-                                                  1 0 0 1
-                                                  1 0 0 1])
-                 (vector-rectangle/rectangle 30 30 20 20 [0 1 0 1])])
-
-(defn primitive-lists [primitives]
+(defn primitive-lists-for-primitives [primitives]
   (map (fn [primitive-group] ((primitive/list-creator (first primitive-group)) primitive-group))
        (partition-by primitive/list-creator primitives)))
 
+(defn update-view-part [application view-part]
+  (doseq [primitive-list (get-in application [:view-part-primitive-lists view-part])]
+    (primitive-list/delete primitive-list))
+
+  (assoc-in application [:view-part-primitive-lists view-part] (primitive-lists-for-primitives ((get-in application [:view-parts view-part]) application))))
+
+(defn update-view [application]
+  (reduce update-view-part application (:view application)))
+
+(defn background [{:keys [width height]}]
+  [(vector-rectangle/rectangle 20 20
+                               (- width 40)
+                               (- height 40)
+                               [0 1 0 1])])
+
+(defn foreground [{:keys [count width height]}]
+  [(text-list/->Text (/ width 2)
+                     (/ height 2)
+                     (str count)
+                     (font/create "LiberationSans-Regular.ttf" 17)
+                     [1.0 0.0 0.0 1.0])])
+
+(defn update [application]
+  (-> application
+      (update-in [:count] inc)
+      (update-view-part :foreground)
+      (render)))
+
 (defn create-application [window]
-  {:primitive-lists (primitive-lists primitives)})
+  (-> {:view-parts {:background background
+                    :foreground foreground}
+       :view [:background
+              :foreground]
+       :view-part-primitive-lists {}
+       :width @(:width window)
+       :height @(:height window)
+       :count 0}
+      (update-view)))
 
 (comment
 (window/start 700 500
-                1
+                5
                 create-application
                 update
-                identity))
+                identity
+                (fn [state width height]
+                  (-> state
+                      (assoc
+                          :width width
+                          :height height)
+                      (update-view)))))
