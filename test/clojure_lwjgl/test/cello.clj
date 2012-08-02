@@ -1,8 +1,10 @@
 (ns clojure-lwjgl.test.cello
   (:require (clojure-lwjgl [triangle-list :as triangle-list]
+                           [triangle-batch :as triangle-batch]
                            [window :as window]
                            [visual-list :as visual-list]
-                           [text :as text])
+                           [text :as text]
+                           [vector-rectangle :as vector-rectangle])
             [clojure-cello.pitch-detector :as pitch-detector])
   (:import [org.lwjgl.opengl GL11 GL20 ARBVertexBufferObject ARBVertexProgram ARBVertexShader])
   (:use clojure.test))
@@ -65,41 +67,6 @@
 
   application)
 
-(def blue (map float [0.0 0.0 1.0]))
-(def red (map float [1.0 0.0 0.0]))
-(def green (map float [0.0 1.0 0.0]))
-
-(defn add-opacity [color opacity]
-  (concat color [opacity]))
-
-(defn single-color-triangle [coordinates color]
-  {:coordinates (map float (apply concat coordinates))
-   :colors (apply concat (repeat 3 (concat color [(float 1.0)])))})
-
-(defn multi-color-triangle [coordinates colors]
-  {:coordinates (map float (apply concat coordinates))
-   :colors (map float (apply concat colors))})
-
-(defn rectangle [x y width height color]
-  [(single-color-triangle [[x y]
-                           [x (+ y height)]
-                           [(+ x width) y]]
-                          color)
-
-   (single-color-triangle [[x (+ y height)]
-                           [(+ x width) (+ y height)]
-                           [(+ x width) y]]
-                          color)])
-
-(deftest add-opacity-test
-  (is (= (map #(add-opacity % 1.0) [red green blue])
-         '((1.0 0.0 0.0 1.0) (0.0 1.0 0.0 1.0) (0.0 0.0 1.0 1.0)))))
-
-(deftest rectangle-test
-  (is (= (rectangle 10 10 20 20 blue)
-         '[{:coordinates (10.0 10.0 10.0 30.0 30.0 10.0), :colors (0.0 0.0 1.0 1.0 0.0 0.0 1.0 1.0 0.0 0.0 1.0 1.0)}
-           {:coordinates (10.0 30.0 30.0 30.0 30.0 10.0), :colors (0.0 0.0 1.0 1.0 0.0 0.0 1.0 1.0 0.0 0.0 1.0 1.0)}])))
-
 
 ;; UI
 
@@ -112,16 +79,16 @@
 
 (defn scale-line-color [note]
   (if (major-scale-notes (mod (- note 3) 12))
-    (map float [0.0 0.0 0.0])
-    (map float [0.9 0.9 0.9])))
+    [0.0 0.0 0.0 1.0]
+    [0.9 0.9 0.9 1.0]))
 
 (defn scale [width height lowest-note highest-note]
-  (apply concat (map (fn [note] (rectangle 30
-                                           (scale-line-y-coordinate height note lowest-note highest-note)
-                                           width
-                                           1
-                                           (scale-line-color note)))
-                     (range lowest-note highest-note))))
+  (reduce triangle-batch/concatenate (map (fn [note] (vector-rectangle/rectangle 30
+                                                                                 (scale-line-y-coordinate height note lowest-note highest-note)
+                                                                                 width
+                                                                                 2
+                                                                                 (scale-line-color note)))
+                                          (range lowest-note highest-note))))
 
 (defn update-pitch-indicator [application]
   (if (> @(:pitch-atom application)
@@ -134,12 +101,12 @@
       (assoc application
         :pitch-indicator (triangle-list/update (application :pitch-indicator)
                                                0
-                                               {:coordinates (map float [50.0 (+ y 10.0)
-                                                                         100.0 y
-                                                                         50.0 (- y 10.0)])
-                                                :colors (map float [0.0 1.0 1.0 1.0
-                                                                    0.0 1.0 0.0 1.0
-                                                                    0.0 1.0 1.0 1.0])})))
+                                               {:coordinates [50.0 (+ y 10.0)
+                                                              100.0 y
+                                                              50.0 (- y 10.0)]
+                                                :colors [0.0 1.0 1.0 1.0
+                                                         0.0 1.0 0.0 1.0
+                                                         0.0 1.0 1.0 1.0]})))
     application))
 
 
@@ -182,16 +149,17 @@
                                                                        0.0 0.0 1.0 1.0])}))
      :scale (let [scale-triangles (scale @(:width window) @(:height window)
                                          (:lowest-note scale-range) (:highest-note scale-range))]
-              (-> (triangle-list/create (count scale-triangles))
-                  (triangle-list/update-many 0 scale-triangles)))
+              (-> (triangle-list/create (triangle-batch/number-of-triangles scale-triangles))
+                  (triangle-list/update 0 scale-triangles)))
      :note-labels (create-note-labels @(:width window) @(:height window)
                                       (:lowest-note scale-range) (:highest-note scale-range))}))
 
 (defn start []
-  (window/start 700 500
+(window/start 700 500
                 15
                 create-application
                 update
-                stop-pitch-detector))
+                stop-pitch-detector
+                (fn [application width height] application)))
 
 (run-tests)

@@ -12,7 +12,9 @@
                            [triangle-list :as triangle-list]
                            [primitive :as primitive]))
   (:import [org.lwjgl.opengl GL11 GL20 ARBVertexBufferObject ARBVertexProgram ARBVertexShader]
-           [java.awt Color Font FontMetrics RenderingHints]))
+           [java.awt Color Font FontMetrics RenderingHints]
+           [clojure_lwjgl.triangle_batch.TriangleBatch]
+           [clojure_lwjgl.triangle_list.TriangleList]))
 
 (defn draw-view-part [application view-part]
   (doseq [primitive-list (get-in application [:view-part-primitive-lists view-part])]
@@ -26,6 +28,34 @@
     (draw-view-part application view-part))
 
   application)
+
+(defprotocol CommandRunner
+  (delete [command-runner])
+  (run [command-runner]))
+
+(defprotocol Command
+  (create-runner [command])
+  (combine [command other-command]))
+
+(extend TriangleBatch
+  Command
+  {:create-runner triangle-list/create-from-batch
+   :combine triangle-batch/concatenate})
+
+(extend TriangleList
+  CommandRunner
+  {:delete triangle-list/delete
+   :run triangle-list/render})
+
+(extend Text
+  Command
+  {:create-runner triangle-list/create-from-batch
+   :combine triangle-batch/concatenate})
+
+(defn command-runners-for-commands [commands]
+  (map (fn [command-group] (-> (reduce combine command-group)
+                               (create-runner)))
+       (partition-by type commands)))
 
 (defn primitive-lists-for-primitives [primitives]
   (map (fn [primitive-group] ((primitive/list-creator (first primitive-group)) primitive-group))
@@ -50,7 +80,7 @@
   [(text-list/->Text (/ width 2)
                      (/ height 2)
                      (str count)
-                     (font/create "LiberationSans-Regular.ttf" 17)
+                     (font/create "LiberationSans-Regular.ttf" 40)
                      [1.0 0.0 0.0 1.0])])
 
 (defn update [application]
