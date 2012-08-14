@@ -1,0 +1,46 @@
+(ns clojure-lwjgl.command.triangle-batch
+  (:require (clojure-lwjgl [triangle-list :as triangle-list])
+            [clojure-lwjgl.command.command :as command]))
+
+(defrecord TriangleBatch [coordinates colors])
+
+(defrecord TriangleBatchRunner [triangle-list])
+
+(defn create [coordinates colors]
+  (->TriangleBatch coordinates colors))
+
+(defn concatenate [triangle-batch1 triangle-batch2]
+  (->TriangleBatch (concat (:coordinates triangle-batch1)
+                           (:coordinates triangle-batch2))
+                   (concat (:colors triangle-batch1)
+                           (:colors triangle-batch2))))
+
+(defn number-of-triangles [triangle-batch]
+  (/ (count (:coordinates triangle-batch))
+     6))
+
+(defn create-triangle-list [triangle-batch]
+  (-> (triangle-list/create (number-of-triangles triangle-batch))
+      (triangle-list/update 0 (:coordinates triangle-batch) (:colors triangle-batch))))
+
+(defn update-triangle-list-from-triangle-batch [triangle-list triangle-batch]
+  (if (= (number-of-triangles triangle-batch)
+         (:number-of-triangles triangle-list))
+    (triangle-list/update triangle-list 0 (:coordinates triangle-batch) (:colors triangle-batch))
+    (do (triangle-list/delete triangle-list)
+        (create-triangle-list triangle-batch))))
+
+(defn create-triangle-batch-runner [triangle-batch]
+  (->  (create-triangle-list triangle-batch)
+       (->TriangleBatchRunner)))
+
+(extend TriangleBatch
+  command/Command
+  {:create-runner create-triangle-batch-runner}
+  command/CombinableCommand
+  {:combine concatenate})
+
+(extend TriangleBatchRunner
+  command/CommandRunner
+  {:delete (fn [triangle-batch-runner] (triangle-list/delete (:triangle-list triangle-batch-runner)))
+   :run (fn [triangle-batch-runner] (triangle-list/render (:triangle-list triangle-batch-runner)))})

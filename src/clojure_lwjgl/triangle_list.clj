@@ -3,9 +3,7 @@
                            [quad-buffer :as quad-buffer]
                            [texture-coordinate-buffer :as texture-coordinate-buffer]
                            [shader :as shader]
-                           [buffer :as buffer]
-                           [primitive-list :as primitive-list]
-                           [primitive :as primitive])
+                           [buffer :as buffer])
             (clojure-lwjgl.paint [vector2d :as vector2d]))
   (:import [java.awt Color Font  RenderingHints]
            [org.lwjgl.opengl GL11 GL20 ARBVertexBufferObject ARBVertexProgram ARBVertexShader]
@@ -45,17 +43,17 @@ void main() {
 }
 ")
 
-(defn update [triangle-list index triangle-batch]
+(defn update [triangle-list index coordinates colors]
   (buffer/update-buffer (:vertex-coordinate-buffer triangle-list)
                         (* index 2 3)
-                        (:coordinates triangle-batch)
+                        coordinates
                         float)
   (buffer/load-buffer (:vertex-coordinate-buffer-id triangle-list)
                       (:vertex-coordinate-buffer triangle-list))
 
   (buffer/update-buffer (:vertex-color-buffer triangle-list)
                         (* index 4 3)
-                        (:colors triangle-batch)
+                        colors
                         float)
   (buffer/load-buffer (:vertex-color-buffer-id triangle-list)
                       (:vertex-color-buffer triangle-list))
@@ -75,21 +73,13 @@ void main() {
                         :vertex-color-buffer-id (buffer/create-gl-buffer)
                         :vertex-color-buffer (buffer/create-float-buffer (* 3 4 number-of-triangles))})))
 
-(defn create-from-batch [triangle-batch]
-  (-> (create (triangle-batch/number-of-triangles triangle-batch))
-      (update 0 triangle-batch)))
+
 
 (defn delete [triangle-list]
   (buffer/delete (:vertex-coordinate-buffer-id triangle-list))
   (buffer/delete (:vertex-color-buffer-id triangle-list))
   (shader/delete-program (:shader-program triangle-list)))
 
-(defn update-from-batch [triangle-list triangle-batch]
-  (if (= (triangle-batch/number-of-triangles triangle-batch)
-         (:number-of-triangles triangle-list))
-    (update triangle-list 0 triangle-batch)
-    (do (delete triangle-list)
-        (create-from-batch triangle-batch))))
 
 (defn render [triangle-list]
   (shader/enable-program (:shader-program triangle-list))
@@ -114,23 +104,4 @@ void main() {
   (GL11/glDrawArrays GL11/GL_TRIANGLES 0 (* 4 (:number-of-triangles triangle-list))))
 
 
-(extend TriangleBatch
-  primitive/Primitive
-  {:list-creator (fn [triangle-batch] (fn [triangle-batches]
-                                        (create-from-batch (reduce triangle-batch/concatenate
-                                                                   triangle-batches))))})
 
-(extend TriangleList
-
-  primitive-list/PrimitiveList
-
-  {:create (fn [triangle-batches]
-             (create-from-batch (reduce triangle-batch/concatenate
-                                        triangle-batches)))
-
-   :update (fn [triangle-list triangle-batches]
-             (update-from-batch triangle-list
-                                (reduce triangle-batch/concatenate
-                                        triangle-batches)))
-   :draw render
-   :delete delete})

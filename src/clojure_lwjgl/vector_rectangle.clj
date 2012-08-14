@@ -1,5 +1,5 @@
 (ns clojure-lwjgl.vector-rectangle
-  (:require (clojure-lwjgl [triangle-batch :as triangle-batch]))
+  (:require (clojure-lwjgl.command [triangle-batch :as triangle-batch]))
   (:use clojure.test))
 
 (defn rectangle [x y width height color]
