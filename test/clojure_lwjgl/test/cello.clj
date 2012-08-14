@@ -32,6 +32,28 @@
 
 (def major-scale-notes #{0 2 4 5 7 9 11})
 
+(defn normalized-half-steps-from-c [half-steps-from-a]
+  (mod (+ half-steps-from-a
+          9)
+       12))
+
+(deftest normalized-half-steps-from-c-test
+  (are [half-steps-from-a result] (= (normalized-half-steps-from-c half-steps-from-a)
+                                     result)
+       0 9
+       12 0))
+
+(defn major-scale-index [half-steps-from-a]
+  (let [half-steps-from-c (normalized-half-steps-from-c half-steps-from-a)]
+    (if (>= half-steps-from-c 0)
+      (count (filter #(<= % half-steps-from-c) major-scale-notes)))))
+
+(deftest major-scale-index-test
+  (are [half-steps-from-a major-scale-index-result] (= (major-scale-index half-steps-from-a)
+                                                       major-scale-index-result)
+       0 0
+       1 0))
+
 (def guitar-range {:lowest-note -31
                    :highest-note 10})
 
@@ -155,7 +177,7 @@
                                       (:lowest-note scale-range) (:highest-note scale-range))}))
 
 (defn start []
-(window/start 700 500
+  (window/start 700 500
                 15
                 create-application
                 update
@@ -163,3 +185,6 @@
                 (fn [application width height] application)))
 
 (run-tests)
+
+(comment
+  (start))

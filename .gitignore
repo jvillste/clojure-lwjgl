@@ -2,6 +2,7 @@ pom.xml
 /classes/
 /lib/
 /native/
+/target/
 .lein-failures
 .lein-deps-sum
 .idea
