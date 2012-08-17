@@ -8,22 +8,14 @@
   (:import [org.lwjgl.opengl GL11 GL20 ARBVertexBufferObject ARBVertexProgram ARBVertexShader]
            [java.awt Color Font FontMetrics RenderingHints]
            [clojure_lwjgl.triangle_batch TriangleBatch]
-           [clojure_lwjgl.triangle_list TriangleList]
-           [clojure_lwjgl.translate Translate]))
+           [clojure_lwjgl.triangle_list TriangleList]))
 
-
-#_(defrecord CommandRunnerBatch [command-runners]
-  CommandRunner
-  (delete [command-runner-batch] (update-in command-runner-batch [:command-runners] #(doall (map delete %))))
-  (run [command-runner-batch] (update-in command-runner-batch [:command-runners] #(doall (map run %)))))
 
 (defn draw-view-part [application view-part]
   (doseq [command-runner (get-in application [:view-part-command-runners view-part])]
-    (println "running " (type command-runner))
     (command/run command-runner)))
 
 (defn render [application]
-  (println "render")
   (GL11/glClearColor 0 0 0 0)
   (GL11/glClear GL11/GL_COLOR_BUFFER_BIT)
 
@@ -31,19 +23,6 @@
     (draw-view-part application view-part))
 
   application)
-
-(extend Translate
-  command/Command
-  {:create-runner identity}
-  command/CommandRunner
-  {:delete identity
-   :run (fn [{:keys [x y]}]
-          (GL11/glMatrixMode GL11/GL_MODELVIEW)
-          (GL11/glTranslatef x y 0))})
-
-
-
-
 
 (defn update-view-part [application view-part]
   (doseq [command-runner (get-in application [:view-part-command-runners view-part])]
@@ -105,4 +84,9 @@
                       (assoc
                           :width width
                           :height height)
-                      (update-view)))))
+                      (update-view))))
+
+(defrecord CommandRunnerBatch [command-runners]
+  CommandRunner
+  (delete [command-runner-batch] (update-in command-runner-batch [:command-runners] #(doall (map delete %))))
+  (run [command-runner-batch] (update-in command-runner-batch [:command-runners] #(doall (map run %))))))
