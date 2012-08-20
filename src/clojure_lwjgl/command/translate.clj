@@ -1,5 +1,7 @@
 (ns clojure-lwjgl.command.translate
-  (:require [clojure-lwjgl.command.command :as command])
+  (:require (clojure-lwjgl.command [command :as command]
+                                   [push-modelview :as push-modelview]
+                                   [pop-modelview :as pop-modelview]))
   (:import [org.lwjgl.opengl GL11]))
 
 (defrecord Translate [x y])
@@ -20,3 +22,9 @@
    :run (fn [{:keys [x y]}]
           (GL11/glMatrixMode GL11/GL_MODELVIEW)
           (GL11/glTranslatef x y 0))})
+
+(defn translate [x y & commands]
+  (concat [(push-modelview/->PushModelview)
+           (->Translate x y)]
+          commands
+          [(pop-modelview/->PopModelview)]))

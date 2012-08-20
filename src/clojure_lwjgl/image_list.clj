@@ -14,16 +14,23 @@
               (zipper-list/create)
               (image/create-shared-resources)))
 
-(defn add-image [image-list id x y width height]
+(defn add-image-for-texture [image-list id x y texture]
   (assoc image-list
     :images (assoc (:images image-list)
               id (image/create (:shared-resources image-list)
                                x
                                y
-                               (-> (texture/create width height)
-                                   (texture/load))))
+                               texture))
     :id-list (zipper-list/add (:id-list image-list)
                               id)))
+
+(defn add-image [image-list id x y width height]
+  (add-image-for-texture image-list
+                         id
+                         x
+                         y
+                         (-> (texture/create width height)
+                                            (texture/load))))
 
 (defn update-image [image-list id updater]
   (assoc image-list

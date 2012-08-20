@@ -1,4 +1,5 @@
-(ns clojure-lwjgl.logged-access)
+(ns clojure-lwjgl.logged-access
+  (:require clojure.set))
 
 (def ^:dynamic changes)
 

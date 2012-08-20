@@ -17,7 +17,7 @@
       (.setColor (Color. r g b a))
       (.setFont (font/graphics-font (:font text)))
       (.setRenderingHint RenderingHints/KEY_TEXT_ANTIALIASING RenderingHints/VALUE_TEXT_ANTIALIAS_LCD_HBGR )
-      (.drawString (:content text) 0 (font/height (:font text) (:content text))))))
+      (.drawString (:content text) 0 (font/ascent (:font text))))))
 
 (defn create-image-list [texts]
   (reduce (fn [image-list [index text]]
@@ -26,7 +26,7 @@
                                       (:x text)
                                       (:y text)
                                       (font/width (:font text) (:content text))
-                                      (font/height (:font text) (:content text)))
+                                      (font/height (:font text)))
                 (image-list/draw-on-image index
                                           (fn [graphics] (draw-text graphics text)))))
           (image-list/create)

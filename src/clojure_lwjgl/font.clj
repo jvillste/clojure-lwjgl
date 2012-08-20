@@ -24,9 +24,8 @@
 
 (defn width [font text] (.stringWidth (:font-metrics font) text))
 
-(defn height [font text] (+ (.getMaxAscent (:font-metrics font))
-                            ;;    (.getLeading (:font-metrics font))
-                            (.getMaxDescent (:font-metrics font))))
+(defn height [font] (+ (.getMaxAscent (:font-metrics font))
+                       (.getMaxDescent (:font-metrics font))))
 
 (defn ascent [font] (.getMaxAscent (:font-metrics font)))
 

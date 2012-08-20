@@ -28,38 +28,41 @@
 (defn update-view-part [application view-part]
   (doseq [command-runner (get-in application [:view-part-command-runners view-part])]
     (command/delete command-runner))
-
-  (assoc-in application [:view-part-command-runners view-part] (command/command-runners-for-commands ((:function (get-in application [:view-parts view-part])) application))))
+  (logged-access/with-access-logging
+    (assoc-in application [:view-part-command-runners view-part] (command/command-runners-for-commands ((:function (get-in application [:view-parts view-part])) application)))))
 
 (defn update-view [application]
   (reduce update-view-part application (:view application)))
 
 (defrecord ViewPart [dependencies function])
 
-(def background (->ViewPart #{:width :height}
-                            (fn  [{:keys [width height]}]
-                              [(vector-rectangle/rectangle 20 20
-                                                           (- width 40)
-                                                           (- height 40)
-                                                           [0.5 0.5 0.5 1])
-                               (text/create (/ width 2)
-                                            (- (/ height 2)
-                                               100)
-                                            "JEES"
-                                            (font/create "LiberationSans-Regular.ttf" 40)
-                                            [0.0 0.0 0.0 1.0])
-                               (vector-rectangle/rectangle 30 30
-                                                           (- width 60)
-                                                           (- height 60)
-                                                           [1 1 1 0.5])])))
+(defn background [application]
+  (let [width (logged-access/logged-get application :width)
+        height (logged-access/logged-get application :height)]
+    [(vector-rectangle/rectangle 20 20
+                                 (- width 40)
+                                 (- height 40)
+                                 [0.5 0.5 0.5 1])
+     (text/create (/ width 2)
+                  (- (/ height 2)
+                     100)
+                  "JEES"
+                  (font/create "LiberationSans-Regular.ttf" 40)
+                  [0.0 0.0 0.0 1.0])
+     (vector-rectangle/rectangle 30 30
+                                 (- width 60)
+                                 (- height 60)
+                                 [1 1 1 0.5])]))
 
-(def foreground (->ViewPart #{:count :width :height}
-                            (fn [{:keys [count width height]}]
-                              [(text/create (/ width 2)
-                                            (/ height 2)
-                                            (str count)
-                                            (font/create "LiberationSans-Regular.ttf" 40)
-                                            [0.0 0.0 0.0 1.0])])))
+(defn foreground [application]
+  (let [width (logged-access/logged-get application :width)
+        height (logged-access/logged-get application :height)
+        count (logged-access/logged-get application :count)]
+    [(text/create (/ width 2)
+                  (/ height 2)
+                  (str count)
+                  (font/create "LiberationSans-Regular.ttf" 40)
+                  [0.0 0.0 0.0 1.0])]))
 
 (defn update [application]
   (-> application
@@ -67,9 +70,13 @@
       (update-view-part :foreground)
       (render)))
 
+(defn create-view-part [view-part-function]
+  (logged-access/with-access-logging
+    (->ViewPart #{} view-part-function)))
+
 (defn create-application [window]
-  (-> {:view-parts {:background background
-                    :foreground foreground}
+  (-> {:view-parts {:background (create-view-part background)
+                    :foreground (create-view-part foreground)}
        :view [:background
               :foreground]
        :view-part-command-runners {}
