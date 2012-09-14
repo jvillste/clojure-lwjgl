@@ -123,12 +123,12 @@
       (assoc application
         :pitch-indicator (triangle-list/update (application :pitch-indicator)
                                                0
-                                               {:coordinates [50.0 (+ y 10.0)
+                                               [50.0 (+ y 10.0)
                                                               100.0 y
-                                                              50.0 (- y 10.0)]
-                                                :colors [0.0 1.0 1.0 1.0
-                                                         0.0 1.0 0.0 1.0
-                                                         0.0 1.0 1.0 1.0]})))
+                                                50.0 (- y 10.0)]
+                                               [0.0 0.0 0.0 1.0
+                                                         0.0 0.0 0.0 1.0
+                                                         0.0 0.0 0.0 1.0])))
     application))
 
 
@@ -163,16 +163,16 @@
      :pitch-atom pitch-atom
      :pitch-detector (start-pitch-detector pitch-atom)
      :pitch-indicator (-> (triangle-list/create 1)
-                          (triangle-list/update 0 {:coordinates (map float [0.0 0.0
+                          (triangle-list/update 0 (map float [0.0 0.0
                                                                             100.0 0.0
-                                                                            100.0 100.0])
-                                                   :colors (map float [0.0 0.0 1.0 1.0
+                                                              100.0 100.0])
+                                                (map float [0.0 0.0 1.0 1.0
                                                                        0.0 0.0 1.0 1.0
-                                                                       0.0 0.0 1.0 1.0])}))
+                                                                       0.0 0.0 1.0 1.0])))
      :scale (let [scale-triangles (scale @(:width window) @(:height window)
                                          (:lowest-note scale-range) (:highest-note scale-range))]
               (-> (triangle-list/create (triangle-batch/number-of-triangles scale-triangles))
-                  (triangle-list/update 0 scale-triangles)))
+                  (triangle-list/update 0 (:coordinates scale-triangles) (:colors scale-triangles))))
      :note-labels (create-note-labels @(:width window) @(:height window)
                                       (:lowest-note scale-range) (:highest-note scale-range))}))
 
@@ -187,4 +187,4 @@
 (run-tests)
 
 (comment
-  (start))
+(start))

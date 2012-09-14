@@ -1,8 +1,9 @@
-(ns clojure-lwjgl.test.scanner
+(ns clojure-lwjgl.test.dataflow-scanner
   (:require (clojure-lwjgl [window :as window]
                            [font :as font]
                            [vector-rectangle :as vector-rectangle]
-                           [input :as input])
+                           [input :as input]
+                           [logged-access :as logged-access])
             (clojure-lwjgl.command [text :as text]
                                    [image :as image]
                                    [command :as command]
@@ -12,6 +13,7 @@
                                    [pop-modelview :as pop-modelview])
             (clojure.java [shell :as shell]
                           [io :as io])
+            [clojure.contrib.dataflow :as dataflow]
             (clojure [string :as string]))
   (:import [org.lwjgl.opengl GL11 GL20 ARBVertexBufferObject ARBVertexProgram ARBVertexShader]
            [java.awt Color Font FontMetrics RenderingHints]
@@ -24,7 +26,7 @@
          conj view-part))
 
 (defn invalidate-view-parts [application & view-parts]
-  (doall (map #(invalidate-view-part application %) view-parts)))
+  (dorun (map #(invalidate-view-part application %) view-parts)))
 
 (defn validate-view-part [application view-part]
   (swap! (:invalid-view-parts application)
@@ -73,10 +75,10 @@
 
 (def scanned-file-name "scanned.tif")
 
-(defn scan []
-  (with-open [output-stream (io/output-stream scanned-file-name)]
-    (io/copy (:out (shell/sh "scanimage" "--resolution" "300" "--format=tiff" "-x" "210" "-y" "297"  :out-enc :bytes))
-             output-stream)))
+(comment (defn scan []
+           (with-open [output-stream (io/output-stream scanned-file-name)]
+             (io/copy (:out (shell/sh "scanimage" "--resolution" "300" "--format=tiff" "-x" "210" "-y" "297"  :out-enc :bytes))
+                      output-stream))))
 (defn scan []
   (with-open [output-stream (io/output-stream scanned-file-name)]
     (io/copy (:out (shell/sh "gphoto2" "--capture-image-and-download" "--stdout" :out-enc :bytes))
@@ -113,8 +115,8 @@
   (GL11/glClearColor 0 0 0 0)
   (GL11/glClear GL11/GL_COLOR_BUFFER_BIT)
 
-  (doseq [view-part (:view application)]
-    (draw-view-part application view-part))
+  (dorun (map (partial draw-view-part application)
+              (:view application)))
 
   application)
 
@@ -122,8 +124,8 @@
   (if (is-view-part-invalid? application view-part)
     (do (validate-view-part application view-part)
 
-        (doseq [command-runner (get-in application [:view-part-command-runners view-part])]
-          (command/delete command-runner))
+        (dorun (map command/delete
+                    (get-in application [:view-part-command-runners view-part])))
 
         (assoc-in application [:view-part-command-runners view-part]
                   (command/command-runners-for-commands ((get-in application [:view-parts view-part]) application))))
@@ -136,6 +138,8 @@
         render)
 
     application))
+
+(defrecord cell [function dependencies])
 
 (defn background [{:keys [width height]}]
   [(vector-rectangle/rectangle 0 0
@@ -203,9 +207,9 @@
        (update-in application [:page-number] dec))
 
    (key-pressed event input/page-up)
-   (do (invalidate-view-parts application :foreground :preview) 
+   (do (invalidate-view-parts application :foreground :preview)
        (assoc-in application [:document-number] (apply max (document-numbers application))))
-   
+
 
    (key-pressed event input/page-down)
    (do (invalidate-view-part application :foreground)
@@ -241,13 +245,13 @@
               :preview
               :foreground]
        :invalid-view-parts (atom #{:background :foreground :preview})
-       :preview-changed (atom false)
-       :status (atom "Started")
        :view-part-command-runners {}
+       
        :width @(:width window)
        :height @(:height window)
        :document-number 0
-       :page-number 0}
+       :page-number 0
+       :status (atom "Started")}
       (update-view)))
 
 (defn start []
@@ -267,7 +271,7 @@
                       (update-view)))))
 
 (comment
-(start)
+  (start)
 
 
   (defrecord CommandRunnerBatch [command-runners]
