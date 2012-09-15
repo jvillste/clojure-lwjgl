@@ -24,35 +24,48 @@
   (reduce (fn [dataflow dependant-path]
             (println "updating " dependant-path)
             (-> dataflow
-                (assoc-in dependant-path ((get-in dataflow [::functions dependant-path]) dataflow))
+                (assoc-in dependant-path (with-dataflow dataflow ((get-in dataflow [::functions dependant-path]))))
                 (update-dependencies dependant-path)))
           dataflow
           (dependants dataflow path)))
 
+(def ^:dynamic dataflow)
+
+(defmacro with-dataflow [dataflow & body]
+  `(binding [dataflow ~dataflow]
+     ~@body))
+
 (defn define [dataflow path function]
   (println "defining " path)
-  (logged-access/with-access-logging
-    (-> dataflow
-        (assoc-in path (function dataflow))
-        (assoc-in [::functions path] function)
-        (assoc-in [::dependencies path] @logged-access/reads)
-        (update-dependencies path))))
+  (let [function (if (fn? function)
+                   function
+                   (fn [] function))
+        path (if (vector? path)
+               path
+               [path])]
+    (logged-access/with-access-logging
+      (-> dataflow
+          (assoc-in path (with-dataflow dataflow (function)))
+          (assoc-in [::functions path] function)
+          (assoc-in [::dependencies path] @logged-access/reads)
+          (update-dependencies path)))))
+
+(defn get-val [key]
+  (logged-access/get dataflow key))
+
+(defn get-val-in [path]
+  (logged-access/get-in dataflow path))
 
 (deftest define-test
   (is (= (-> {}
-             (define [:b]
-               (fn [_] 1))
-             (define [:c]
-               (fn [_] 1))
-             (define [:a]
-               (fn [dataflow]
-                 (+ 1
-                    (logged-access/get dataflow :b)
-                    (logged-access/get dataflow :c))))
-             (define [:b]
-               (fn [_] 2))
-             (dissoc ::functions))
-         
+           (define :b 1)
+           (define :c 1)
+           (define :a #(+ 1
+                          (get-val :b)
+                          (get-val :c)))
+           (define :b 2)
+           (dissoc ::functions))
+
          {:a 4
           :b 2
           :c 1
@@ -68,5 +81,13 @@
              (assoc-in it [:y] (+ 1
                                   (get it [:x]))))
 
+(println (-> {}
+           (define :b 1)
+           (define :c 1)
+           (define :a #(+ 1
+                          (get-val :b)
+                          (get-val :c)))
+           (define :b 2)
+           (dissoc ::functions)))
   )
 
