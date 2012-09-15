@@ -1,5 +1,6 @@
 (ns clojure-lwjgl.test.dataflow
-  (:require (clojure-lwjgl [logged-access :as logged-access]))
+  (:require (clojure-lwjgl [logged-access :as logged-access])
+            clojure.set)
   (:use clojure.test))
 
 (defn dependants [dataflow path]
@@ -19,21 +20,27 @@
                      [:e])
          '())))
 
-(defn update-dependencies [dataflow path]
-  (println "updating dependencies for " path)
-  (reduce (fn [dataflow dependant-path]
-            (println "updating " dependant-path)
-            (-> dataflow
-                (assoc-in dependant-path (with-dataflow dataflow ((get-in dataflow [::functions dependant-path]))))
-                (update-dependencies dependant-path)))
-          dataflow
-          (dependants dataflow path)))
 
 (def ^:dynamic dataflow)
 
 (defmacro with-dataflow [dataflow & body]
   `(binding [dataflow ~dataflow]
      ~@body))
+
+(defn update-value [dataflow path]
+  (-> dataflow
+      (assoc-in path (with-dataflow dataflow ((get-in dataflow [::functions path]))))
+      (update-in [::changed-paths] #(clojure.set/union % #{path}))))
+
+(defn update-dependencies [dataflow path]
+  (println "updating dependencies for " path)
+  (reduce (fn [dataflow dependant-path]
+            (println "updating " dependant-path)
+            (-> dataflow
+                (update-value dependant-path)
+                (update-dependencies dependant-path)))
+          dataflow
+          (dependants dataflow path)))
 
 (defn define [dataflow path function]
   (println "defining " path)
@@ -45,9 +52,9 @@
                [path])]
     (logged-access/with-access-logging
       (-> dataflow
-          (assoc-in path (with-dataflow dataflow (function)))
           (assoc-in [::functions path] function)
           (assoc-in [::dependencies path] @logged-access/reads)
+          (update-value path)
           (update-dependencies path)))))
 
 (defn get-val [key]
@@ -56,15 +63,18 @@
 (defn get-val-in [path]
   (logged-access/get-in dataflow path))
 
+(defn add-listener [dataflow path listener]
+  (assoc-in dataflow [::listeners path] listener))
+
 (deftest define-test
   (is (= (-> {}
-           (define :b 1)
-           (define :c 1)
-           (define :a #(+ 1
-                          (get-val :b)
-                          (get-val :c)))
-           (define :b 2)
-           (dissoc ::functions))
+             (define :b 1)
+             (define :c 1)
+             (define :a #(+ 1
+                            (get-val :b)
+                            (get-val :c)))
+             (define :b 2)
+             (dissoc ::functions))
 
          {:a 4
           :b 2
@@ -81,13 +91,13 @@
              (assoc-in it [:y] (+ 1
                                   (get it [:x]))))
 
-(println (-> {}
-           (define :b 1)
-           (define :c 1)
-           (define :a #(+ 1
-                          (get-val :b)
-                          (get-val :c)))
-           (define :b 2)
-           (dissoc ::functions)))
+  (println (-> {}
+               (define :b 1)
+               (define :c 1)
+               (define :a #(+ 1
+                              (get-val :b)
+                              (get-val :c)))
+               (define :b 2)
+               (dissoc ::functions)))
   )
 
