@@ -108,6 +108,6 @@
           (do (handle-close state)
               (close window))))
       (catch Exception e
-        (println e)
+        (println "Exception in window loop: " e)
         (.printStackTrace e)
         (close window)))))

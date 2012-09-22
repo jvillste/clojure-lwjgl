@@ -13,31 +13,13 @@
                                    [pop-modelview :as pop-modelview])
             (clojure.java [shell :as shell]
                           [io :as io])
-            [clojure.contrib.dataflow :as dataflow]
+            [clojure-lwjgl.test.dataflow :as dataflow]
             (clojure [string :as string]))
   (:import [org.lwjgl.opengl GL11 GL20 ARBVertexBufferObject ARBVertexProgram ARBVertexShader]
            [java.awt Color Font FontMetrics RenderingHints]
            [clojure_lwjgl.triangle_batch TriangleBatch]
            [java.io File]))
 
-
-(defn invalidate-view-part [application view-part]
-  (swap! (:invalid-view-parts application)
-         conj view-part))
-
-(defn invalidate-view-parts [application & view-parts]
-  (dorun (map #(invalidate-view-part application %) view-parts)))
-
-(defn validate-view-part [application view-part]
-  (swap! (:invalid-view-parts application)
-         disj view-part))
-
-(defn is-view-part-invalid? [application view-part]
-  (contains? @(:invalid-view-parts application) view-part))
-
-(defn is-view-invalid? [application]
-  (> (count @(:invalid-view-parts application))
-     0))
 
 (defn file-name-prefix [{:keys [archive-path document-number page-number]}]
   (str archive-path "/" document-number "_" page-number))
@@ -67,11 +49,8 @@
 (defn archive-copy-file-name [application]
   (str (file-name-prefix application) ".jpg"))
 
-
-
 (defn set-status [application status]
-  (reset! (:status application) status)
-  (invalidate-view-part application :foreground))
+  (swap! application dataflow/define :status status))
 
 (def scanned-file-name "scanned.tif")
 
@@ -91,21 +70,19 @@
   (shell/sh "convert" scanned-file-name "-quality" "60" (archive-copy-file-name application)))
 
 (defn start-scanning [application]
-  (.start (Thread. (fn []
-                     (let [{:keys [status document-number page-number]} application
-                           file-name-prefix (file-name-prefix application)]
+  (let [{:keys [status document-number page-number] :as application-state} @application
+        file-name-prefix (file-name-prefix application-state)]
 
-                       (set-status application "Scanning...")
-                       (scan)
+    (set-status application "Scanning...")
+    (scan)
 
-                       (set-status application (str "Creating preview for document " document-number " page " page-number))
-                       (create-preview application)
-                       (invalidate-view-part application :preview)
+    (set-status application (str "Creating preview for document " document-number " page " page-number))
+    (create-preview application-state)
 
-                       (set-status application "Creating archive copy...")
-                       (create-archive-copy application)
+    (set-status application "Creating archive copy...")
+    (create-archive-copy application-state)
 
-                       (set-status application "Ready."))))))
+    (set-status application "Ready.")))
 
 (defn draw-view-part [application view-part]
   (doseq [command-runner (get-in application [:view-part-command-runners view-part])]
@@ -115,67 +92,68 @@
   (GL11/glClearColor 0 0 0 0)
   (GL11/glClear GL11/GL_COLOR_BUFFER_BIT)
 
+  (println "rendering")
   (dorun (map (partial draw-view-part application)
               (:view application)))
 
   application)
 
 (defn update-view-part [application view-part]
-  (if (is-view-part-invalid? application view-part)
-    (do (validate-view-part application view-part)
+  (println "updating " view-part )
+  (do (dorun (map command/delete
+                  (get-in application [:view-part-command-runners view-part])))
 
-        (dorun (map command/delete
-                    (get-in application [:view-part-command-runners view-part])))
+      (assoc-in application [:view-part-command-runners view-part]
+                (command/command-runners-for-commands (get-in application [:view-parts view-part])))))
 
-        (assoc-in application [:view-part-command-runners view-part]
-                  (command/command-runners-for-commands ((get-in application [:view-parts view-part]) application))))
-    application))
-
-(defn update-view [application]
-  (if (is-view-invalid? application)
-
-    (-> (reduce update-view-part application (:view application))
-        render)
-
-    application))
-
-(defrecord cell [function dependencies])
-
-(defn background [{:keys [width height]}]
-  [(vector-rectangle/rectangle 0 0
-                               width height
-                               [1 1 1 1])])
+(defn background []
+  (dataflow/with-values [width height]
+    [(vector-rectangle/rectangle 0 0
+                                 width height
+                                 [1 1 1 1])]))
 
 (defn lines [x y font color strings]
   (map-indexed (fn [line-number string]
-                 (text/create x
-                              (+ y (* line-number (font/height font)))
-                              string
-                              font
-                              color))
+                 (text/create
+                  x
+                  (+ y (* line-number (font/height font)))
+                  string
+                  font
+                  color))
                strings))
 
-(defn foreground [{:keys [width height document-number status] :as application}]
-  (lines 0 0 (font/create "LiberationSans-Regular.ttf" 15) [0.0 0.0 0.0 1.0]
-         (concat [(str "Document number " document-number)
-                  (str "Status: " @status)
-                  (str "file name prefix: " (file-name-prefix application))]
-                 (files-in-document application document-number))))
+(defn foreground []
+  (dataflow/with-values [document-number status]
+    (lines 0 0 (font/create "LiberationSans-Regular.ttf" 15) [0.0 0.0 0.0 1.0]
+           (concat [(str "Document number " document-number)
+                    (str "Status: " status)
+                    (str "file name prefix: " (file-name-prefix (dataflow/values-to-map :archive-path :document-number :page-number)))]
+                   (files-in-document (dataflow/values-to-map :archive-path) document-number)))))
 
-(defn preview [{:keys [width] :as application}]
-  (if (.exists (File. (preview-file-name application)))
+(defn preview []
+  (println "running preview")
+  (dataflow/with-values [width]
+    (if (.exists (File. (preview-file-name (dataflow/values-to-map :archive-path :document-number :page-number))))
 
-    [(push-modelview/->PushModelview)
-     (translate/->Translate (- width (+ (* 1.3 550)
-                                        10))
-                            10)
-     (scale/->Scale 1.3)
-     (image/create 0
-                   0
-                   (preview-file-name application))
-     (pop-modelview/->PopModelview)]
+      [(push-modelview/->PushModelview)
+       (translate/->Translate (- width (+ (* 1.3 550)
+                                          10))
+                              10)
+       (scale/->Scale 1.3)
+       (image/create 0
+                     0
+                     (preview-file-name (dataflow/values-to-map :archive-path :document-number :page-number)))
+       (pop-modelview/->PopModelview)]
 
-    []))
+      [])))
+
+(defn schedule-thread [application function]
+  (update-in application [:scheduled-threads] conj function))
+
+(defn launch-scheduled-threads [application]
+  (doseq [function (:scheduled-threads @application)]
+    (.start (Thread. (fn [] (function application)))))
+  (swap! application #(assoc % :scheduled-threads #{})))
 
 (defn key-pressed [keyboard-event key]
   (and (= (:key-code keyboard-event)
@@ -187,39 +165,25 @@
   (cond
 
    (key-pressed event input/down)
-   (do (invalidate-view-part application :foreground)
-       (invalidate-view-part application :preview)
-       (update-in application [:document-number] dec))
+   (dataflow/apply-to-value application :document-number dec)
 
    (key-pressed event input/up)
-   (do (invalidate-view-part application :foreground)
-       (invalidate-view-part application :preview)
-       (update-in application [:document-number] inc))
+   (dataflow/apply-to-value application :document-number inc)
 
    (key-pressed event input/right)
-   (do (invalidate-view-part application :foreground)
-       (invalidate-view-part application :preview)
-       (update-in application [:page-number] inc))
+   (dataflow/apply-to-value application :page-number inc)
 
    (key-pressed event input/left)
-   (do (invalidate-view-part application :foreground)
-       (invalidate-view-part application :preview)
-       (update-in application [:page-number] dec))
+   (dataflow/apply-to-value application :page-number dec)
 
    (key-pressed event input/page-up)
-   (do (invalidate-view-parts application :foreground :preview)
-       (assoc-in application [:document-number] (apply max (document-numbers application))))
-
+   (dataflow/define application :document-number (apply max (document-numbers application)))
 
    (key-pressed event input/page-down)
-   (do (invalidate-view-part application :foreground)
-       (invalidate-view-part application :preview)
-       (assoc-in application [:document-number] 0))
-
+   (dataflow/define application :document-number 0)
 
    (key-pressed event input/space)
-   (do (start-scanning application)
-       application)
+   (schedule-thread application start-scanning)
 
    :default application))
 
@@ -230,29 +194,43 @@
       application
       (reduce handle-event application unread-events))))
 
-(defn update [application]
-  (-> application
-      (handle-events)
-      (update-view)))
+(defn update-view [application]
+  (if (dataflow/unnotified-changes? application)
+    (-> application
+        (dataflow/notify-listeners)
+        (render))
+    application))
 
-;; :archive-path "/home/jukka/Pictures/visa"
+(defn update [application]
+  (println "update application")
+  (swap! application handle-events)
+  (launch-scheduled-threads application)
+  (swap! application update-view)
+  application)
+
 (defn create-application [window]
-  (-> {:archive-path "/home/jukka/Pictures/dia"
-       :view-parts {:background background
-                    :foreground foreground
-                    :preview preview}
-       :view [:background
-              :preview
-              :foreground]
-       :invalid-view-parts (atom #{:background :foreground :preview})
-       :view-part-command-runners {}
-       
-       :width @(:width window)
-       :height @(:height window)
-       :document-number 0
-       :page-number 0
-       :status (atom "Started")}
-      (update-view)))
+  (println "Creating application")
+  (-> (dataflow/create)
+      (dataflow/define
+        :archive-path "/home/jukka/Pictures/dia"
+        :width  @(:width window)
+        :height  @(:height window)
+        :document-number 0
+        :page-number 0
+        :status "Started"
+        :view-part-command-runners {}
+        :scheduled-threads #{}
+
+        [:view-parts :bacground] background
+        [:view-parts :foreground] foreground
+        [:view-parts :preview] preview
+        :view [:background
+               :preview
+               :foreground])
+      (dataflow/add-listener [:view-parts :bacground] #(update-view-part % :background))
+      (dataflow/add-listener [:view-parts :foreground] #(update-view-part % :foreground))
+      (dataflow/add-listener [:view-parts :preview] #(update-view-part % :preview))
+      (atom)))
 
 (defn start []
   (window/start 700 500
@@ -261,18 +239,15 @@
                 update
                 identity
                 (fn [application width height]
-                  (invalidate-view-part application :foreground)
-                  (invalidate-view-part application :background)
-                  (invalidate-view-part application :preview)
-                  (-> application
-                      (assoc
-                          :width width
-                          :height height)
-                      (update-view)))))
+                  (println "resize callback")
+                  (swap! application
+                         #(dataflow/define
+                            %
+                            :width width
+                            :height height)))))
 
 (comment
   (start)
-
 
   (defrecord CommandRunnerBatch [command-runners]
     CommandRunner
