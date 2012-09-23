@@ -33,42 +33,32 @@
         (assoc-in [::dependencies path] @logged-access/reads)
         (update-in [::changed-paths] conj path))))
 
-(defn dl [value message]
-  (println message " " value)
-  value)
+(defn changes [dataflow]
+  (::changed-paths dataflow))
 
-(defn unnotified-changes? [dataflow]
-  (not (empty? (::changed-paths dataflow))))
-
-(defn notify-listeners [dataflow]
-  (println "notifying changes to " (::changed-paths dataflow))
-  (reduce (fn [dataflow changed-path]
-            (-> (if-let [listener (get-in dataflow [::listeners changed-path])]
-                  (listener dataflow)
-                  dataflow)
-                (update-in [::changed-paths] disj changed-path)))
-          dataflow
-          (::changed-paths dataflow)))
+(defn reset-changes [dataflow]
+  (assoc dataflow
+    ::changed-paths #{}))
 
 (defn update-dependant-paths [dataflow path]
-  (println "updating dependencies for " path)
   (reduce (fn [dataflow dependant-path]
-            (println "updating " dependant-path)
             (-> dataflow
                 (update-value dependant-path)
                 (update-dependant-paths dependant-path)))
           dataflow
           (dependants dataflow path)))
 
+(defn as-path [keyword-or-path]
+  (if (vector? keyword-or-path)
+    keyword-or-path
+    [keyword-or-path]))
+
 (defn define [dataflow & paths-and-functions]
   (reduce (fn [dataflow [path function]]
-            (println "defining " path)
             (let [function (if (fn? function)
                              function
                              (fn [] function))
-                  path (if (vector? path)
-                         path
-                         [path])]
+                  path (as-path path)]
               (-> dataflow
                   (assoc-in [::functions path] function)
                   (update-value path)
@@ -77,7 +67,7 @@
           (partition 2 paths-and-functions)))
 
 (defn apply-to-value [dataflow path function]
-  (define dataflow path (function (get-in dataflow path))))
+  (define dataflow path (function (get-in dataflow (as-path path)))))
 
 (defn get-value [key]
   (logged-access/get dataflow key))
@@ -94,63 +84,23 @@
 (defn get-value-in [path]
   (logged-access/get-in dataflow path))
 
-(defn add-listener [dataflow path listener]
-  (assoc-in dataflow [::listeners path] listener))
 
 (defn create []
   {::changed-paths #{}})
 
 (deftest define-test
   (is (= (-> (create)
-             (add-listener [:a] #(do (println ":a changed to " (:a %))
-                                     %))
 
              (define
-               :path "Foo"
-               [:d :e] 2
                :b 1
                :c 1
                :a #(with-values [b c]
                      (+ 1 b c)))
-             (notify-listeners)
+
              (define :b 2)
-             (notify-listeners)
 
              (dissoc ::functions)
              (dissoc ::listeners))
-
-         {:a 4
-          :b 2
-          :c 1
-          :clojure-lwjgl.test.dataflow/dependencies {[:a] #{[:c] [:b]}
-                                                     [:c] #{}
-                                                     [:b] #{}}})))
-
-
-(defn background [])
-(defn foreground [])
-(defn preview [])
-
-(deftest define-test2
-  (is (= (-> (create)
-             (define
-               :archive-path "/home/jukka/Pictures/dia"
-               [:view-parts :bacground] background
-               [:view-parts :foreground] foreground
-               [:view-parts :preview] preview
-               :view [:background
-                      :preview
-                      :foreground]
-               :width  10
-               :height  10
-               :document-number 0
-               :page-number 0
-               :status "Started"
-               :view-part-command-runners {}
-               :scheduled-threads #{})
-             (add-listener [:view-parts :bacground] #(do (println "backgournd changed")
-                                                         %))
-             (notify-listeners))
 
          {:a 4
           :b 2

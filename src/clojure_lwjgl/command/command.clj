@@ -11,7 +11,6 @@
   (run [command-runner]))
 
 (defn command-runners-for-commands [commands]
-  (println "creating command runners for " commands)
   (flatten (map (fn [command-group]
                   (if (satisfies? CombinableCommand (first command-group))
                     (-> (reduce combine command-group)

@@ -92,60 +92,11 @@
   (GL11/glClearColor 0 0 0 0)
   (GL11/glClear GL11/GL_COLOR_BUFFER_BIT)
 
-  (println "rendering")
   (dorun (map (partial draw-view-part application)
               (:view application)))
 
   application)
 
-(defn update-view-part [application view-part]
-  (println "updating " view-part )
-  (do (dorun (map command/delete
-                  (get-in application [:view-part-command-runners view-part])))
-
-      (assoc-in application [:view-part-command-runners view-part]
-                (command/command-runners-for-commands (get-in application [:view-parts view-part])))))
-
-(defn background []
-  (dataflow/with-values [width height]
-    [(vector-rectangle/rectangle 0 0
-                                 width height
-                                 [1 1 1 1])]))
-
-(defn lines [x y font color strings]
-  (map-indexed (fn [line-number string]
-                 (text/create
-                  x
-                  (+ y (* line-number (font/height font)))
-                  string
-                  font
-                  color))
-               strings))
-
-(defn foreground []
-  (dataflow/with-values [document-number status]
-    (lines 0 0 (font/create "LiberationSans-Regular.ttf" 15) [0.0 0.0 0.0 1.0]
-           (concat [(str "Document number " document-number)
-                    (str "Status: " status)
-                    (str "file name prefix: " (file-name-prefix (dataflow/values-to-map :archive-path :document-number :page-number)))]
-                   (files-in-document (dataflow/values-to-map :archive-path) document-number)))))
-
-(defn preview []
-  (println "running preview")
-  (dataflow/with-values [width]
-    (if (.exists (File. (preview-file-name (dataflow/values-to-map :archive-path :document-number :page-number))))
-
-      [(push-modelview/->PushModelview)
-       (translate/->Translate (- width (+ (* 1.3 550)
-                                          10))
-                              10)
-       (scale/->Scale 1.3)
-       (image/create 0
-                     0
-                     (preview-file-name (dataflow/values-to-map :archive-path :document-number :page-number)))
-       (pop-modelview/->PopModelview)]
-
-      [])))
 
 (defn schedule-thread [application function]
   (update-in application [:scheduled-threads] conj function))
@@ -194,19 +145,75 @@
       application
       (reduce handle-event application unread-events))))
 
+
 (defn update-view [application]
-  (if (dataflow/unnotified-changes? application)
-    (-> application
-        (dataflow/notify-listeners)
-        (render))
-    application))
+  (when (dataflow/changes @application)
+    (let [application-state (swap! application #(-> %
+                                                    (assoc :changes-to-be-processed (dataflow/changes %))
+                                                    (dataflow/reset-changes)))
+          changes (:changes-to-be-processed application-state)
+          changed-view-parts (->> (filter #(= (first %)
+                                              :view-parts)
+                                          changes)
+                                  (map second))
+          new-command-runners (reduce (fn [command-runners view-part]
+                                        (println "loading view-part " view-part)
+                                        (dorun (map command/delete (view-part command-runners)))
+                                        (assoc command-runners
+                                          view-part (command/command-runners-for-commands (get-in application-state [:view-parts view-part]))))
+                                      (:view-part-command-runners application-state)
+                                      changed-view-parts)]
+      (-> (swap! application
+                 assoc :view-part-command-runners new-command-runners)
+          (render)))))
 
 (defn update [application]
-  (println "update application")
   (swap! application handle-events)
   (launch-scheduled-threads application)
-  (swap! application update-view)
+  (update-view application)
   application)
+
+
+(defn background []
+  (dataflow/with-values [width height]
+    [(vector-rectangle/rectangle 0 0
+                                 width height
+                                 [1 1 1 1])]))
+
+(defn lines [x y font color strings]
+  (map-indexed (fn [line-number string]
+                 (text/create
+                  x
+                  (+ y (* line-number (font/height font)))
+                  string
+                  font
+                  color))
+               strings))
+
+(defn foreground []
+  (dataflow/with-values [document-number status]
+    (lines 0 0 (font/create "LiberationSans-Regular.ttf" 15) [0.0 0.0 0.0 1.0]
+           (concat [(str "Document number " document-number)
+                    (str "Status: " status)
+                    (str "file name prefix: " (file-name-prefix (dataflow/values-to-map :archive-path :document-number :page-number)))]
+                   (files-in-document (dataflow/values-to-map :archive-path) document-number)))))
+
+(defn preview []
+  (dataflow/with-values [width]
+    (if (.exists (File. (preview-file-name (dataflow/values-to-map :archive-path :document-number :page-number))))
+
+      [(push-modelview/->PushModelview)
+       (translate/->Translate (- width (+ (* 1.3 550)
+                                          10))
+                              10)
+       (scale/->Scale 1.3)
+       (image/create 0
+                     0
+                     (preview-file-name (dataflow/values-to-map :archive-path :document-number :page-number)))
+       (pop-modelview/->PopModelview)]
+
+      [])))
+
 
 (defn create-application [window]
   (println "Creating application")
@@ -221,15 +228,12 @@
         :view-part-command-runners {}
         :scheduled-threads #{}
 
-        [:view-parts :bacground] background
+        [:view-parts :background] background
         [:view-parts :foreground] foreground
         [:view-parts :preview] preview
         :view [:background
                :preview
                :foreground])
-      (dataflow/add-listener [:view-parts :bacground] #(update-view-part % :background))
-      (dataflow/add-listener [:view-parts :foreground] #(update-view-part % :foreground))
-      (dataflow/add-listener [:view-parts :preview] #(update-view-part % :preview))
       (atom)))
 
 (defn start []
@@ -244,7 +248,8 @@
                          #(dataflow/define
                             %
                             :width width
-                            :height height)))))
+                            :height height))
+                  application)))
 
 (comment
   (start)
