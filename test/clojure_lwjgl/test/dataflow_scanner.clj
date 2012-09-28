@@ -174,12 +174,6 @@
   application)
 
 
-(defn background []
-  (dataflow/with-values [width height]
-    [(vector-rectangle/rectangle 0 0
-                                 width height
-                                 [1 1 1 1])]))
-
 (defn lines [x y font color strings]
   (map-indexed (fn [line-number string]
                  (text/create
@@ -190,16 +184,13 @@
                   color))
                strings))
 
-(defn foreground []
-  (dataflow/with-values [document-number status]
-    (lines 0 0 (font/create "LiberationSans-Regular.ttf" 15) [0.0 0.0 0.0 1.0]
-           (concat [(str "Document number " document-number)
-                    (str "Status: " status)
-                    (str "file name prefix: " (file-name-prefix (dataflow/values-to-map :archive-path :document-number :page-number)))]
-                   (files-in-document (dataflow/values-to-map :archive-path) document-number)))))
+(def view
+  [#(dataflow/with-values [width height]
+    [(vector-rectangle/rectangle 0 0
+                                 width height
+                                 [1 1 1 1])])
 
-(defn preview []
-  (dataflow/with-values [width]
+   #(dataflow/with-values [width]
     (if (.exists (File. (preview-file-name (dataflow/values-to-map :archive-path :document-number :page-number))))
 
       [(push-modelview/->PushModelview)
@@ -212,8 +203,22 @@
                      (preview-file-name (dataflow/values-to-map :archive-path :document-number :page-number)))
        (pop-modelview/->PopModelview)]
 
-      [])))
+      []))
+   
+   #(dataflow/with-values [document-number status]
+    (lines 0 0 (font/create "LiberationSans-Regular.ttf" 15) [0.0 0.0 0.0 1.0]
+           (concat [(str "Document number " document-number)
+                    (str "Status: " status)
+                    (str "file name prefix: " (file-name-prefix (dataflow/values-to-map :archive-path :document-number :page-number)))]
+                   (files-in-document (dataflow/values-to-map :archive-path) document-number))))])
 
+(defn define-view [application view-parts]
+  (reduce (fn [application [index view-part]]
+            (-> application
+                (dataflow/define [:view-parts (keyword (str index))] view-part)
+                (update-in [:view] conj (keyword (str index)))))
+          (assoc application :view [])
+          (map-indexed vector view-parts)))
 
 (defn create-application [window]
   (println "Creating application")
@@ -226,14 +231,8 @@
         :page-number 0
         :status "Started"
         :view-part-command-runners {}
-        :scheduled-threads #{}
-
-        [:view-parts :background] background
-        [:view-parts :foreground] foreground
-        [:view-parts :preview] preview
-        :view [:background
-               :preview
-               :foreground])
+        :scheduled-threads #{})
+      (define-view view)
       (atom)))
 
 (defn start []
