@@ -56,7 +56,6 @@
 (defn define [dataflow & paths-and-functions]
 
   (reduce (fn [dataflow [path function]]
-            (println "Defining " path )
             (let [function (if (fn? function)
                              function
                              (fn [] function))

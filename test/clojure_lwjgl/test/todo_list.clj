@@ -29,7 +29,6 @@
    :run identity})
 
 (defn draw-view-part [application view-part]
-  (println "drawing " view-part )
   (doseq [command-runner (get-in application [:view-part-command-runners view-part])]
     (if (instance? ViewPartCall command-runner)
       (draw-view-part application (:id command-runner))
@@ -87,7 +86,7 @@
           view-part-calls))
 
 (defn update-view [application]
-  (when (dataflow/changes @application)
+  (when (not (empty? (dataflow/changes @application)))
     (let [application-state (swap! application #(-> %
                                                     (assoc :changes-to-be-processed (dataflow/changes %))
                                                     (dataflow/reset-changes)))
@@ -102,11 +101,10 @@
           undefined-view-part-calls (->> changed-view-parts
                                          (mapcat #(get-in application-state [:view-parts %]))
                                          (filter #(and (instance? ViewPartCall %)
-                                                       (not (contains? application-state
-                                                                       [:viewparts (:id %)])))))
+                                                       (not (contains? (:view-parts application-state)
+                                                                       (:id %))))))
 
           new-command-runners (reduce (fn [command-runners view-part]
-                                        (println "updating " view-part)
                                         (dorun (map command/delete (get command-runners view-part)))
                                         (assoc command-runners
                                           view-part (command/command-runners-for-commands (get-in application-state
@@ -118,64 +116,59 @@
                                      #(-> %
                                           (assoc :view-part-command-runners new-command-runners)
                                           (define-view-part-calls undefined-view-part-calls)))]
-        (println "foo")
         (if (empty? undefined-view-part-calls)
           (render application-state)
           (update-view application))))))
 
 (defn update [application]
-  (println "update")
   (swap! application handle-events)
   (launch-scheduled-threads application)
   (update-view application)
-
   application)
 
-(comment
-  (view
-   (view-part)))
+(defmacro view-part [name arguments & body]
+  `(defn ~name [~@arguments]
+     (->ViewPartCall [~name ~@arguments]
+                     (fn [] ~@body))))
+
+(view-part editor [item-index selected]
+           (println "running editor " item-index (dataflow/get-value-in [:items item-index]))
+           (vector (vector-rectangle/rectangle 0 0
+                                               100 30
+                                               (if selected
+                                                 [0 0 1 1]
+                                                 [0.9 0.9 1 1]))
+                   (text/create 5 5
+                                (dataflow/get-value-in [:items item-index])
+                                (font/create "LiberationSans-Regular.ttf" 15)
+                                [0.0 0.0 0.0 1.0])))
+
+(view-part background []
+           (dataflow/with-values [width height]
+             [(vector-rectangle/rectangle 0 0
+                                          width height
+                                          [1 1 1 1])]))
+
+(view-part item-list []
+           (dataflow/with-values [item-order selection]
+             (flatten (map-indexed (fn [line-number item-index]
+                                     [(push-modelview/->PushModelview)
+                                      (translate/->Translate 0
+                                                             (* line-number 30))
+                                      (editor item-index
+                                              (= selection
+                                                 line-number))
+                                      (pop-modelview/->PopModelview)])
+                                   item-order))))
+
+(view-part item-view []
+  [(background)
+   (item-list)])
 
 
-(defn editor [item-index selected]
-  #(do (println "running editor " item-index (dataflow/get-value-in [:items item-index]))
-       (vector (vector-rectangle/rectangle 0 0
-                                           100 30
-                                           (if selected
-                                             [0 0 1 1]
-                                             [0.9 0.9 1 1]))
-               (text/create 5 5 (dataflow/get-value-in [:items item-index]) (font/create "LiberationSans-Regular.ttf" 15) [0.0 0.0 0.0 1.0]))))
-
-(defmacro call-view-part [view-part-creator & arguments]
-  `(->ViewPartCall [~view-part-creator ~@arguments]
-                   (~view-part-creator ~@arguments)))
-
-(def view
-  [#(dataflow/with-values [width height]
-      [(vector-rectangle/rectangle 0 0
-                                   width height
-                                   [1 1 1 1])])
-
-   #(dataflow/with-values [item-order selection]
-      (flatten (map-indexed (fn [line-number item-index]
-                              [(push-modelview/->PushModelview)
-                               (translate/->Translate 0
-                                                      (* line-number 30))
-                               (call-view-part editor
-                                               item-index
-                                               (= selection
-                                                  line-number))
-                               (pop-modelview/->PopModelview)])
-                            item-order)))])
-
-
-
-(defn define-view [application view-parts]
-  (reduce (fn [application [index view-part]]
-            (-> application
-                (dataflow/define [:view-parts (keyword (str index))] view-part)
-                (update-in [:view] conj (keyword (str index)))))
-          (assoc application :view [])
-          (map-indexed vector view-parts)))
+(defn set-view [application-state view-part]
+  (-> (define-view-part-calls application-state  [(view-part)])
+      (assoc :view [(:id (view-part))])))
 
 (defn create-application [window]
   (println "Creating application")
@@ -189,7 +182,7 @@
         :item-order [1 2]
         :view-part-command-runners {}
         :scheduled-threads #{})
-      (define-view view)
+      (set-view item-view)
       (atom)))
 
 (defn start []
