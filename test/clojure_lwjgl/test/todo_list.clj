@@ -14,7 +14,8 @@
             (clojure.java [shell :as shell]
                           [io :as io])
             [clojure-lwjgl.test.dataflow :as dataflow]
-            (clojure [string :as string]))
+            (clojure [string :as string]
+                     [set]))
   (:import [org.lwjgl.opengl GL11 GL20 ARBVertexBufferObject ARBVertexProgram ARBVertexShader]
            [java.awt Color Font FontMetrics RenderingHints]
            [clojure_lwjgl.triangle_batch TriangleBatch]
@@ -39,19 +40,9 @@
   (GL11/glClearColor 0 0 0 0)
   (GL11/glClear GL11/GL_COLOR_BUFFER_BIT)
 
-  (dorun (map (partial draw-view-part application)
-              (:view application)))
+  (draw-view-part application (:root-view-part application))
 
   application)
-
-
-(defn schedule-thread [application function]
-  (update-in application [:scheduled-threads] conj function))
-
-(defn launch-scheduled-threads [application]
-  (doseq [function (:scheduled-threads @application)]
-    (.start (Thread. (fn [] (function application)))))
-  (swap! application #(assoc % :scheduled-threads #{})))
 
 (defn key-pressed [keyboard-event key]
   (and (= (:key-code keyboard-event)
@@ -59,31 +50,35 @@
        (= (:type keyboard-event)
           :key-pressed)))
 
-(defn handle-event [application event]
-  (cond
 
-   (key-pressed event input/down)
-   (dataflow/apply-to-value application :selection inc)
 
-   (key-pressed event input/up)
-   (dataflow/apply-to-value application :selection dec)
-
-   :default application))
-
-(defn handle-events [application]
+(defn handle-events [application application-state]
   (let [unread-events (concat (input/unread-keyboard-events)
                               (input/unread-mouse-events))]
     (if (empty? unread-events)
-      application
-      (reduce handle-event application unread-events))))
+      application-state
+      (reduce (partial (:event-handler application-state) application) application-state unread-events))))
 
 (defn define-view-part-calls [application-state view-part-calls]
   (reduce (fn [application-state view-part-call]
-            (-> (dataflow/define application-state
-                  [:view-parts (:id view-part-call)] (:function view-part-call))
-                (assoc :defined-view-part-calls true)))
+            (dataflow/define application-state
+              [:view-parts (:id view-part-call)] (:function view-part-call)))
           application-state
           view-part-calls))
+
+(defn undefine-uncalled-view-parts [application-state]
+  (let [view-part-calls (filter #(instance? ViewPartCall %)
+                                (apply concat (vals (:view-parts application-state))))
+        called-view-part-ids (-> (set (map :id view-part-calls))
+                                 (conj (:root-view-part application-state)))
+        all-view-part-ids (set (keys (:view-parts application-state)))
+        uncalled-view-part-ids (clojure.set/difference all-view-part-ids called-view-part-ids)]
+    (reduce (fn [application-state view-part-id]
+              (-> application-state
+                  (dataflow/undefine [:view-parts view-part-id])
+                  (update-in [:view-parts] dissoc view-part-id)))
+            application-state
+            uncalled-view-part-ids)))
 
 (defn update-view [application]
   (when (not (empty? (dataflow/changes @application)))
@@ -97,6 +92,8 @@
                                               :view-parts)
                                           changes)
                                   (map second))
+
+
 
           undefined-view-part-calls (->> changed-view-parts
                                          (mapcat #(get-in application-state [:view-parts %]))
@@ -115,14 +112,14 @@
       (let [application-state (swap! application
                                      #(-> %
                                           (assoc :view-part-command-runners new-command-runners)
+                                          (undefine-uncalled-view-parts)
                                           (define-view-part-calls undefined-view-part-calls)))]
         (if (empty? undefined-view-part-calls)
           (render application-state)
           (update-view application))))))
 
 (defn update [application]
-  (swap! application handle-events)
-  (launch-scheduled-threads application)
+  (swap! application (partial handle-events application))
   (update-view application)
   application)
 
@@ -131,25 +128,62 @@
      (->ViewPartCall [~name ~@arguments]
                      (fn [] ~@body))))
 
+
+(defn set-view [application-state view-part]
+  (-> (define-view-part-calls application-state [(view-part)])
+      (assoc :root-view-part (:id (view-part)))))
+
+(defn create-application [event-handler root-view-part]
+  (-> (dataflow/create)
+      (assoc
+          :view-part-command-runners {}
+          :event-handler event-handler)
+      (set-view root-view-part)
+      (atom)))
+
+
+;; TODO-LIST
+
+(defn handle-event [application application-state event]
+  (cond
+
+   (key-pressed event input/down)
+   (dataflow/apply-to-value application-state :selection inc)
+
+   (key-pressed event input/up)
+   (dataflow/apply-to-value application-state :selection dec)
+
+   (key-pressed event input/space)
+   (do (.start (Thread. (fn [] (doseq [i (range 0 10)]
+                                 (swap! application dataflow/define [:items 1] i)
+                                 (Thread/sleep 1000)))))
+       application-state)
+
+   :default application-state))
+
+(defrecord Editor [in-focus editing cursor-position value edited-value])
+
 (view-part editor [item-index selected]
-           (println "running editor " item-index (dataflow/get-value-in [:items item-index]))
+           (println "runnng editor " item-index " " selected)
            (vector (vector-rectangle/rectangle 0 0
                                                100 30
                                                (if selected
                                                  [0 0 1 1]
                                                  [0.9 0.9 1 1]))
                    (text/create 5 5
-                                (dataflow/get-value-in [:items item-index])
+                                (str (dataflow/get-value-in [:items item-index]))
                                 (font/create "LiberationSans-Regular.ttf" 15)
                                 [0.0 0.0 0.0 1.0])))
 
 (view-part background []
+           (println "runnng back")
            (dataflow/with-values [width height]
              [(vector-rectangle/rectangle 0 0
                                           width height
                                           [1 1 1 1])]))
 
 (view-part item-list []
+           (println "runnng item-list")
            (dataflow/with-values [item-order selection]
              (flatten (map-indexed (fn [line-number item-index]
                                      [(push-modelview/->PushModelview)
@@ -162,33 +196,61 @@
                                    item-order))))
 
 (view-part item-view []
-  [(background)
-   (item-list)])
+           [(background)
+            (item-list)])
 
 
-(defn set-view [application-state view-part]
-  (-> (define-view-part-calls application-state  [(view-part)])
-      (assoc :view [(:id (view-part))])))
 
-(defn create-application [window]
+
+
+#_(comment
+    {:item-view {:children {:item-list-1 {:items {0 "Foo"
+                                                  1 "Bar"}
+                                          :item-order [0 1 2]
+                                          :selected 0
+                                          :children {:editor-0 {:in-focus #(= (get-value :selected)
+                                                                              0)
+                                                                :value #(get-value-in [:items 0])
+                                                                :edited-value "Foo"
+                                                                :editing false
+                                                                :cursor-position 0}
+                                                     :editor-1 {:in-focus #(= (get-value :selected)
+                                                                              1)
+                                                                :value #(get-value-in [:items 1])
+                                                                :edited-value "Bar"
+                                                                :editing false
+                                                                :cursor-position 0}}}}}}
+    (view-part item-list [item-ids]
+               (vertical-stack (map (fn [[item-id]]
+                                      (editor value))
+                                    item-ids))
+               (map-indexed (fn [line-number item-index]
+                              [(push-modelview/->PushModelview)
+                               (translate/->Translate 0
+                                                      (* line-number 30))
+                               (editor item-index
+                                       (= selection
+                                          line-number))
+                               (pop-modelview/->PopModelview)])
+                            item-order)))
+
+(defn create-todo-list [window]
   (println "Creating application")
-  (-> (dataflow/create)
-      (dataflow/define
-        :width  @(:width window)
-        :height  @(:height window)
-        :selection 0
-        [:items 1] "Foo"
-        [:items 2] "bar"
-        :item-order [1 2]
-        :view-part-command-runners {}
-        :scheduled-threads #{})
-      (set-view item-view)
-      (atom)))
+  (let [application (create-application handle-event item-view)]
+    (swap! application dataflow/define
+           :width  @(:width window)
+           :height  @(:height window)
+           :selection 0
+           [:items 0] "Foo"
+           [:items 1] "bar"
+           [:items 2] "Foobar"
+           :item-order [0 1 2])
+    application))
 
 (defn start []
   (window/start 700 500
                 60
-                create-application
+                create-todo-list
                 update
                 identity
                 (fn [application width height]

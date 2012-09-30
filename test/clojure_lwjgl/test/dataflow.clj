@@ -54,7 +54,6 @@
     [keyword-or-path]))
 
 (defn define [dataflow & paths-and-functions]
-
   (reduce (fn [dataflow [path function]]
             (let [function (if (fn? function)
                              function
@@ -66,6 +65,11 @@
                   (update-dependant-paths path))))
           dataflow
           (partition 2 paths-and-functions)))
+
+(defn undefine [dataflow path]
+  (-> dataflow
+      (update-in [::functions] dissoc path)
+      (update-in [::dependencies] dissoc path)))
 
 (defn apply-to-value [dataflow path function]
   (define dataflow path (function (get-in dataflow (as-path path)))))
@@ -99,16 +103,10 @@
                      (+ 1 b c)))
 
              (define :b 2)
+             
+             (undefine [:a]))
 
-             (dissoc ::functions)
-             (dissoc ::listeners))
-
-         {:a 4
-          :b 2
-          :c 1
-          :clojure-lwjgl.test.dataflow/dependencies {[:a] #{[:c] [:b]}
-                                                     [:c] #{}
-                                                     [:b] #{}}})))
+         nil)))
 
 
 (run-tests)
