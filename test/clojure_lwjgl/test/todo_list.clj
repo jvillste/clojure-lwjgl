@@ -151,7 +151,7 @@
         (dataflow/apply-to-value [:item-order] #(zipper-list/insert % new-id index)))))
 
 (defn remove-item [application-state index]
- (let [id (get (apply vector (zipper-list/items (:item-order application-state)))
+  (let [id (get (apply vector (zipper-list/items (:item-order application-state)))
                 (:selection application-state))]
     (-> application-state
         (dataflow/undefine [:items id])
@@ -160,7 +160,6 @@
 
 
 (defn handle-event [application application-state event]
-  (println event)
   (cond
 
    (key-pressed event input/down)
@@ -174,20 +173,19 @@
 
    (key-pressed event input/backspace)
    (remove-item application-state (:selection application-state))
-   
+
+   (key-pressed event input/enter)
+   (dataflow/apply-to-value application-state :editing not)
+
+   (key-pressed event input/left)
+   (dataflow/apply-to-value application-state :cursor-position dec)
+
+   (key-pressed event input/right)
+   (dataflow/apply-to-value application-state :cursor-position inc)
+
    :default application-state))
 
-(view-part editor [item-index selected]
-           #_(println "running editor " item-index " " selected)
-           (vector (vector-rectangle/rectangle 0 0
-                                               100 30
-                                               (if selected
-                                                 [0 0 1 1]
-                                                 [0.9 0.9 1 1]))
-                   (text/create 5 5
-                                (str (dataflow/get-value-in [:items item-index]))
-                                (font/create "LiberationSans-Regular.ttf" 15)
-                                [0.0 0.0 0.0 1.0])))
+
 
 (view-part background []
            #_(println "running background")
@@ -195,6 +193,36 @@
              [(vector-rectangle/rectangle 0 0
                                           width height
                                           [1 1 1 1])]))
+
+(view-part editor [item-index selected]
+           #_(println "running editor " item-index " " selected)
+           (let [font (font/create "LiberationSans-Regular.ttf" 15)
+                 text (str (dataflow/get-value-in [:items item-index]))
+                 cursor-position (dataflow/get-value-in [:cursor-position])
+                 margin 5]
+             (flatten (vector (vector-rectangle/rectangle 0 0
+                                                          (+ (* 2 margin)
+                                                             (font/width font text))
+                                                          (+ (* 2 margin)
+                                                             (font/height font))
+                                                          (if selected
+                                                            [0 0 1 1]
+                                                            [0.9 0.9 1 1]))
+                              (if (and selected (dataflow/get-value :editing))
+                                (let [cursor-x (font/width font (subs text 0 cursor-position))]
+                                  [(vector-rectangle/rectangle (+ margin
+                                                                  cursor-x)
+                                                               margin
+                                                               (font/width font (subs text
+                                                                                      cursor-position
+                                                                                      (+ cursor-position 1)))
+                                                               (font/height font)
+                                                               [1 0 0 1])])
+                                [])
+                              (text/create 5 5
+                                           text
+                                           font
+                                           [0.0 0.0 0.0 1.0])))))
 
 (view-part item-list []
            #_(println "running item-list")
@@ -253,7 +281,9 @@
                                :width  @(:width window)
                                :height  @(:height window)
                                :selection 0
-                               :item-order (zipper-list/create))
+                               :item-order (zipper-list/create)
+                               :editing false
+                               :cursor-position 0)
                              (add-item 0 "Foo")
                              (add-item 0 "Bar")
                              (add-item 0 "FooBar"))))
@@ -261,7 +291,7 @@
 
 (defn start []
   (window/start 700 500
-                60
+                30
                 create-todo-list
                 update
                 identity
@@ -275,4 +305,4 @@
                   application)))
 
 (comment
-(start))
+  (start))
