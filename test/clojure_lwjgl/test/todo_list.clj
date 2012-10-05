@@ -133,14 +133,18 @@
   (-> (define-view-part-calls application-state [(view-part)])
       (assoc :root-view-part (:id (view-part)))))
 
-(defn create-application [event-handler root-view-part]
+(defn create-application [window event-handler root-view-part]
   (-> (dataflow/create)
       (assoc
+          :window window
           :view-part-command-runners {}
           :event-handler event-handler)
       (set-view root-view-part)
       (atom)))
 
+(defn close-application [application]
+  (window/close (:window application))
+  application)
 
 ;; TODO-LIST
 -
@@ -159,8 +163,28 @@
         (dataflow/apply-to-value [:item-order] #(zipper-list/remove % id)))))
 
 
+(defn handle-edit-event [application application-state event]
+  (cond
+
+   (key-pressed event input/escape)
+   (dataflow/apply-to-value application-state :editing not)
+
+   (key-pressed event input/enter)
+   (dataflow/apply-to-value application-state :editing not)
+
+   (key-pressed event input/left)
+   (dataflow/apply-to-value application-state :cursor-position dec)
+
+   (key-pressed event input/right)
+   (dataflow/apply-to-value application-state :cursor-position inc)
+
+   :default application-state))
+
 (defn handle-event [application application-state event]
   (cond
+
+   (:editing application-state)
+   (handle-edit-event application application-state event)
 
    (key-pressed event input/down)
    (dataflow/apply-to-value application-state :selection inc)
@@ -175,13 +199,12 @@
    (remove-item application-state (:selection application-state))
 
    (key-pressed event input/enter)
-   (dataflow/apply-to-value application-state :editing not)
+   (-> application-state
+       (dataflow/apply-to-value :editing not)
+       (dataflow/define :cursor-position 0))
 
-   (key-pressed event input/left)
-   (dataflow/apply-to-value application-state :cursor-position dec)
-
-   (key-pressed event input/right)
-   (dataflow/apply-to-value application-state :cursor-position inc)
+   (key-pressed event input/escape)
+   (close-application application-state)
 
    :default application-state))
 
@@ -274,7 +297,7 @@
 
 (defn create-todo-list [window]
   (println "Creating application")
-  (let [application (create-application handle-event item-view)]
+  (let [application (create-application window handle-event item-view)]
     (swap! application (fn [application-state]
                          (-> application-state
                              (dataflow/define
