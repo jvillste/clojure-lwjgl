@@ -120,6 +120,8 @@
 
 (defn update [application]
   (swap! application (partial handle-events application))
+  (swap! application (fn [application-state]
+                       (dataflow/define application-state :time (System/nanoTime))))
   (update-view application)
   application)
 
@@ -217,6 +219,18 @@
                                           width height
                                           [1 1 1 1])]))
 
+(view-part cursor [width height]
+           (println (float (/ (mod (dataflow/get-value :time)
+                                   1000)
+                              1000)))
+           [(vector-rectangle/rectangle 0
+                                        0
+                                        width
+                                        height
+                                        [(float (/ (mod (dataflow/get-value :time)
+                                                        10000000)
+                                                   10000000)) 0 0 1])])
+
 (view-part editor [item-index selected]
            #_(println "running editor " item-index " " selected)
            (let [font (font/create "LiberationSans-Regular.ttf" 15)
@@ -232,15 +246,13 @@
                                                             [0 0 1 1]
                                                             [0.9 0.9 1 1]))
                               (if (and selected (dataflow/get-value :editing))
-                                (let [cursor-x (font/width font (subs text 0 cursor-position))]
-                                  [(vector-rectangle/rectangle (+ margin
-                                                                  cursor-x)
-                                                               margin
-                                                               (font/width font (subs text
-                                                                                      cursor-position
-                                                                                      (+ cursor-position 1)))
-                                                               (font/height font)
-                                                               [1 0 0 1])])
+                                (translate/translate (+ margin
+                                                        (font/width font (subs text 0 cursor-position)))
+                                                     margin
+                                                     (cursor (font/width font (subs text
+                                                                                    cursor-position
+                                                                                    (+ cursor-position 1)))
+                                                             (font/height font)))
                                 [])
                               (text/create 5 5
                                            text
@@ -251,13 +263,10 @@
            #_(println "running item-list")
            (dataflow/with-values [item-order selection]
              (flatten (map-indexed (fn [line-number item-index]
-                                     [(push-modelview/->PushModelview)
-                                      (translate/->Translate 0
-                                                             (* line-number 30))
-                                      (editor item-index
-                                              (= selection
-                                                 line-number))
-                                      (pop-modelview/->PopModelview)])
+                                     (translate/translate 0 (* line-number 30)
+                                                          (editor item-index
+                                                                  (= selection
+                                                                     line-number))))
                                    (zipper-list/items item-order)))))
 
 (view-part item-view []
