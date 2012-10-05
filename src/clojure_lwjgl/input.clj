@@ -96,6 +96,7 @@
 ;; KEYBOARD
 
 (def escape 1)
+(def backspace 14)
 (def up 200)
 (def left 203)
 (def down 208)

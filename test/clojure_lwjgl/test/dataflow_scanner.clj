@@ -251,7 +251,7 @@
                   application)))
 
 (comment
-  (start)
+(start)
 
   (defrecord CommandRunnerBatch [command-runners]
     CommandRunner

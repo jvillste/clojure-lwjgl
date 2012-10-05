@@ -3,7 +3,8 @@
                            [font :as font]
                            [vector-rectangle :as vector-rectangle]
                            [input :as input]
-                           [logged-access :as logged-access])
+                           [logged-access :as logged-access]
+                           [zipper-list :as zipper-list])
             (clojure-lwjgl.command [text :as text]
                                    [image :as image]
                                    [command :as command]
@@ -36,7 +37,6 @@
       (command/run command-runner))))
 
 (defn render [application]
-  (println "render")
   (GL11/glClearColor 0 0 0 0)
   (GL11/glClear GL11/GL_COLOR_BUFFER_BIT)
 
@@ -144,7 +144,25 @@
 
 ;; TODO-LIST
 
+(defn add-item [application-state index value]
+  (let [new-id (rand-int 10000)]
+    (-> application-state
+        (dataflow/define [:items new-id] value)
+        (dataflow/apply-to-value [:item-order] #(zipper-list/insert % new-id index)))))
+
+(defn remove-item [application-state index]
+  (println "remove item")
+  (let [id (get (zipper-list/items (:item-order application-state))
+                (:selection application-state))]
+    (println "removing " id)
+    (-> application-state
+        (dataflow/undefine [:items id])
+        (update-in [:items] dissoc id)
+        (dataflow/apply-to-value [:item-order] #(zipper-list/remove % id)))))
+
+
 (defn handle-event [application application-state event]
+  (println event)
   (cond
 
    (key-pressed event input/down)
@@ -154,17 +172,15 @@
    (dataflow/apply-to-value application-state :selection dec)
 
    (key-pressed event input/space)
-   (do (.start (Thread. (fn [] (doseq [i (range 0 10)]
-                                 (swap! application dataflow/define [:items 1] i)
-                                 (Thread/sleep 1000)))))
-       application-state)
+   (add-item application-state (:selection application-state) "New item" )
 
+   (key-pressed event input/backspace)
+   (remove-item application-state (:selection application-state))
+   
    :default application-state))
 
-(defrecord Editor [in-focus editing cursor-position value edited-value])
-
 (view-part editor [item-index selected]
-           (println "runnng editor " item-index " " selected)
+           #_(println "running editor " item-index " " selected)
            (vector (vector-rectangle/rectangle 0 0
                                                100 30
                                                (if selected
@@ -176,14 +192,14 @@
                                 [0.0 0.0 0.0 1.0])))
 
 (view-part background []
-           (println "runnng back")
+           #_(println "running background")
            (dataflow/with-values [width height]
              [(vector-rectangle/rectangle 0 0
                                           width height
                                           [1 1 1 1])]))
 
 (view-part item-list []
-           (println "runnng item-list")
+           #_(println "running item-list")
            (dataflow/with-values [item-order selection]
              (flatten (map-indexed (fn [line-number item-index]
                                      [(push-modelview/->PushModelview)
@@ -193,15 +209,11 @@
                                               (= selection
                                                  line-number))
                                       (pop-modelview/->PopModelview)])
-                                   item-order))))
+                                   (zipper-list/items item-order)))))
 
 (view-part item-view []
            [(background)
             (item-list)])
-
-
-
-
 
 #_(comment
     {:item-view {:children {:item-list-1 {:items {0 "Foo"
@@ -237,14 +249,16 @@
 (defn create-todo-list [window]
   (println "Creating application")
   (let [application (create-application handle-event item-view)]
-    (swap! application dataflow/define
-           :width  @(:width window)
-           :height  @(:height window)
-           :selection 0
-           [:items 0] "Foo"
-           [:items 1] "bar"
-           [:items 2] "Foobar"
-           :item-order [0 1 2])
+    (swap! application (fn [application-state]
+                         (-> application-state
+                             (dataflow/define
+                               :width  @(:width window)
+                               :height  @(:height window)
+                               :selection 0
+                               :item-order (zipper-list/create))
+                             (add-item 0 "Foo")
+                             (add-item 0 "Bar")
+                             (add-item 0 "FooBar"))))
     application))
 
 (defn start []
@@ -263,4 +277,4 @@
                   application)))
 
 (comment
-  (start))
+(start))
