@@ -143,7 +143,7 @@
 
 
 ;; TODO-LIST
-
+-
 (defn add-item [application-state index value]
   (let [new-id (rand-int 10000)]
     (-> application-state
@@ -151,10 +151,8 @@
         (dataflow/apply-to-value [:item-order] #(zipper-list/insert % new-id index)))))
 
 (defn remove-item [application-state index]
-  (println "remove item")
-  (let [id (get (zipper-list/items (:item-order application-state))
+ (let [id (get (apply vector (zipper-list/items (:item-order application-state)))
                 (:selection application-state))]
-    (println "removing " id)
     (-> application-state
         (dataflow/undefine [:items id])
         (update-in [:items] dissoc id)
