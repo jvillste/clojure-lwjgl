@@ -22,7 +22,13 @@
            [clojure_lwjgl.triangle_batch TriangleBatch]
            [java.io File]))
 
+(defrecord Element [id
+                    drawing-commands
+                    desired-width
+                    desired-height])
+
 (defrecord ViewPartCall [id function])
+
 (extend ViewPartCall
   command/Command
   {:create-runner identity}
@@ -130,6 +136,27 @@
      (->ViewPartCall [~name ~@arguments]
                      (fn [] ~@body))))
 
+(defmacro element [name arguments preferred-width preferred-height drawing-commands]
+  `(defn ~name [~@arguments]
+     (->Element [~name ~@arguments]
+                (fn [] preferred-width)
+                (fn [] preferred-height)
+                (fn [] drawing-commands))))
+
+#_(element text [contents]
+           (font/width contents)
+           (font/height)
+           (text/create contents))
+
+#_(element rectangle [preferred-width preferred-height color]
+           preferred-width
+           preferred-height
+           (rectangle/create 0
+                             0
+                             (dataflow/get width)
+                             (dataflow/get height)
+                             color))
+
 
 (defn set-view [application-state view-part]
   (-> (define-view-part-calls application-state [(view-part)])
@@ -217,19 +244,16 @@
            (dataflow/with-values [width height]
              [(vector-rectangle/rectangle 0 0
                                           width height
-                                          [1 1 1 1])]))
+                                          [1 1 1 ])]))
 
 (view-part cursor [width height]
-           (println (float (/ (mod (dataflow/get-value :time)
-                                   1000)
-                              1000)))
            [(vector-rectangle/rectangle 0
                                         0
                                         width
                                         height
                                         [(float (/ (mod (dataflow/get-value :time)
-                                                        10000000)
-                                                   10000000)) 0 0 1])])
+                                                        1000000000)
+                                                   1000000000)) 0 0 1])])
 
 (view-part editor [item-index selected]
            #_(println "running editor " item-index " " selected)
@@ -323,7 +347,7 @@
 
 (defn start []
   (window/start 700 500
-                30
+                10
                 create-todo-list
                 update
                 identity

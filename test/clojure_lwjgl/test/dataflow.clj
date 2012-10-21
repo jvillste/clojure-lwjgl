@@ -100,7 +100,10 @@
                :b 1
                :c 1
                :a #(with-values [b c]
-                     (+ 1 b c)))
+                     (+ 1 b c))
+               #_:list-view #_(fn []  (do (define [:list-view :item 1 :commands] (fn [] (text "Value 1 is " (get-in [:items 1]))))
+                                          (define [:list-view :item 1 :width] (fn [] (font/width (get-in [:items 1]))))
+                                      (define [:list-view :item 2] (fn [] (str "Value 2 is " (get-in [:items 2])))))))
 
              (define :b 2)
              
