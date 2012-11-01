@@ -112,6 +112,8 @@
 (def alt 56)
 (def alt-gr 184)
 
+(def p 25)
+
 (def shift :shift)
 (def control :control)
 (def alt :alt)

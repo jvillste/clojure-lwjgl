@@ -54,14 +54,15 @@
 
 (def scanned-file-name "scanned.tif")
 
-(comment (defn scan []
+(defn scan []
            (with-open [output-stream (io/output-stream scanned-file-name)]
              (io/copy (:out (shell/sh "scanimage" "--resolution" "300" "--format=tiff" "-x" "210" "-y" "297"  :out-enc :bytes))
-                      output-stream))))
-(defn scan []
-  (with-open [output-stream (io/output-stream scanned-file-name)]
-    (io/copy (:out (shell/sh "gphoto2" "--capture-image-and-download" "--stdout" :out-enc :bytes))
-             output-stream)))
+                      output-stream)))
+
+(comment (defn scan []
+   (with-open [output-stream (io/output-stream scanned-file-name)]
+     (io/copy (:out (shell/sh "gphoto2" "--capture-image-and-download" "--stdout" :out-enc :bytes))
+              output-stream))))
 
 (defn create-preview [application]
   (println (shell/sh "convert" scanned-file-name "-resize" "550x10000" (preview-file-name application))))

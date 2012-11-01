@@ -40,6 +40,9 @@
 (defn file-name-prefix [{:keys [archive-path document-number page-number]}]
   (str archive-path "/" document-number "_" page-number))
 
+(defn document-name-prefix [{:keys [archive-path document-number]}]
+  (str archive-path "/" document-number))
+
 (defn files-in-directory [directory-path]
   (reduce (fn [files file] (if (.isDirectory file)
                              (concat files (files-in-directory (.getPath file)))
@@ -59,13 +62,21 @@
        (map #(first (clojure.string/split % #"_")))
        (map read-string)))
 
+(defn page-numbers [{:keys [archive-path] :as application}]
+  (->> (files-in-document application (:document-number application))
+       (map #(second (re-seq #"[0-9]+" %)))
+       (map read-string)
+       (set)
+       (sort)))
+
 (defn preview-file-name [application]
   (str (file-name-prefix application) "_preview.jpg"))
 
 (defn archive-copy-file-name [application]
   (str (file-name-prefix application) ".jpg"))
 
-
+(defn black-and-white-copy-file-name [application]
+  (str (file-name-prefix application) "_black_and_white.tiff"))
 
 (defn set-status [application status]
   (reset! (:status application) status)
@@ -77,16 +88,30 @@
   (with-open [output-stream (io/output-stream scanned-file-name)]
     (io/copy (:out (shell/sh "scanimage" "--resolution" "300" "--format=tiff" "-x" "210" "-y" "297"  :out-enc :bytes))
              output-stream)))
-(defn scan []
-  (with-open [output-stream (io/output-stream scanned-file-name)]
-    (io/copy (:out (shell/sh "gphoto2" "--capture-image-and-download" "--stdout" :out-enc :bytes))
-             output-stream)))
+(comment
+  (defn scan []
+    (with-open [output-stream (io/output-stream scanned-file-name)]
+      (io/copy (:out (shell/sh "gphoto2" "--capture-image-and-download" "--stdout" :out-enc :bytes))
+               output-stream))))
 
 (defn create-preview [application]
   (println (shell/sh "convert" scanned-file-name "-resize" "550x10000" (preview-file-name application))))
 
+(defn create-black-and-white-copy [application]
+  (shell/sh "convert" scanned-file-name "+dither" "-monochrome" "+matte" "-format" "tiff" "-compress" "Group4" (black-and-white-copy-file-name application)))
+
 (defn create-archive-copy [application]
   (shell/sh "convert" scanned-file-name "-quality" "60" (archive-copy-file-name application)))
+
+(defn create-pdf [application]
+  (println "creating pdf")
+  (let [black-and-white-file-names (map #(black-and-white-copy-file-name (assoc application
+                                                                           :page-number %))
+                                        (page-numbers application))]
+    (apply shell/sh "tiffcp" (concat black-and-white-file-names
+                                     ["pdf.tiff"])))
+
+  (shell/sh "tiff2pdf" "-o" (str (document-name-prefix application) ".pdf") "pdf.tiff"))
 
 (defn start-scanning [application]
   (.start (Thread. (fn []
@@ -100,8 +125,14 @@
                        (create-preview application)
                        (invalidate-view-part application :preview)
 
-                       (set-status application "Creating archive copy...")
-                       (create-archive-copy application)
+                       ;;(set-status application "Creating archive copy...")
+                       ;;(create-archive-copy application)
+
+                       (set-status application "Creating black and white copy...")
+                       (create-black-and-white-copy application)
+
+                       (set-status application "Creating pdf...")
+                       (create-pdf application)
 
                        (set-status application "Ready."))))))
 
@@ -173,6 +204,9 @@
 
     []))
 
+
+
+
 (defn key-pressed [keyboard-event key]
   (and (= (:key-code keyboard-event)
           key)
@@ -180,17 +214,22 @@
           :key-pressed)))
 
 (defn handle-event [application event]
+  (println event)
   (cond
 
    (key-pressed event input/down)
    (do (invalidate-view-part application :foreground)
        (invalidate-view-part application :preview)
-       (update-in application [:document-number] dec))
+       (-> application
+           (update-in [:document-number] dec)
+           (assoc :page-number 0)))
 
    (key-pressed event input/up)
    (do (invalidate-view-part application :foreground)
        (invalidate-view-part application :preview)
-       (update-in application [:document-number] inc))
+       (-> application
+           (update-in [:document-number] inc)
+           (assoc :page-number 0)))
 
    (key-pressed event input/right)
    (do (invalidate-view-part application :foreground)
@@ -203,9 +242,9 @@
        (update-in application [:page-number] dec))
 
    (key-pressed event input/page-up)
-   (do (invalidate-view-parts application :foreground :preview) 
+   (do (invalidate-view-parts application :foreground :preview)
        (assoc-in application [:document-number] (apply max (document-numbers application))))
-   
+
 
    (key-pressed event input/page-down)
    (do (invalidate-view-part application :foreground)
@@ -215,6 +254,10 @@
 
    (key-pressed event input/space)
    (do (start-scanning application)
+       application)
+
+   (key-pressed event input/p)
+   (do (create-pdf application)
        application)
 
    :default application))
@@ -233,7 +276,7 @@
 
 ;; :archive-path "/home/jukka/Pictures/visa"
 (defn create-application [window]
-  (-> {:archive-path "/home/jukka/Pictures/dia"
+  (-> {:archive-path "/home/jukka/Spideroak/kuitit"
        :view-parts {:background background
                     :foreground foreground
                     :preview preview}
@@ -267,7 +310,7 @@
                       (update-view)))))
 
 (comment
-(start)
+  (start)
 
 
   (defrecord CommandRunnerBatch [command-runners]
