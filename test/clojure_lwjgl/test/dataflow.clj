@@ -3,6 +3,16 @@
             clojure.set)
   (:use clojure.test))
 
+(defn strip [dataflow]
+  (dissoc dataflow
+          ::children
+          ::functions
+          ::dependencies
+          ::changed-paths))
+
+(defn print-dataflow [dataflow]
+  (clojure.pprint/pprint (strip dataflow)))
+
 (defn dependants [dataflow path]
   (filter #(contains? (get-in dataflow [::dependencies %])
                       path)
@@ -24,14 +34,24 @@
 
 (def ^:dynamic current-path [])
 
+(def ^:dynamic parent-path [])
+
+(defn debug [value message]
+  (println message " " value)
+  value)
+
 (defn update-value [dataflow path]
-  (println "updating" path)
+  (println "updating " path " in " (strip dataflow))
   (logged-access/with-access-logging
-    (-> dataflow
-        (assoc-in path (binding [current-dataflow dataflow]
-                         ((get-in dataflow [::functions path]))))
-        #_(assoc-in [::dependencies path] @logged-access/reads)
-        #_(update-in [::changed-paths] conj path))))
+    (let [new-dataflow (atom dataflow)
+          new-value (binding [parent-path current-path
+                              current-path path
+                              current-dataflow new-dataflow]
+                      ((get-in dataflow [::functions path])))]
+      (-> @new-dataflow
+          (assoc path new-value)
+          (assoc-in [::dependencies path] @logged-access/reads)
+          (update-in [::changed-paths] conj path)))))
 
 (defn changes [dataflow]
   (::changed-paths dataflow))
@@ -41,7 +61,6 @@
     ::changed-paths #{}))
 
 (defn update-dependant-paths [dataflow path]
-  (println "dependant " path)
   (reduce (fn [dataflow dependant-path]
             (-> dataflow
                 (update-value dependant-path)
@@ -54,26 +73,27 @@
     keyword-or-path
     [keyword-or-path]))
 
-(defn define [dataflow & paths-and-functions]
-  (reduce (fn [dataflow [path function]]
-            (let [function (if (fn? function)
-                             function
-                             (fn [] function))
-                  path (apply vector (concat current-path (as-path path)))]
-              (println "defining " path)
-              (-> dataflow
-                  (assoc-in [::functions path] function)
-                  (update-value path)
-                  (update-dependant-paths path))))
-          dataflow
-          (partition 2 paths-and-functions)))
+(defn define [& paths-and-functions]
+  (swap! current-dataflow (fn [dataflow]
+                            (reduce (fn [dataflow [path function]]
+                                      (let [function (if (fn? function)
+                                                       function
+                                                       (fn [] function))
+                                            path (apply vector (concat current-path (as-path path)))]
+                                        (-> dataflow
+                                            (assoc-in [::functions path] function)
+                                            (update-value path)
+                                            (update-dependant-paths path))))
+                                    dataflow
+                                    (partition 2 paths-and-functions)))))
 
-(defn define-child [path function]
-  (let [child-path (concat current-path path)]
-    (binding [current-path path]
+#_(defn define-child [path function]
+  (let [path (as-path path)
+        child-path (apply vector (concat current-path path))]
+    (binding [current-path child-path]
       (swap! current-dataflow (fn [dataflow] (-> dataflow
-                                               (define child-path function)
-                                               (assoc-in [:children path] child-path)))))))
+                                                 (define child-path function)
+                                                 (assoc-in [::children path] child-path)))))))
 
 (defn undefine [dataflow path]
   (-> dataflow
@@ -84,8 +104,12 @@
   (define dataflow path (function (get-in dataflow (as-path path)))))
 
 (defn get-value [key]
-  (println "get-value " key)
-  (logged-access/get current-dataflow (conj current-path key)))
+  (println "get value " (conj current-path key))
+  (logged-access/get @current-dataflow (conj current-path key)))
+
+(defn get-parent-value [key]
+  (println "get parent value " (conj parent-path key))
+  (logged-access/get @current-dataflow (conj parent-path key)))
 
 (defn values-to-map [& keys]
   (reduce (fn [result key] (assoc result key (get-value key)))
@@ -96,43 +120,46 @@
   `(let [{:keys [~@keys]} (values-to-map ~@(map #(keyword (name %)) keys))]
      ~@body))
 
-(defn get-value-in [path]
-  (logged-access/get-in current-dataflow (concat current-path path)))
+#_(defn get-value-in [path]
+    (logged-access/get-in @current-dataflow (concat current-path path)))
 
 
 (defn create []
   {::changed-paths #{}})
 
-(deftest define-test
-  (is (= (-> (create)
 
-             (define
-               :b 1
-               :c 1)
 
-             (define :d #(+ (get-value :b)
-                            (get-value :c)))
+#_(deftest define-test
+    (is (= (-> (create)
 
-             (dissoc ::functions))
+               (define :a #(do (define-child :text "foo")
+                               (get-value :text)))
 
-         nil)))
+               #_(define
+                   :b 1
+                   :c 1)
+
+               #_(define :d #(+ (get-value :b)
+                                (get-value :c)))
+
+               (print-dataflow)
+               (dissoc ::functions))
+
+           nil)))
 
 
 (run-tests)
 
 (comment
-  (thread-it dataflow
-             (assoc-in it [:x] 1)
-             (assoc-in it [:y] (+ 1
-                                  (get it [:x]))))
-
-  (println (-> {}
-               (define :b 1)
-               (define :c 1)
-               (define :a #(+ 1
-                              (get-value :b)
-                              (get-value :c)))
-               (define :b 2)
-               (dissoc ::functions)))
-  )
+(binding [current-dataflow (atom (create))]
+    (define
+      :value "jees"
+      
+      [:a :value] #(get-parent-value :value)
+      
+      :a #(do (define [:text :value] (fn [] (get-parent-value :value)))
+              (define [:text] (fn [] (str "text value: " (get-value :value))))
+              (str "A value: " (get-value :text))))
+    
+    (print-dataflow @current-dataflow)))
 

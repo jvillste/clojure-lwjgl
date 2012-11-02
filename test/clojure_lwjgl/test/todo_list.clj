@@ -258,7 +258,7 @@
 (view-part editor [item-index selected]
            #_(println "running editor " item-index " " selected)
            (let [font (font/create "LiberationSans-Regular.ttf" 15)
-                 text (str (dataflow/get-value-in [:items item-index]))
+                 text (str (dataflow/get-value [:items item-index]))
                  cursor-position (dataflow/get-value-in [:cursor-position])
                  margin 5]
              (flatten (vector (vector-rectangle/rectangle 0 0
