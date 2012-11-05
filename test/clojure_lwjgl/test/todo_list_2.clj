@@ -370,37 +370,6 @@
            [(background)
             (item-list)])
 
-#_(comment
-    {:item-view {:children {:item-list-1 {:items {0 "Foo"
-                                                  1 "Bar"}
-                                          :item-order [0 1 2]
-                                          :selected 0
-                                          :children {:editor-0 {:in-focus #(= (get-value :selected)
-                                                                              0)
-                                                                :value #(get-value-in [:items 0])
-                                                                :edited-value "Foo"
-                                                                :editing false
-                                                                :cursor-position 0}
-                                                     :editor-1 {:in-focus #(= (get-value :selected)
-                                                                              1)
-                                                                :value #(get-value-in [:items 1])
-                                                                :edited-value "Bar"
-                                                                :editing false
-                                                                :cursor-position 0}}}}}}
-    (view-part item-list [item-ids]
-               (vertical-stack (map (fn [[item-id]]
-                                      (editor value))
-                                    item-ids))
-               (map-indexed (fn [line-number item-index]
-                              [(push-modelview/->PushModelview)
-                               (translate/->Translate 0
-                                                      (* line-number 30))
-                               (editor item-index
-                                       (= selection
-                                          line-number))
-                               (pop-modelview/->PopModelview)])
-                            item-order)))
-
 (defn create-todo-list [window]
   (println "Creating application")
   (let [application (create-application window handle-event item-view)]

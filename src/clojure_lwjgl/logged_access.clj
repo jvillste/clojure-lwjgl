@@ -30,7 +30,7 @@
   (apply assoc-in target-map key-values))
 
 (defn get [target-map key]
-  (add-read [key])
+  (add-read key)
   (clojure.core/get target-map key))
 
 (defn get-in [target-map path]

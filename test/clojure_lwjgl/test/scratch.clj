@@ -15,3 +15,21 @@
              (recur (rest x)
                     (conj result (+ 1 (first x))))
              result)))
+
+
+(in-ns 'clojure-lwjgl.test.dataflow)
+
+(binding [current-dataflow (atom (create))]
+    (define
+      :value "jees"
+      
+      [:a :value] #(get-parent-value :value)
+      
+      :a #(do (define [:text :value] (fn [] (get-parent-value :value)))
+              (define [:text] (fn [] (str "text value: " (get-value :value))))
+              (str "A value: " (get-value :text))))
+    
+    (define :value "jees2")
+    
+    (println (strip @current-dataflow))
+    #_(println (::children @current-dataflow)))
