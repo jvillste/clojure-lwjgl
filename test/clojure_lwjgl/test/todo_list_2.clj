@@ -365,7 +365,7 @@
                                                     (font/height font))
       (conj editor-state-path :view) (fn [] (editor-view editor-state-path)))))
 
-(defn item-list-view []
+#_(defn item-list-view []
   #_(println "running item-list")
   (dataflow/with-values [item-order selection]
     (flatten (map-indexed (fn [line-number item-index]
@@ -380,7 +380,7 @@
             #_(item-list)])
 
 
-(defn item-view )
+#_(defn item-view )
 
 (defn create-todo-list [window]
   (println "Creating application")
