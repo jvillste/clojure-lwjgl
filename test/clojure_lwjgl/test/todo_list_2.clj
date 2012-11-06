@@ -23,7 +23,16 @@
            [clojure_lwjgl.triangle_batch TriangleBatch]
            [java.io File]))
 
-(defrecord Element [id
+#_(
+   sdfs
+   sd
+   dsfsd
+   f
+
+   )
+
+
+#_(defrecord Element [id
                     drawing-commands
                     desired-width
                     desired-height])
@@ -137,7 +146,7 @@
      (->ViewPartCall [~name ~@arguments]
                      (fn [] ~@body))))
 
-(defmacro element [name arguments preferred-width preferred-height drawing-commands]
+#_(defmacro element [name arguments preferred-width preferred-height drawing-commands]
   `(defn ~name [~@arguments]
      (->Element [~name ~@arguments]
                 (fn [] preferred-width)
@@ -245,8 +254,8 @@
 
 (defn background-view [path-prefix]
   [(vector-rectangle/rectangle 0 0
-                               (dataflow/get-value-in (conj path-prefix :width))
-                               (dataflow/get-value-in (conj path-prefix :height))
+                               (dataflow/get-value (conj path-prefix :width))
+                               (dataflow/get-value (conj path-prefix :height))
                                [1 1 1 1])])
 
 (view-part cursor [width height]
@@ -263,7 +272,7 @@
   (preferred-width [element])
   (preferred-height [element]))
 
-(defrecord Text [contents font color]
+#_(defrecord Text [contents font color]
   Element
   (drawing-commands [text] [(text/create 0 0
                                          contents
@@ -272,7 +281,7 @@
   (preferred-width [text] (font/width font contents))
   (preferred-height [text] (font/height font)))
 
-(defrecord Rectangle [width height color]
+#_(defrecord Rectangle [width height color]
   Element
   (drawing-commands [rectangle] [(vector-rectangle/rectangle 0
                                                              0
@@ -283,7 +292,7 @@
   (preferred-width [rectangle] width)
   (preferred-height [rectangle] height))
 
-(defrecord Box [margin outer inner]
+#_(defrecord Box [margin outer inner]
   Element
   (drawing-commands [box] (concat (drawing-commands (assoc outer
                                                       :width (+ (* 2 margin)
@@ -298,7 +307,7 @@
   (preferred-height [box] (+ (* 2 margin)
                              (preferred-height inner))))
 
-(defrecord VerticalStack [elements]
+#_(defrecord VerticalStack [elements]
   Element
   (drawing-commands [vertical-stack] (concat [(push-modelview/->PushModelview)]
                                              (loop [elements elements
@@ -316,19 +325,19 @@
 (defn editor-view [state]
   #_(println "running editor")
   (let [font (font/create "LiberationSans-Regular.ttf" 15)
-        text (str (dataflow/get-value-in (conj state :text)))
-        cursor-position (dataflow/get-value-in (conj state :cursor-position))
+        text (str (dataflow/get-value (conj state :text)))
+        cursor-position (dataflow/get-value (conj state :cursor-position))
         margin 5]
     (flatten (vector (vector-rectangle/rectangle 0 0
                                                  (+ (* 2 margin)
                                                     (font/width font text))
                                                  (+ (* 2 margin)
                                                     (font/height font))
-                                                 (if (dataflow/get-value-in (conj state :selected))
+                                                 (if (dataflow/get-value (conj state :selected))
                                                    [0 0 1 1]
                                                    [0.9 0.9 1 1]))
-                     (if (and (dataflow/get-value-in (conj state :selected))
-                              (dataflow/get-value-in (conj state :editing)))
+                     (if (and (dataflow/get-value (conj state :selected))
+                              (dataflow/get-value (conj state :editing)))
                        (translate/translate (+ margin
                                                (font/width font (subs text 0 cursor-position)))
                                             margin
@@ -351,7 +360,7 @@
       (conj editor-state-path :editing) false
       (conj editor-state-path :preferred-width) (fn [] (+ (* 2 margin)
                                                           (font/width font
-                                                                      (dataflow/get-value-in (conj editor-state-path :text)))))
+                                                                      (dataflow/get-value (conj editor-state-path :text)))))
       (conj editor-state-path :preferred-height) (+ (* 2 margin)
                                                     (font/height font))
       (conj editor-state-path :view) (fn [] (editor-view editor-state-path)))))
@@ -366,9 +375,12 @@
                                                             line-number))))
                           (zipper-list/items item-order)))))
 
-(view-part item-view []
+#_(view-part item-view []
            [(background)
-            (item-list)])
+            #_(item-list)])
+
+
+(defn item-view )
 
 (defn create-todo-list [window]
   (println "Creating application")

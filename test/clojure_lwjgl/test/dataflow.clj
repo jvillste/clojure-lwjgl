@@ -1,6 +1,7 @@
 (ns clojure-lwjgl.test.dataflow
   (:require (clojure-lwjgl [logged-access :as logged-access])
-            clojure.set)
+            clojure.set
+            [slingshot.slingshot :as slingshot])
   (:use clojure.test))
 
 
@@ -56,17 +57,46 @@
   (println message " " value)
   value)
 
+(defn undefine [dataflow path]
+  (println "undefinig " path)
+  (-> (reduce (fn [dataflow child]
+                (undefine dataflow child))
+              dataflow
+              (get-in dataflow [::children path]))
+      (update-in [::functions] dissoc path)
+      (update-in [::dependencies] dissoc path)
+      (update-in [::children] dissoc path)
+      (dissoc path)))
+
+(defn undefine-many [dataflow paths]
+  (reduce (fn [dataflow path]
+            (undefine dataflow path))
+          dataflow
+          paths))
+
+(defn assoc-if-defined [dataflow path value]
+  (if (not (= value ::undefined))
+    (assoc dataflow path value)
+    dataflow))
+
 (defn update-value [dataflow path]
-  #_(println "updating " path)
   (logged-access/with-access-logging
-    (let [new-dataflow (atom dataflow)
-          new-value (binding [parent-path current-path
-                              current-path path
-                              current-dataflow new-dataflow]
-                      ((get-in dataflow [::functions path])))]
-      (println "updating " path " with " new-value " was " (get dataflow path))
+    (let [old-children (get-in dataflow [::children path])
+          new-dataflow (atom (assoc-in dataflow [::children path] #{}))
+          new-value (slingshot/try+ (binding [parent-path current-path
+                                              current-path path
+                                              current-dataflow new-dataflow]
+                                      ((get-in dataflow [::functions path])))
+                                    (catch [:type ::undefined-value] _
+                                      ::undefined))
+          new-children (get-in @new-dataflow [::children path])
+          children-to-be-undefined (if (= new-value ::undefined)
+                                     new-children
+                                     (clojure.set/difference old-children new-children))]
+      (println "updating " path " " new-value " old children " old-children " new children "  new-children)
       (-> @new-dataflow
-          (assoc path new-value)
+          (undefine-many children-to-be-undefined)
+          (assoc-if-defined path new-value)
           (assoc-in [::dependencies path] @logged-access/reads)
           (update-in [::changed-paths] conj path)))))
 
@@ -94,16 +124,7 @@
     keyword-or-path
     [keyword-or-path]))
 
-(defn undefine [dataflow path]
-  (println "undefinig " path)
-  (-> (reduce (fn [dataflow child]
-                (undefine dataflow child))
-              dataflow
-              (get-in dataflow [::children path]))
-      (update-in [::functions] dissoc path)
-      (update-in [::dependencies] dissoc path)
-      (update-in [::children] dissoc path)
-      (dissoc path)))
+
 
 (defn define [& paths-and-functions]
   (swap! current-dataflow (fn [dataflow]
@@ -113,7 +134,7 @@
                                                        function
                                                        (fn [] function))
                                             path (apply vector (concat current-path (as-path path)))]
-                                        (println "defining " path " parent " parent-path " current " current-path " function " function " was " (get-in dataflow [::functions path]))
+                                        (println "defining " path " parent " parent-path " current " current-path)
                                         (-> dataflow
                                             (assoc-in [::functions path] function)
                                             (update-in [::children] #(multimap-add % current-path path))
@@ -122,30 +143,24 @@
                                     dataflow
                                     (partition 2 paths-and-functions)))))
 
-#_(defn define-child [path function]
-    (let [path (as-path path)
-          child-path (apply vector (concat current-path path))]
-      (binding [current-path child-path]
-        (swap! current-dataflow (fn [dataflow] (-> dataflow
-                                                   (define child-path function)
-                                                   (assoc-in [::children path] child-path)))))))
-
-
 
 (defn apply-to-value [dataflow path function]
   (define dataflow path (function (get-in dataflow (as-path path)))))
 
+(defn get-global-value [path]
+  (if (contains? @current-dataflow path)
+    (logged-access/get @current-dataflow path)
+    (do (logged-access/add-read path)
+        (slingshot/throw+ {:type ::undefined-value} (str "Undefined value: " path)))))
+
 (defn get-value [path-or-key]
-  (logged-access/get @current-dataflow (concat current-path (as-path path-or-key))))
+  (get-global-value (concat current-path (as-path path-or-key))))
 
 (defn get-parent-value [key]
-  (logged-access/get @current-dataflow (conj parent-path key)))
+  (get-global-value (conj parent-path key)))
 
 (defn absolute-path [local-path-or-key]
   (concat current-path (as-path local-path-or-key)))
-
-(defn get-global-value [path]
-  (logged-access/get @current-dataflow path))
 
 (defn bind [target source]
   (define target #(get-global-value source)))
@@ -199,7 +214,6 @@
 
     (define
       [:value 1] "Foo1"
-      [:value 2] "Foo2"
       [:value 3] "Foo3"
       [:order] [1 3 2]
 
@@ -209,9 +223,14 @@
               (apply vector (map (fn [i] (get-value [:text i]))
                                  (get-global-value [:order])))))
 
-    (define [:order] [1 2 3])
+    (print-dataflow @current-dataflow)
 
-    
+    (define [:value 2] "Foo2")
+
+    (print-dataflow @current-dataflow)
+
+    (define [:order] [1 2])
+
     (print-dataflow @current-dataflow)
 
     #_(println (clojure.pprint/pprint (strip @current-dataflow)))

@@ -10,5 +10,6 @@
                  [jpen/jpen-native "2.111002"]
                  [midje "1.3.1"]
                  [analyze "0.1.5"]
-                 [clojure-cello/clojure-cello "1.0.0"]]
+                 [clojure-cello/clojure-cello "1.0.0"]
+                 [slingshot "0.10.3"]]
   :plugins [[lein-swank "1.4.4"]])
