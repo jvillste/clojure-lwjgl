@@ -23,21 +23,12 @@
            [clojure_lwjgl.triangle_batch TriangleBatch]
            [java.io File]))
 
-#_(
-   sdfs
-   sd
-   dsfsd
-   f
-
-   )
-
-
 #_(defrecord Element [id
-                    drawing-commands
-                    desired-width
-                    desired-height])
+                      drawing-commands
+                      desired-width
+                      desired-height])
 
-(defrecord ViewPartCall [id])
+(defrecord ViewPartCall [id function])
 
 (extend ViewPartCall
   command/Command
@@ -147,11 +138,11 @@
                      (fn [] ~@body))))
 
 #_(defmacro element [name arguments preferred-width preferred-height drawing-commands]
-  `(defn ~name [~@arguments]
-     (->Element [~name ~@arguments]
-                (fn [] preferred-width)
-                (fn [] preferred-height)
-                (fn [] drawing-commands))))
+    `(defn ~name [~@arguments]
+       (->Element [~name ~@arguments]
+                  (fn [] preferred-width)
+                  (fn [] preferred-height)
+                  (fn [] drawing-commands))))
 
 #_(element text [contents]
            (font/width contents)
@@ -189,9 +180,8 @@
 -
 (defn add-item [application-state index value]
   (let [new-id (rand-int 10000)]
-    (-> application-state
-        (dataflow/define [:items new-id] value)
-        (dataflow/apply-to-value [:item-order] #(zipper-list/insert % new-id index)))))
+    (dataflow/define [:items new-id] value)
+    (dataflow/apply-to-value [:item-order] #(zipper-list/insert % new-id index))))
 
 (defn remove-item [application-state index]
   (let [id (get (apply vector (zipper-list/items (:item-order application-state)))
@@ -273,54 +263,54 @@
   (preferred-height [element]))
 
 #_(defrecord Text [contents font color]
-  Element
-  (drawing-commands [text] [(text/create 0 0
-                                         contents
-                                         font
-                                         color)])
-  (preferred-width [text] (font/width font contents))
-  (preferred-height [text] (font/height font)))
+    Element
+    (drawing-commands [text] [(text/create 0 0
+                                           contents
+                                           font
+                                           color)])
+    (preferred-width [text] (font/width font contents))
+    (preferred-height [text] (font/height font)))
 
 #_(defrecord Rectangle [width height color]
-  Element
-  (drawing-commands [rectangle] [(vector-rectangle/rectangle 0
-                                                             0
-                                                             width
-                                                             height
-                                                             color)])
+    Element
+    (drawing-commands [rectangle] [(vector-rectangle/rectangle 0
+                                                               0
+                                                               width
+                                                               height
+                                                               color)])
 
-  (preferred-width [rectangle] width)
-  (preferred-height [rectangle] height))
+    (preferred-width [rectangle] width)
+    (preferred-height [rectangle] height))
 
 #_(defrecord Box [margin outer inner]
-  Element
-  (drawing-commands [box] (concat (drawing-commands (assoc outer
-                                                      :width (+ (* 2 margin)
-                                                                (preferred-width inner))
-                                                      :height (+ (* 2 margin)
-                                                                 (preferred-height inner))))
-                                  (apply translate/translate margin margin (drawing-commands inner))))
+    Element
+    (drawing-commands [box] (concat (drawing-commands (assoc outer
+                                                        :width (+ (* 2 margin)
+                                                                  (preferred-width inner))
+                                                        :height (+ (* 2 margin)
+                                                                   (preferred-height inner))))
+                                    (apply translate/translate margin margin (drawing-commands inner))))
 
-  (preferred-width [box] (+ (* 2 margin)
-                            (preferred-width inner)))
+    (preferred-width [box] (+ (* 2 margin)
+                              (preferred-width inner)))
 
-  (preferred-height [box] (+ (* 2 margin)
-                             (preferred-height inner))))
+    (preferred-height [box] (+ (* 2 margin)
+                               (preferred-height inner))))
 
 #_(defrecord VerticalStack [elements]
-  Element
-  (drawing-commands [vertical-stack] (concat [(push-modelview/->PushModelview)]
-                                             (loop [elements elements
-                                                    y 0
-                                                    commands []]
-                                               (if (seq elements)
-                                                 (recur (rest elements)
-                                                        (+ y (preferred-height (first elements)))
-                                                        (concat commands
-                                                                [(translate/->Translate 0 y)]
-                                                                (drawing-commands (first elements))))
-                                                 commands))
-                                             [(pop-modelview/->PopModelview)])))
+    Element
+    (drawing-commands [vertical-stack] (concat [(push-modelview/->PushModelview)]
+                                               (loop [elements elements
+                                                      y 0
+                                                      commands []]
+                                                 (if (seq elements)
+                                                   (recur (rest elements)
+                                                          (+ y (preferred-height (first elements)))
+                                                          (concat commands
+                                                                  [(translate/->Translate 0 y)]
+                                                                  (drawing-commands (first elements))))
+                                                   commands))
+                                               [(pop-modelview/->PopModelview)])))
 
 (defn editor-view [state]
   #_(println "running editor")
@@ -366,17 +356,17 @@
       (conj editor-state-path :view) (fn [] (editor-view editor-state-path)))))
 
 #_(defn item-list-view []
-  #_(println "running item-list")
-  (dataflow/with-values [item-order selection]
-    (flatten (map-indexed (fn [line-number item-index]
-                            (translate/translate 0 (* line-number 30)
-                                                 (editor item-index
-                                                         (= selection
-                                                            line-number))))
-                          (zipper-list/items item-order)))))
+    #_(println "running item-list")
+    (dataflow/with-values [item-order selection]
+      (flatten (map-indexed (fn [line-number item-index]
+                              (translate/translate 0 (* line-number 30)
+                                                   (editor item-index
+                                                           (= selection
+                                                              line-number))))
+                            (zipper-list/items item-order)))))
 
-#_(view-part item-view []
-           [(background)
+(view-part item-view []
+           [#_(background)
             #_(item-list)])
 
 
@@ -386,17 +376,17 @@
   (println "Creating application")
   (let [application (create-application window handle-event item-view)]
     (swap! application (fn [application-state]
-                         (-> application-state
-                             (dataflow/define
-                               :width  @(:width window)
-                               :height  @(:height window)
-                               :selection 0
-                               :item-order (zipper-list/create)
-                               :editing false
-                               :cursor-position 0)
-                             (add-item 0 "Foo")
-                             (add-item 0 "Bar")
-                             (add-item 0 "FooBar"))))
+                         (binding [dataflow/current-dataflow application-state]
+                           (dataflow/define
+                             :width  @(:width window)
+                             :height  @(:height window)
+                             :selection 0
+                             :item-order (zipper-list/create)
+                             :editing false
+                             :cursor-position 0)
+                           (add-item 0 "Foo")
+                           (add-item 0 "Bar")
+                           (add-item 0 "FooBar"))))
     application))
 
 (defn start []
