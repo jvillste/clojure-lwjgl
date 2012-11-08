@@ -31,6 +31,7 @@
     (println (str key " = " (get dataflow key) " depends on " (get-in dataflow [::dependencies key]))))
 
   #_(println "Dependencies " (::dependencies dataflow))
+  (println "Changes " (::changed-paths dataflow))
   dataflow)
 
 (defn dependants [dataflow path]
@@ -69,6 +70,7 @@
       (update-in [::functions] dissoc path)
       (update-in [::dependencies] dissoc path)
       (update-in [::children] dissoc path)
+      (update-in [::changed-paths] conj path)
       (dissoc path)))
 
 (defn undefine-many [dataflow paths]
@@ -96,7 +98,7 @@
           children-to-be-undefined (if (= new-value ::undefined)
                                      #{} #_new-children
                                      (clojure.set/difference old-children new-children))]
-      (println "updating " path " = " new-value " dependencies " @logged-access/reads)
+      ;;(println "updating " path " = " new-value " dependencies " @logged-access/reads)
       (-> @new-dataflow
           (undefine-many children-to-be-undefined)
           (assoc-if-defined path new-value)
@@ -152,11 +154,11 @@
   (define-to dataflow path (function (get-in dataflow (as-path path)))))
 
 (defn get-global-value [path]
-  (if (contains? @current-dataflow path)
-    (logged-access/get @current-dataflow path)
-    (do (println "tried undefined value " path)
-        (logged-access/add-read path)
-        (slingshot/throw+ {:type ::undefined-value} (str "Undefined value: " path)))))
+  (let [path (as-path path)]
+    (if (contains? @current-dataflow path)
+      (logged-access/get @current-dataflow path)
+      (do (logged-access/add-read path)
+          (slingshot/throw+ {:type ::undefined-value} (str "Undefined value: " path))))))
 
 (defn get-value [path-or-key]
   (get-global-value (absolute-path path-or-key)))
@@ -207,10 +209,10 @@
   (defn text [value-path]
     )
 
-(-> (create)
+  (-> (create)
       (define-to
         [:value 1] "Foo1"
-        ;; [:value 2] "Foo2"
+        [:value 2] "Foo2"
         [:value 3] "Foo3"
         [:order] [1 3 2]
 
@@ -221,11 +223,12 @@
                                    (get-global-value [:order])))))
 
       (print-dataflow)
-
-      (define-to [:value 2] "Foo2")
+      (reset-changes)
+      #_(define-to [:value 2] "Foo2")
+      (define-to [:order] [1 2])
 
       (print-dataflow)
 
-      #_(define-to [:order] [1 2])
+
 
       #_(print-dataflow)))

@@ -28,7 +28,7 @@
                       desired-width
                       desired-height])
 
-(defrecord ViewPartCall [id function])
+(defrecord ViewPartCall [id])
 
 (extend ViewPartCall
   command/Command
@@ -37,19 +37,19 @@
   {:delete identity
    :run identity})
 
-(defn draw-view-part [application view-part]
-  (doseq [command-runner (get-in application [:view-part-command-runners view-part])]
+(defn draw-view-part [application-state view-part-id]
+  (doseq [command-runner (get-in application-state [:view-part-command-runners view-part-id])]
     (if (instance? ViewPartCall command-runner)
-      (draw-view-part application (:id command-runner))
+      (draw-view-part application-state (:id command-runner))
       (command/run command-runner))))
 
-(defn render [application]
+(defn render [application-state]
   (GL11/glClearColor 0 0 0 0)
   (GL11/glClear GL11/GL_COLOR_BUFFER_BIT)
 
-  (draw-view-part application (:root-view-part application))
+  (draw-view-part application-state [:root-view-part])
 
-  application)
+  application-state)
 
 (defn key-pressed [keyboard-event key]
   (and (= (:key-code keyboard-event)
@@ -66,26 +66,54 @@
       application-state
       (reduce (partial (:event-handler application-state) application) application-state unread-events))))
 
-(defn define-view-part-calls [application-state view-part-calls]
-  (reduce (fn [application-state view-part-call]
-            (dataflow/define application-state
-              [:view-parts (:id view-part-call)] (:function view-part-call)))
-          application-state
-          view-part-calls))
-
-(defn undefine-uncalled-view-parts [application-state]
-  (let [view-part-calls (filter #(instance? ViewPartCall %)
-                                (apply concat (vals (:view-parts application-state))))
-        called-view-part-ids (-> (set (map :id view-part-calls))
-                                 (conj (:root-view-part application-state)))
-        all-view-part-ids (set (keys (:view-parts application-state)))
-        uncalled-view-part-ids (clojure.set/difference all-view-part-ids called-view-part-ids)]
-    (reduce (fn [application-state view-part-id]
-              (-> application-state
-                  (dataflow/undefine [:view-parts view-part-id])
-                  (update-in [:view-parts] dissoc view-part-id)))
+#_(defn define-view-part-calls [application-state view-part-calls]
+    (reduce (fn [application-state view-part-call]
+              (dataflow/define application-state
+                [:view-parts (:id view-part-call)] (:function view-part-call)))
             application-state
-            uncalled-view-part-ids)))
+            view-part-calls))
+
+#_(defn undefine-uncalled-view-parts [application-state]
+    (let [view-part-calls (filter #(instance? ViewPartCall %)
+                                  (apply concat (vals (:view-parts application-state))))
+          called-view-part-ids (-> (set (map :id view-part-calls))
+                                   (conj (:root-view-part application-state)))
+          all-view-part-ids (set (keys (:view-parts application-state)))
+          uncalled-view-part-ids (clojure.set/difference all-view-part-ids called-view-part-ids)]
+      (reduce (fn [application-state view-part-id]
+                (-> application-state
+                    (dataflow/undefine [:view-parts view-part-id])
+                    (update-in [:view-parts] dissoc view-part-id)))
+              application-state
+              uncalled-view-part-ids)))
+
+(defn view-part-is-defined? [application-state view-part-id]
+  (contains? (:view-part-ids application-state) view-part-id))
+
+(defn undefine-view-part [application-state view-part-id]
+  (dorun (map command/delete (get-in application-state [:view-part-command-runners view-part-id])))
+
+  (update-in application-state [:view-part-ids] disj view-part-id))
+
+(defn define-view-part [application-state view-part-id]
+  (println "defining view part " view-part-id)
+  (undefine-view-part application-state view-part-id)
+
+  (let [application-state (reduce define-view-part
+                                  application-state
+                                  (->> (filter #(and (instance? ViewPartCall %)
+                                                 (not (view-part-is-defined? application-state (:id %))))
+                                               (get application-state view-part-id))
+                                       (map :id)))]
+
+    (-> application-state
+        (assoc-in [:view-part-command-runners view-part-id] (command/command-runners-for-commands (get application-state view-part-id)))
+        (update-in [:view-part-ids] conj view-part-id))))
+
+(defn update-view-part [application-state view-part-id]
+  (if (contains? application-state view-part-id)
+    (define-view-part application-state view-part-id)
+    (undefine-view-part)))
 
 (defn update-view [application]
   (when (not (empty? (dataflow/changes @application)))
@@ -93,42 +121,16 @@
                                                     (assoc :changes-to-be-processed (dataflow/changes %))
                                                     (dataflow/reset-changes)))
 
-          changes (:changes-to-be-processed application-state)
-
-          changed-view-parts (->> (filter #(= (first %)
-                                              :view-parts)
-                                          changes)
-                                  (map second))
-
-
-
-          undefined-view-part-calls (->> changed-view-parts
-                                         (mapcat #(get-in application-state [:view-parts %]))
-                                         (filter #(and (instance? ViewPartCall %)
-                                                       (not (contains? (:view-parts application-state)
-                                                                       (:id %))))))
-
-          new-command-runners (reduce (fn [command-runners view-part]
-                                        (dorun (map command/delete (get command-runners view-part)))
-                                        (assoc command-runners
-                                          view-part (command/command-runners-for-commands (get-in application-state
-                                                                                                  [:view-parts view-part]))))
-                                      (:view-part-command-runners application-state)
-                                      changed-view-parts)]
-
-      (let [application-state (swap! application
-                                     #(-> %
-                                          (assoc :view-part-command-runners new-command-runners)
-                                          (undefine-uncalled-view-parts)
-                                          (define-view-part-calls undefined-view-part-calls)))]
-        (if (empty? undefined-view-part-calls)
-          (render application-state)
-          (update-view application))))))
+          changed-view-part-ids (filter #(view-part-is-defined? application-state %)
+                                        (:changes-to-be-processed application-state))]
+      (render (swap! application
+                     (fn [application-state]
+                       (reduce update-view-part application-state changed-view-part-ids)))))))
 
 (defn update [application]
   (swap! application (partial handle-events application))
   (swap! application (fn [application-state]
-                       (dataflow/define application-state :time (System/nanoTime))))
+                       (dataflow/define-to application-state :time (System/nanoTime))))
   (update-view application)
   application)
 
@@ -159,17 +161,19 @@
                              color))
 
 
-(defn set-view [application-state view-part]
-  (-> (define-view-part-calls application-state [(view-part)])
-      (assoc :root-view-part (:id (view-part)))))
+#_(defn set-view [application-state view-part]
+    (-> (define-view-part-calls application-state [(view-part)])
+        (assoc :root-view-part (:id (view-part)))))
 
 (defn create-application [window event-handler root-view-part]
   (-> (dataflow/create)
       (assoc
           :window window
           :view-part-command-runners {}
+          :view-part-ids #{}
           :event-handler event-handler)
-      (set-view root-view-part)
+      (dataflow/define-to :root-view-part root-view-part)
+      (define-view-part [:root-view-part])
       (atom)))
 
 (defn close-application [application]
@@ -180,8 +184,9 @@
 -
 (defn add-item [application-state index value]
   (let [new-id (rand-int 10000)]
-    (dataflow/define [:items new-id] value)
-    (dataflow/apply-to-value [:item-order] #(zipper-list/insert % new-id index))))
+    (-> application-state
+        (dataflow/define-to [:items new-id] value)
+        (dataflow/apply-to-value [:item-order] #(zipper-list/insert % new-id index)))))
 
 (defn remove-item [application-state index]
   (let [id (get (apply vector (zipper-list/items (:item-order application-state)))
@@ -230,23 +235,22 @@
    (key-pressed event input/enter)
    (-> application-state
        (dataflow/apply-to-value :editing not)
-       (dataflow/define :cursor-position 0))
+       (dataflow/define-to :cursor-position 0))
 
    (key-pressed event input/escape)
    (close-application application-state)
 
    :default application-state))
 
-(defn define-background-state [application-state path-prefix width height]
-  (dataflow/define application-state
-    (conj path-prefix :width) width
-    (conj path-prefix :height) height))
+(defn background [id width height]
+  (dataflow/define [id :width] width)
+  (dataflow/define [id :height] height)
+  (dataflow/define [id] (fn [] [(vector-rectangle/rectangle 0 0
+                                                       (dataflow/get-value :width)
+                                                       (dataflow/get-value :height)
+                                                       [1 1 1 1])]))
+  (->ViewPartCall (dataflow/absolute-path id)))
 
-(defn background-view [path-prefix]
-  [(vector-rectangle/rectangle 0 0
-                               (dataflow/get-value (conj path-prefix :width))
-                               (dataflow/get-value (conj path-prefix :height))
-                               [1 1 1 1])])
 
 (view-part cursor [width height]
            [(vector-rectangle/rectangle 0
@@ -365,9 +369,11 @@
                                                               line-number))))
                             (zipper-list/items item-order)))))
 
-(view-part item-view []
-           [#_(background)
-            #_(item-list)])
+(defn item-view []
+  [(background :background
+               #(dataflow/get-global-value :width)
+               #(dataflow/get-global-value :height))])
+
 
 
 #_(defn item-view )
@@ -376,17 +382,18 @@
   (println "Creating application")
   (let [application (create-application window handle-event item-view)]
     (swap! application (fn [application-state]
-                         (binding [dataflow/current-dataflow application-state]
-                           (dataflow/define
-                             :width  @(:width window)
-                             :height  @(:height window)
-                             :selection 0
-                             :item-order (zipper-list/create)
-                             :editing false
-                             :cursor-position 0)
-                           (add-item 0 "Foo")
-                           (add-item 0 "Bar")
-                           (add-item 0 "FooBar"))))
+                         (-> application-state
+                             (dataflow/define-to
+                               :width  @(:width window)
+                               :height  @(:height window)
+                               :selection 0
+                               :item-order (zipper-list/create)
+                               :editing false
+                               :cursor-position 0)
+                             ;;(add-item 0 "Foo")
+                             ;;(add-item 0 "Bar")
+                             ;;(add-item 0 "FooBar")
+                             )))
     application))
 
 (defn start []
@@ -398,7 +405,7 @@
                 (fn [application width height]
                   (println "resize callback")
                   (swap! application
-                         #(dataflow/define
+                         #(dataflow/define-to
                             %
                             :width width
                             :height height))
