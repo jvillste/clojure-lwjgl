@@ -98,7 +98,7 @@
           children-to-be-undefined (if (= new-value ::undefined)
                                      #{} #_new-children
                                      (clojure.set/difference old-children new-children))]
-      ;;(println "updating " path " = " new-value " dependencies " @logged-access/reads)
+      (println "updating " path " = " new-value " dependencies " @logged-access/reads)
       (-> @new-dataflow
           (undefine-many children-to-be-undefined)
           (assoc-if-defined path new-value)
@@ -151,7 +151,7 @@
                             (apply define-to dataflow paths-and-functions))))
 
 (defn apply-to-value [dataflow path function]
-  (define-to dataflow path (function (get-in dataflow (as-path path)))))
+  (define-to dataflow path (function (get dataflow (as-path path)))))
 
 (defn get-global-value [path]
   (let [path (as-path path)]
