@@ -27,7 +27,7 @@
 (defrecord ViewPartCall [id])
 
 (defprotocol Element
-  (drawing-commands [element])
+  (drawing-commands [element width height])
   (preferred-width [element])
   (preferred-height [element]))
 
@@ -38,7 +38,7 @@
   {:delete identity
    :run identity}
   Element
-  {:drawing-commands (fn [view-part-call] [view-part-call])
+  {:drawing-commands (fn [view-part-call width height] [view-part-call])
    :preferred-width (fn [view-part-call]  (dataflow/get-global-value (conj (:id view-part-call) :preferred-width)))
    :preferred-height (fn [view-part-call] (dataflow/get-global-value (conj (:id view-part-call) :preferred-height)))})
 
@@ -79,7 +79,6 @@
 
 (defn define-view-part [application-state view-part-id]
   (undefine-view-part application-state view-part-id)
-
   (let [drawing-commands (if (contains? application-state view-part-id)
                            (get application-state view-part-id)
                            [])
@@ -199,48 +198,75 @@
 (defmacro definition [key value]
   `(dataflow/define [id ~key] ~value))
 
+#_(defmacro view-part [name arguments definitions root-element]
+    (let [id (gensym "id")]
+      `(defn ~name [~id ~@arguments]
+         ~@(map (fn [[key value]]
+                  `(dataflow/define [~id ~key] ~value))
+                (partition 2 definitions))
+         (dataflow/define [~id] (fn []
+                                  (let [root# ~root-element]
+                                    (dataflow/define [:preferred-height] (preferred-height root#))
+                                    (dataflow/define [:preferred-width] (preferred-width root#))
+                                    (drawing-commands root#
+                                                      (dataflow/get-value :width)
+                                                      (dataflow/get-value :height)))))
+         (->ViewPartCall (dataflow/absolute-path ~id)))))
+
+(defrecord ViewPart [drawing-commands-generator preferred-width preferred-height]
+  Element
+  (drawing-commands [view-part width height] (drawing-commands-generator width height))
+  (preferred-width [view-part] preferred-width)
+  (preferred-height [view-part] preferred-height))
+
 (defmacro view-part [name arguments definitions root-element]
   (let [id (gensym "id")]
     `(defn ~name [~id ~@arguments]
        ~@(map (fn [[key value]]
                 `(dataflow/define [~id ~key] ~value))
               (partition 2 definitions))
-       (dataflow/define [~id] (fn []
-                                (let [root# ~root-element]
-                                  (dataflow/define [:preferred-height] (preferred-height root#))
-                                  (dataflow/define [:preferred-width] (preferred-width root#))
-                                  (drawing-commands root#))))
-       (->ViewPartCall (dataflow/absolute-path ~id)))))
+
+       (let [root# ~root-element]
+         (->ViewPart (fn [width# height#]
+                       (dataflow/define [~id] (fn []
+                                                (drawing-commands root#
+                                                                  width#
+                                                                  height#)))
+                       [(->ViewPartCall (dataflow/absolute-path ~id))])
+                     (preferred-height root#)
+                     (preferred-width root#))))))
 
 
 (defrecord Text [contents font color]
   Element
-  (drawing-commands [text] [(text/create 0 0
-                                         contents
-                                         font
-                                         color)])
+  (drawing-commands [text width height] [(text/create 0 0
+                                                      contents
+                                                      font
+                                                      color)])
   (preferred-width [text] (font/width font contents))
   (preferred-height [text] (font/height font)))
 
 (defrecord Rectangle [width height color]
   Element
-  (drawing-commands [rectangle] [(vector-rectangle/rectangle 0
-                                                             0
-                                                             width
-                                                             height
-                                                             color)])
+  (drawing-commands [rectangle requested-width requested-height] [(vector-rectangle/rectangle 0
+                                                                                              0
+                                                                                              requested-width
+                                                                                              requested-height
+                                                                                              color)])
 
   (preferred-width [rectangle] width)
   (preferred-height [rectangle] height))
 
 (defrecord Box [margin outer inner]
   Element
-  (drawing-commands [box] (concat (drawing-commands (assoc outer
-                                                      :width (+ (* 2 margin)
-                                                                (preferred-width inner))
-                                                      :height (+ (* 2 margin)
-                                                                 (preferred-height inner))))
-                                  (apply translate/translate margin margin (drawing-commands inner))))
+  (drawing-commands [box requested-width requested-height] (concat (drawing-commands outer
+                                                                                     (+ (* 2 margin)
+                                                                                        (preferred-width inner))
+                                                                                     (+ (* 2 margin)
+                                                                                        (preferred-height inner)))
+                                                                   (apply translate/translate margin margin (drawing-commands inner
+                                                                                                                              (preferred-width inner)
+                                                                                                                              (preferred-height inner)))))
 
   (preferred-width [box] (+ (* 2 margin)
                             (preferred-width inner)))
@@ -250,40 +276,39 @@
 
 (defrecord VerticalStack [elements]
   Element
-  (drawing-commands [vertical-stack] (concat [(push-modelview/->PushModelview)]
-                                             (loop [elements elements
-                                                    y 0
-                                                    commands []]
-                                               (if (seq elements)
-                                                 (recur (rest elements)
-                                                        (+ y (preferred-height (first elements)))
-                                                        (concat commands
-                                                                [(translate/->Translate 0 y)]
-                                                                (drawing-commands (first elements))))
-                                                 commands))
-                                             [(pop-modelview/->PopModelview)]))
+  (drawing-commands [vertical-stack
+                     requested-width
+                     requested-height] (concat [(push-modelview/->PushModelview)]
+                                               (loop [elements elements
+                                                      y 0
+                                                      commands []]
+                                                 (if (seq elements)
+                                                   (recur (rest elements)
+                                                          (+ y (preferred-height (first elements)))
+                                                          (concat commands
+                                                                  [(translate/->Translate 0 y)]
+                                                                  (drawing-commands (first elements)
+                                                                                    (preferred-width (first elements))
+                                                                                    (preferred-height (first elements)))))
+                                                   commands))
+                                               [(pop-modelview/->PopModelview)]))
   (preferred-height [vertical-stack] (reduce + (map preferred-height (:elements vertical-stack))))
   (preferred-width [vertical-stack] (apply max (map preferred-width (:elements vertical-stack)))))
 
 (defrecord Stack [elements]
   Element
-  (drawing-commands [stack] (loop [elements elements
-                                   commands []]
-                              (if (seq elements)
-                                (recur (rest elements)
-                                       (concat commands
-                                               (drawing-commands (first elements))))
-                                commands)))
+  (drawing-commands [stack requested-width requested-height] (mapcat (fn [element] 
+                                                                       (drawing-commands element
+                                                                                                     requested-width
+                                                                                                     requested-height))
+                                                                     elements))
   (preferred-width [stack] (apply max (map preferred-width elements)))
   (preferred-height [stack] (apply max (map preferred-height elements))))
 
-(view-part background [width height]
-
-           [:width width
-            :height height]
-
-           (->Rectangle (dataflow/get-value :width)
-                        (dataflow/get-value :height)
+(view-part background []
+           []
+           (->Rectangle 10
+                        10
                         [1 1 1 1]))
 
 #_(defn cursor [id width height]
@@ -351,7 +376,11 @@
 
 (view-part editor []
            []
-           (->Text "Foo" (font/create "LiberationSans-Regular.ttf" 15) [0 0 1 1]))
+           (let [text (->Text "Foo" (font/create "LiberationSans-Regular.ttf" 15) [0 0 1 1])]
+             (->Stack [(->Rectangle (preferred-width text)
+                                    (preferred-height text)
+                                    [1 1 1 1])
+                       text])))
 
 (view-part item-list-view []
            []
@@ -359,10 +388,10 @@
                              (editor :e2)]))
 
 (defn item-view []
-  (drawing-commands (->Stack [(background :background
-                                          #(dataflow/get-global-value :width)
-                                          #(dataflow/get-global-value :height))
-                              (item-list-view :item-list-view)])))
+  (drawing-commands (->Stack [(background :background)
+                              (item-list-view :item-list-view)])
+                    (dataflow/get-global-value :width)
+                    (dataflow/get-global-value :height)))
 
 (defn create-todo-list [window]
   (println "Creating application")
