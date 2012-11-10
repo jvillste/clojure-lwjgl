@@ -39,13 +39,11 @@
    :run identity}
   Element
   {:drawing-commands (fn [view-part-call] [view-part-call])
-   :preferred-width (fn [view-part-call]  (preferred-width (dataflow/get-global-value (conj (:id view-part-call) :preferred-width))))
-   :preferred-height (fn [view-part-call] (preferred-height (dataflow/get-global-value (conj (:id view-part-call) :preferred-height))))})
+   :preferred-width (fn [view-part-call]  (dataflow/get-global-value (conj (:id view-part-call) :preferred-width)))
+   :preferred-height (fn [view-part-call] (dataflow/get-global-value (conj (:id view-part-call) :preferred-height)))})
 
 (defn draw-view-part [application-state view-part-id]
-  (println "rendering " view-part-id)
   (doseq [command-runner (get-in application-state [:view-part-command-runners view-part-id])]
-    (println (type command-runner))
     (if (instance? ViewPartCall command-runner)
       (draw-view-part application-state (:id command-runner))
       (command/run command-runner))))
@@ -83,7 +81,7 @@
   (undefine-view-part application-state view-part-id)
 
   (let [drawing-commands (if (contains? application-state view-part-id)
-                           (drawing-commands (get application-state view-part-id))
+                           (get application-state view-part-id)
                            [])
         application-state (reduce define-view-part
                                   application-state
@@ -204,7 +202,6 @@
 (defmacro view-part [name arguments definitions root-element]
   (let [id (gensym "id")]
     `(defn ~name [~id ~@arguments]
-       (println "Defining view part " ~id)
        ~@(map (fn [[key value]]
                 `(dataflow/define [~id ~key] ~value))
               (partition 2 definitions))
@@ -362,10 +359,10 @@
                              (editor :e2)]))
 
 (defn item-view []
-  (->Stack [(background :background
-                        #(dataflow/get-global-value :width)
-                        #(dataflow/get-global-value :height))
-            (item-list-view :item-list-view)]))
+  (drawing-commands (->Stack [(background :background
+                                          #(dataflow/get-global-value :width)
+                                          #(dataflow/get-global-value :height))
+                              (item-list-view :item-list-view)])))
 
 (defn create-todo-list [window]
   (println "Creating application")
