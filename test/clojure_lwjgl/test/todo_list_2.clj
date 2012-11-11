@@ -136,7 +136,7 @@
   application)
 
 ;; TODO-LIST
--
+
 (defn add-item [application-state index value]
   (let [new-id (rand-int 10000)]
     (-> application-state
@@ -225,7 +225,7 @@
        ~@(map (fn [[key value]]
                 `(dataflow/define [~id ~key] ~value))
               (partition 2 definitions))
-
+       (println "Creating view part " ~id)
        (let [root# ~root-element]
          (->ViewPart (fn [width# height#]
                        (dataflow/define [~id] (fn []
@@ -233,8 +233,8 @@
                                                                   width#
                                                                   height#)))
                        [(->ViewPartCall (dataflow/absolute-path ~id))])
-                     (preferred-height root#)
-                     (preferred-width root#))))))
+                     (preferred-width root#)
+                     (preferred-height root#))))))
 
 
 (defrecord Text [contents font color]
@@ -260,10 +260,8 @@
 (defrecord Box [margin outer inner]
   Element
   (drawing-commands [box requested-width requested-height] (concat (drawing-commands outer
-                                                                                     (+ (* 2 margin)
-                                                                                        (preferred-width inner))
-                                                                                     (+ (* 2 margin)
-                                                                                        (preferred-height inner)))
+                                                                                     requested-width
+                                                                                     requested-height)
                                                                    (apply translate/translate margin margin (drawing-commands inner
                                                                                                                               (preferred-width inner)
                                                                                                                               (preferred-height inner)))))
@@ -278,38 +276,32 @@
   Element
   (drawing-commands [vertical-stack
                      requested-width
-                     requested-height] (concat [(push-modelview/->PushModelview)]
-                                               (loop [elements elements
-                                                      y 0
-                                                      commands []]
-                                                 (if (seq elements)
-                                                   (recur (rest elements)
-                                                          (+ y (preferred-height (first elements)))
-                                                          (concat commands
-                                                                  [(translate/->Translate 0 y)]
-                                                                  (drawing-commands (first elements)
-                                                                                    (preferred-width (first elements))
-                                                                                    (preferred-height (first elements)))))
-                                                   commands))
-                                               [(pop-modelview/->PopModelview)]))
-  (preferred-height [vertical-stack] (reduce + (map preferred-height (:elements vertical-stack))))
-  (preferred-width [vertical-stack] (apply max (map preferred-width (:elements vertical-stack)))))
+                     requested-height] (let [width (apply max (conj (map preferred-width elements)
+                                                                    0))]
+                                         (concat [(push-modelview/->PushModelview)]
+                                                 (reduce (fn [commands element]
+                                                           (concat commands
+                                                                   (drawing-commands element
+                                                                                     width
+                                                                                     (preferred-height element))
+                                                                   [(translate/->Translate 0 (preferred-height element))]))
+                                                         []
+                                                         elements)
+                                                 [(pop-modelview/->PopModelview)])))
+  (preferred-height [vertical-stack] (reduce + (map preferred-height elements)))
+  (preferred-width [vertical-stack] (apply max (conj (map preferred-width elements)
+                                                     0))))
 
 (defrecord Stack [elements]
   Element
-  (drawing-commands [stack requested-width requested-height] (mapcat (fn [element] 
+  (drawing-commands [stack requested-width requested-height] (mapcat (fn [element]
                                                                        (drawing-commands element
-                                                                                                     requested-width
-                                                                                                     requested-height))
+                                                                                         requested-width
+                                                                                         requested-height))
                                                                      elements))
   (preferred-width [stack] (apply max (map preferred-width elements)))
   (preferred-height [stack] (apply max (map preferred-height elements))))
 
-(view-part background []
-           []
-           (->Rectangle 10
-                        10
-                        [1 1 1 1]))
 
 #_(defn cursor [id width height]
     (dataflow/define [id] (fn [] [(vector-rectangle/rectangle 0
@@ -374,18 +366,26 @@
                                                                        line-number))))
                                      (zipper-list/items item-order)))))
 
-(view-part editor []
+(view-part editor [item-id]
            []
-           (let [text (->Text "Foo" (font/create "LiberationSans-Regular.ttf" 15) [0 0 1 1])]
-             (->Stack [(->Rectangle (preferred-width text)
-                                    (preferred-height text)
-                                    [1 1 1 1])
-                       text])))
+           (->Box 2
+                  (->Rectangle 0
+                               0
+                               [0 0 1 1])
+                  (->Text (dataflow/get-global-value [:items item-id])
+                          (font/create "LiberationSans-Regular.ttf" 15)
+                          [0 0 0 1])))
 
 (view-part item-list-view []
            []
-           (->VerticalStack [(editor :e1)
-                             (editor :e2)]))
+           (->VerticalStack (map #(editor (keyword (str "editor" %)) %)
+                                 (zipper-list/items (dataflow/get-global-value :item-order)))))
+
+
+(view-part background []
+           []
+           (->Rectangle 0 0 [1 1 1 1]))
+
 
 (defn item-view []
   (drawing-commands (->Stack [(background :background)
@@ -402,9 +402,9 @@
                                :selection 0
                                :item-order (zipper-list/create))
                              (add-item 0 "Foo")
-                             ;;(add-item 0 "Bar")
-                             ;;(add-item 0 "FooBar")
-                             )))
+                             (add-item 0 "Bar")
+                             (add-item 0 "FooBar")
+                             (add-item 0 "FooBar3"))))
     application))
 
 (defn start []
