@@ -4,6 +4,10 @@
             [slingshot.slingshot :as slingshot])
   (:use clojure.test))
 
+(defmacro when-> [argument condition body]
+  `(if ~condition
+     (-> ~argument ~body)
+     ~argument))
 
 (defn multimap-add
   "Adds key-value pairs the multimap."
@@ -88,22 +92,24 @@
   (logged-access/with-access-logging
     (let [old-children (get-in dataflow [::children path])
           new-dataflow (atom (assoc-in dataflow [::children path] #{}))
+          old-value (get dataflow path)
           new-value (slingshot/try+ (binding [parent-path current-path
                                               current-path path
                                               current-dataflow new-dataflow]
                                       ((get-in dataflow [::functions path])))
                                     (catch [:type ::undefined-value] _
                                       ::undefined))
+          changed (not (= old-value new-value))
           new-children (get-in @new-dataflow [::children path])
           children-to-be-undefined (if (= new-value ::undefined)
                                      #{} #_new-children
                                      (clojure.set/difference old-children new-children))]
-      (println "updating " path " = " new-value " dependencies " @logged-access/reads)
+      (println "updating " path " dependencies " @logged-access/reads)
       (-> @new-dataflow
           (undefine-many children-to-be-undefined)
           (assoc-if-defined path new-value)
           (assoc-in [::dependencies path] @logged-access/reads)
-          (update-in [::changed-paths] conj path)))))
+          (when-> changed (update-in [::changed-paths] conj path))))))
 
 (defn changes [dataflow]
   (::changed-paths dataflow))
@@ -117,9 +123,13 @@
             (if (not (= dependant-path current-path))
               (do
                 (println "updating dependant path " dependant-path " of " path " parent " parent-path " current path " current-path)
-                (-> dataflow
+                (let [old-value (get dataflow dependant-path)]
+                  (-> dataflow
                     (update-value dependant-path)
-                    (update-dependant-paths dependant-path)))
+                    ((fn [dataflow] (if (not (= old-value
+                                                (get dataflow dependant-path)))
+                                      (update-dependant-paths dataflow dependant-path)
+                                      dataflow))))))
               dataflow))
           dataflow
           (dependants dataflow path)))
@@ -132,17 +142,24 @@
 (defn absolute-path [local-path-or-key]
   (apply vector (concat current-path (as-path local-path-or-key))))
 
+
+
+
 (defn define-to [dataflow & paths-and-functions]
   (reduce (fn [dataflow [path function]]
             (let [function (if (fn? function)
                              function
                              (fn [] function))
-                  path (absolute-path path)]
+                  path (absolute-path path)
+                  old-value (get dataflow path)]
               (-> dataflow
                   (assoc-in [::functions path] function)
                   (update-in [::children] #(multimap-add % current-path path))
                   (update-value path)
-                  (update-dependant-paths path))))
+                  ((fn [dataflow] (if (not (= old-value
+                                              (get dataflow path)))
+                                    (update-dependant-paths dataflow path)
+                                    dataflow))))))
           dataflow
           (partition 2 paths-and-functions)))
 
@@ -231,4 +248,20 @@
 
 
 
-      #_(print-dataflow)))
+      #_(print-dataflow))
+
+(-> (create)
+      (define-to :a 1)
+      (define-to :b #(let [a (get-global-value :a)]
+                       (if (= a 3)
+                         1
+                         2)))
+      (define-to :c #(inc (get-global-value :b)))
+      
+      (print-dataflow)
+      (reset-changes)
+      (define-to :a 1)
+      (define-to :a 2)
+      (define-to :a 3)
+      (print-dataflow)))
+

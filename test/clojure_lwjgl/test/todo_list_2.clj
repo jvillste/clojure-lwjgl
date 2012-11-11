@@ -112,7 +112,7 @@
 
 (defn update [application]
   (swap! application (partial handle-events application))
-  (swap! application (fn [application-state]
+  #_(swap! application (fn [application-state]
                        (dataflow/define-to application-state :time (System/nanoTime))))
   (update-view application)
   application)
@@ -223,10 +223,13 @@
   (let [id (gensym "id")]
     `(defn ~name [~id ~@arguments]
        ~@(map (fn [[key value]]
-                `(dataflow/define [~id ~key] ~value))
+                `(dataflow/define [~id :element ~key] ~value))
               (partition 2 definitions))
        (println "Creating view part " ~id)
-       (let [root# ~root-element]
+       (dataflow/define [~id :element] (fn []
+                                         ~root-element))
+
+       (let [root# (dataflow/get-value [~id :element])]
          (->ViewPart (fn [width# height#]
                        (dataflow/define [~id] (fn []
                                                 (drawing-commands root#
@@ -366,26 +369,31 @@
                                                                        line-number))))
                                      (zipper-list/items item-order)))))
 
-(view-part editor [item-id]
-           []
+(view-part editor [item-id index]
+           [:selected #(= index
+                          (dataflow/get-global-value :selection))]
+
            (->Box 2
                   (->Rectangle 0
                                0
-                               [0 0 1 1])
+                               (if (dataflow/get-value :selected)
+                                 [0 0 1 1]
+                                 [1 1 1 1]))
                   (->Text (dataflow/get-global-value [:items item-id])
                           (font/create "LiberationSans-Regular.ttf" 15)
                           [0 0 0 1])))
 
 (view-part item-list-view []
            []
-           (->VerticalStack (map #(editor (keyword (str "editor" %)) %)
-                                 (zipper-list/items (dataflow/get-global-value :item-order)))))
+           (->VerticalStack (map-indexed (fn [index item-id] (editor (keyword (str "editor" item-id))
+                                                                     item-id
+                                                                     index))
+                                         (zipper-list/items (dataflow/get-global-value :item-order)))))
 
 
 (view-part background []
            []
            (->Rectangle 0 0 [1 1 1 1]))
-
 
 (defn item-view []
   (drawing-commands (->Stack [(background :background)
