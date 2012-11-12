@@ -89,6 +89,7 @@
     dataflow))
 
 (defn update-value [dataflow path]
+  (println "Updating " path)
   (logged-access/with-access-logging
     (let [old-children (get-in dataflow [::children path])
           new-dataflow (atom (assoc-in dataflow [::children path] #{}))
@@ -104,7 +105,7 @@
           children-to-be-undefined (if (= new-value ::undefined)
                                      #{} #_new-children
                                      (clojure.set/difference old-children new-children))]
-      (println "updating " path " dependencies " @logged-access/reads)
+
       (-> @new-dataflow
           (undefine-many children-to-be-undefined)
           (assoc-if-defined path new-value)
@@ -122,14 +123,14 @@
   (reduce (fn [dataflow dependant-path]
             (if (not (= dependant-path current-path))
               (do
-                (println "updating dependant path " dependant-path " of " path " parent " parent-path " current path " current-path)
+                (println "updating dependant path " dependant-path " of " path)
                 (let [old-value (get dataflow dependant-path)]
                   (-> dataflow
-                    (update-value dependant-path)
-                    ((fn [dataflow] (if (not (= old-value
-                                                (get dataflow dependant-path)))
-                                      (update-dependant-paths dataflow dependant-path)
-                                      dataflow))))))
+                      (update-value dependant-path)
+                      ((fn [dataflow] (if (not (= old-value
+                                                  (get dataflow dependant-path)))
+                                        (update-dependant-paths dataflow dependant-path)
+                                        dataflow))))))
               dataflow))
           dataflow
           (dependants dataflow path)))
@@ -141,9 +142,6 @@
 
 (defn absolute-path [local-path-or-key]
   (apply vector (concat current-path (as-path local-path-or-key))))
-
-
-
 
 (defn define-to [dataflow & paths-and-functions]
   (reduce (fn [dataflow [path function]]
@@ -250,14 +248,14 @@
 
       #_(print-dataflow))
 
-(-> (create)
+  (-> (create)
       (define-to :a 1)
       (define-to :b #(let [a (get-global-value :a)]
                        (if (= a 3)
                          1
                          2)))
       (define-to :c #(inc (get-global-value :b)))
-      
+
       (print-dataflow)
       (reset-changes)
       (define-to :a 1)

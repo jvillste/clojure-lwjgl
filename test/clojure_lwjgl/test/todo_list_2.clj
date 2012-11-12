@@ -113,7 +113,7 @@
 (defn update [application]
   (swap! application (partial handle-events application))
   #_(swap! application (fn [application-state]
-                       (dataflow/define-to application-state :time (System/nanoTime))))
+                         (dataflow/define-to application-state :time (System/nanoTime))))
   (update-view application)
   application)
 
@@ -225,7 +225,7 @@
        ~@(map (fn [[key value]]
                 `(dataflow/define [~id :element ~key] ~value))
               (partition 2 definitions))
-       (println "Creating view part " ~id)
+
        (dataflow/define [~id :element] (fn []
                                          ~root-element))
 
@@ -297,13 +297,20 @@
 
 (defrecord Stack [elements]
   Element
-  (drawing-commands [stack requested-width requested-height] (mapcat (fn [element]
+  (drawing-commands [stack requested-width requested-height] (println "Stack drawing commands")
+    (mapcat (fn [element]
                                                                        (drawing-commands element
                                                                                          requested-width
                                                                                          requested-height))
                                                                      elements))
-  (preferred-width [stack] (apply max (map preferred-width elements)))
-  (preferred-height [stack] (apply max (map preferred-height elements))))
+  (preferred-width [stack]
+    (println "Stack preferred width")
+    (apply max (conj (map preferred-width elements)
+                                            0)))
+  (preferred-height [stack]
+    (println "Stack preferred height")
+    (apply max (conj (map preferred-height elements)
+                                             0))))
 
 
 #_(defn cursor [id width height]
@@ -384,11 +391,14 @@
                           [0 0 0 1])))
 
 (view-part item-list-view []
-           []
-           (->VerticalStack (map-indexed (fn [index item-id] (editor (keyword (str "editor" item-id))
-                                                                     item-id
-                                                                     index))
-                                         (zipper-list/items (dataflow/get-global-value :item-order)))))
+             []
+             (->VerticalStack (doall (map-indexed (fn [index item-id]
+                                              (editor (keyword (str "editor" item-id))
+                                                      item-id
+                                                      index))
+                                            (zipper-list/items (dataflow/get-global-value :item-order))))))
+
+
 
 
 (view-part background []
