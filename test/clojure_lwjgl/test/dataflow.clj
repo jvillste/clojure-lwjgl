@@ -31,7 +31,7 @@
           ::changed-paths))
 
 (defn print-dataflow [dataflow]
-  (doseq [key (sort (keys (strip dataflow)))]
+  (doseq [key (sort (filter vector? (keys (strip dataflow))))]
     (println (str key " = " (get dataflow key) " depends on " (get-in dataflow [::dependencies key]))))
 
   #_(println "Dependencies " (::dependencies dataflow))
@@ -89,7 +89,7 @@
     dataflow))
 
 (defn update-value [dataflow path]
-  (println "Updating " path)
+
   (logged-access/with-access-logging
     (let [old-children (get-in dataflow [::children path])
           new-dataflow (atom (assoc-in dataflow [::children path] #{}))
@@ -105,6 +105,7 @@
           children-to-be-undefined (if (= new-value ::undefined)
                                      #{} #_new-children
                                      (clojure.set/difference old-children new-children))]
+      (println "Updating " path " = " new-value)
 
       (-> @new-dataflow
           (undefine-many children-to-be-undefined)
@@ -136,12 +137,12 @@
           (dependants dataflow path)))
 
 (defn as-path [keyword-or-path]
-  (if (vector? keyword-or-path)
-    keyword-or-path
+  (if (instance? java.util.Collection keyword-or-path)
+    (vec keyword-or-path)
     [keyword-or-path]))
 
 (defn absolute-path [local-path-or-key]
-  (apply vector (concat current-path (as-path local-path-or-key))))
+  (vec (concat current-path (as-path local-path-or-key))))
 
 (defn define-to [dataflow & paths-and-functions]
   (reduce (fn [dataflow [path function]]
@@ -165,24 +166,32 @@
   (swap! current-dataflow (fn [dataflow]
                             (apply define-to dataflow paths-and-functions))))
 
-(defn apply-to-value [dataflow path function]
-  (define-to dataflow path (function (get dataflow (as-path path)))))
 
-(defn get-global-value [path]
+(defn get-global-value-from [dataflow path]
   (let [path (as-path path)]
-    (if (contains? @current-dataflow path)
-      (logged-access/get @current-dataflow path)
+    (if (contains? dataflow path)
+      (logged-access/get dataflow path)
       (do (logged-access/add-read path)
           (slingshot/throw+ {:type ::undefined-value} (str "Undefined value: " path))))))
 
+(defn get-global-value [path]
+  (get-global-value-from @current-dataflow path))
+
 (defn get-value [path-or-key]
+  (println "get-value " (absolute-path path-or-key))
   (get-global-value (absolute-path path-or-key)))
+
+(defn get-value-from [dataflow path-or-key]
+  (get-global-value-from dataflow (absolute-path path-or-key)))
 
 (defn get-parent-value [key]
   (get-global-value (apply vector (conj parent-path key))))
 
 (defn bind [target source]
   (define target #(get-global-value source)))
+
+(defn apply-to-value [dataflow path function]
+  (define-to dataflow path (function (get dataflow (absolute-path path)))))
 
 (defn values-to-map [& keys]
   (reduce (fn [result key] (assoc result key (get-value key)))
@@ -196,7 +205,6 @@
 (defn create []
   {::changed-paths #{}
    ::children {}})
-
 
 
 #_(deftest define-test
@@ -224,7 +232,7 @@
   (defn text [value-path]
     )
 
-  (-> (create)
+(-> (create)
       (define-to
         [:value 1] "Foo1"
         [:value 2] "Foo2"
@@ -248,6 +256,13 @@
 
       #_(print-dataflow))
 
+(-> (create)
+    (define-to :a (fn [] (define :a1 (fn [] (define :a2 1)
+                                       (inc (get-value :a2))))
+                    (inc (get-value :a1))))
+    (define-to [:a :a1 :a2] 2)
+    (print-dataflow))
+
   (-> (create)
       (define-to :a 1)
       (define-to :b #(let [a (get-global-value :a)]
@@ -262,4 +277,3 @@
       (define-to :a 2)
       (define-to :a 3)
       (print-dataflow)))
-
