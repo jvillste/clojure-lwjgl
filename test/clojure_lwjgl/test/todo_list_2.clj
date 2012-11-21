@@ -62,12 +62,17 @@
        (= (:type keyboard-event)
           :key-pressed)))
 
-(defn handle-events [application application-state]
+(defn handle-events [application]
   (let [unread-events (concat (input/unread-keyboard-events)
                               (input/unread-mouse-events))]
-    (if (empty? unread-events)
-      application-state
-      (reduce (partial (:event-handler application-state) application) application-state unread-events))))
+    (when (not (empty? unread-events))
+      (doseq [event unread-events]
+        (swap! application (fn [application-state]
+                             ((:event-handler application-state)
+                              application
+                              (assoc application-state
+                                :event-handled false)
+                              event)))))))
 
 (defn view-part-is-defined? [application-state view-part-id]
   (contains? (:view-part-ids application-state) view-part-id))
@@ -111,7 +116,7 @@
                        (reduce update-view-part application-state changed-view-part-ids)))))))
 
 (defn update [application]
-  (swap! application (partial handle-events application))
+  (handle-events application)
   #_(swap! application (fn [application-state]
                          (dataflow/define-to application-state :time (System/nanoTime))))
   (update-view application)
@@ -142,64 +147,71 @@
 
 (defn add-item [application-state item-list index value]
   (let [new-id (rand-int 10000)]
-    (println "adding item " new-id)
+    (println "adding item " new-id " to " item-list " " index)
     (-> application-state
         (dataflow/define-to (concat item-list [:items new-id]) value)
         (dataflow/define-to (concat item-list [:item-order]) (zipper-list/insert (get application-state (concat item-list [:item-order]))
                                                                                  new-id
                                                                                  index)))))
 
-(defn remove-item [application-state index]
-  (let [id (get (apply vector (zipper-list/items (dataflow/get-value-from application-state :item-order)))
-                (dataflow/get-value-from application-state :selection))]
+(defn remove-item [application-state item-list index]
+  (let [id (get (apply vector (zipper-list/items (get application-state (concat item-list [:item-order]))))
+                (get application-state (concat item-list [:selection])))]
     (-> application-state
-        (dataflow/undefine [:items id])
-        (dataflow/apply-to-value [:item-order] #(zipper-list/remove % id)))))
+        (dataflow/undefine (concat item-list [:items id]))
+        (dataflow/apply-to-value  (concat item-list [:item-order])  #(zipper-list/remove % id)))))
 
-(defn handle-edit-event [application application-state event]
+(defn handle-editor-event [application application-state editor event]
   (cond
-
-   (key-pressed event input/escape)
-   (dataflow/apply-to-value application-state :editing not)
+   (and (key-pressed event input/escape)
+        (get application-state (concat editor [:editing])))
+   (assoc (dataflow/apply-to-value application-state (concat editor [:editing]) not)
+     :event-handled true)
 
    (key-pressed event input/enter)
-   (dataflow/apply-to-value application-state :editing not)
+   (dataflow/apply-to-value application-state (concat editor [:editing]) not)
 
    (key-pressed event input/left)
-   (dataflow/apply-to-value application-state :cursor-position dec)
+   (dataflow/apply-to-value application-state (concat editor [:cursor-position]) dec)
 
    (key-pressed event input/right)
-   (dataflow/apply-to-value application-state :cursor-position inc)
+   (dataflow/apply-to-value application-state (concat editor [:cursor-position]) inc)
 
    :default application-state))
 
-(defn handle-event [application application-state event]
+(defn handle-item-list-view-event [application application-state item-list-view event]
   (cond
-
-   (:editing application-state)
-   (handle-edit-event application application-state event)
-
    (key-pressed event input/down)
-   (dataflow/apply-to-value application-state :selection inc)
+   (dataflow/apply-to-value application-state (concat item-list-view [:selection]) inc)
 
    (key-pressed event input/up)
-   (dataflow/apply-to-value application-state :selection dec)
+   (dataflow/apply-to-value application-state (concat item-list-view [:selection]) dec)
 
    (key-pressed event input/space)
-   (add-item application-state (:selection application-state) "New item" )
+   (add-item application-state item-list-view  (get application-state  (concat item-list-view [:selection])) "New item" )
 
    (key-pressed event input/backspace)
-   (remove-item application-state (:selection application-state))
+   (remove-item application-state item-list-view  (get application-state (concat item-list-view [:selection])))
 
-   (key-pressed event input/enter)
-   (-> application-state
-       (dataflow/apply-to-value :editing not)
-       (dataflow/define-to :cursor-position 0))
+   :default (let [application-state (handle-editor-event application
+                                                         application-state
+                                                         (concat item-list-view [(keyword (str "editor" (get application-state (concat item-list-view [:selection])))) :element])
+                                                         event)]
+              (if (not (:event-handled application-state))
+                application-state
+                application-state))))
 
-   (key-pressed event input/escape)
-   (close-application application-state)
+(defn handle-event [application application-state event]
 
-   :default application-state))
+  (let [application-state (handle-item-list-view-event application application-state [:root-view-part :element :item-list-view :element] event)]
+     (if (not (:event-handled application-state))
+       (cond
+        (key-pressed event input/escape)
+        (close-application application-state)
+
+        :default application-state)
+       
+       application-state)))
 
 (defmacro definition [key value]
   `(dataflow/define [id ~key] ~value))
@@ -233,7 +245,6 @@
 (defn create-view-part [id]
   (let [absolute-element-path (dataflow/absolute-path [id :element])]
     (->ViewPart (fn [width height]
-                  (println "get commands " id)
                   (dataflow/define [id] (fn []
                                           (drawing-commands (dataflow/get-global-value absolute-element-path)
                                                             width
@@ -331,101 +342,73 @@
   Object
   (toString [_] (str "(->Stack " elements ")")))
 
+(defrecord Translation [x y element]
+  Element
+  (drawing-commands [translation requested-width requested-height] (vec (apply translate/translate
+                                                                               x
+                                                                               y
+                                                                               (drawing-commands element
+                                                                                                 (preferred-width element)
+                                                                                                 (preferred-height element)))))
+  (preferred-width [translation] (+ x (preferred-width element)))
 
-#_(defn cursor [id width height]
-    (dataflow/define [id] (fn [] [(vector-rectangle/rectangle 0
-                                                              0
-                                                              width
-                                                              height
-                                                              [(float (/ (mod (dataflow/get-value :time)
-                                                                              1000000000)
-                                                                         1000000000)) 0 0 1])]))
-    (->ViewPartCall (dataflow/absolute-path id)))
+  (preferred-height [translation] (+ y (preferred-height element)))
 
-#_(defn editor-view [state]
-    #_(println "running editor")
-    (let [font (font/create "LiberationSans-Regular.ttf" 15)
-          text (str (dataflow/get-value (conj state :text)))
-          cursor-position (dataflow/get-value (conj state :cursor-position))
-          margin 5]
-      (flatten (vector (vector-rectangle/rectangle 0 0
-                                                   (+ (* 2 margin)
-                                                      (font/width font text))
-                                                   (+ (* 2 margin)
-                                                      (font/height font))
-                                                   (if (dataflow/get-value (conj state :selected))
-                                                     [0 0 1 1]
-                                                     [0.9 0.9 1 1]))
-                       (if (and (dataflow/get-value (conj state :selected))
-                                (dataflow/get-value (conj state :editing)))
-                         (translate/translate (+ margin
-                                                 (font/width font (subs text 0 cursor-position)))
-                                              margin
-                                              (cursor (font/width font (subs text
-                                                                             cursor-position
-                                                                             (+ cursor-position 1)))
-                                                      (font/height font)))
-                         [])
-                       (text/create 5 5
-                                    text
-                                    font
-                                    [0.0 0.0 0.0 1.0])))))
 
-#_(defn define-editor-state [application-state editor-state-path text]
-    (let [font (font/create "LiberationSans-Regular.ttf" 15)
-          margin 5]
-      (dataflow/define application-state
-        (conj editor-state-path :text) text
-        (conj editor-state-path :cursor-position) 0
-        (conj editor-state-path :editing) false
-        (conj editor-state-path :preferred-width) (fn [] (+ (* 2 margin)
-                                                            (font/width font
-                                                                        (dataflow/get-value (conj editor-state-path :text)))))
-        (conj editor-state-path :preferred-height) (+ (* 2 margin)
-                                                      (font/height font))
-        (conj editor-state-path :view) (fn [] (editor-view editor-state-path)))))
+  Object
+  (toString [_] (str "(->Transaltion " x " " y " " element ")")))
 
-#_(view-part item-list-view []
-             (dataflow/with-values [item-order selection]
-               (flatten (map-indexed (fn [line-number item-index]
-                                       (translate/translate 0 (* line-number 30)
-                                                            (editor item-index
-                                                                    (= selection
-                                                                       line-number))))
-                                     (zipper-list/items item-order)))))
 
-(view-part editor [value index]
-           [:selected #(= index
-                          (dataflow/get-global-value :selection))
-            :value value]
+(view-part cursor [width height]
+           []
+           (->Rectangle width
+                        height
+                        [1 #_(float (/ (mod (dataflow/get-global-value :time)
+                                            1000000000)
+                                       1000000000))
+                         0 0 1]))
 
-           (->Box 2
-                  (->Rectangle 0
-                               0
-                               (if (dataflow/get-value :selected)
-                                 [0 0 1 1]
-                                 [1 1 1 1]))
-                  (->Text (dataflow/get-value :value)
-                          (font/create "LiberationSans-Regular.ttf" 15)
-                          [0 0 0 1])))
+
+(view-part editor [value selected]
+           [:selected selected
+            :value value
+            :editing false
+            :cursor-position 0]
+
+           (let [text (dataflow/get-value :value)
+                 cursor-position (dataflow/get-value :cursor-position)
+                 font (font/create "LiberationSans-Regular.ttf" 15)]
+             (->Box 2
+                    (->Rectangle 0
+                                 0
+                                 (if (dataflow/get-value :selected)
+                                   [0 0 1 1]
+                                   [1 1 1 1]))
+                    (->Stack (concat (if (dataflow/get-value :editing)
+                                       [(->Translation (font/width font (subs text 0 cursor-position))
+                                                       0
+                                                       (cursor :cursor
+                                                               (font/width font (subs text
+                                                                                      cursor-position
+                                                                                      (+ cursor-position 1)))
+                                                               (font/height font)))]
+                                       [])
+                                     [(->Text text
+                                              font
+                                              [0 0 0 1])])))))
 
 (view-part item-list-view []
            [:selection 0
             :item-order (zipper-list/create)]
 
-           #_(->VerticalStack [(do
-                               (println "Creating stack")
-                               (->Text (str (count (zipper-list/items (dataflow/get-value :item-order))))
-                                       (font/create "LiberationSans-Regular.ttf" 15)
-                                       [0 0 0 1]))
-                             (->Rectangle 10 10 [1 1 0 1])])
-
            (->VerticalStack (vec (doall (map-indexed (fn [index item-id]
-                                                         (println "Creating editor for item " item-id)
-                                                         (editor (keyword (str "editor" item-id))
-                                                                   #(dataflow/get-global-value (dataflow/absolute-path [:items item-id]))
-                                                                   index))
-                                                       (zipper-list/items (dataflow/get-value :item-order)))))))
+                                                       (let [absolute-item-path (dataflow/absolute-path [:items item-id])
+                                                             absolute-selection-path (dataflow/absolute-path [:selection])]
+                                                         (editor (keyword (str "editor" index))
+                                                                 #(dataflow/get-global-value absolute-item-path)
+                                                                 #(= index
+                                                                     (dataflow/get-global-value absolute-selection-path)))))
+                                                     (zipper-list/items (dataflow/get-value :item-order)))))))
 
 (view-part background []
            []
@@ -443,7 +426,7 @@
                          (-> application-state
                              (dataflow/print-dataflow)
                              (add-item [:root-view-part :element :item-list-view :element] 0 "Foo")
-                             #_(add-item 0 "Bar")
+                             (add-item [:root-view-part :element :item-list-view :element] 0 "Bar")
                              #_(add-item 0 "FooBar")
                              #_(add-item 0 "FooBar3")
                              (dataflow/print-dataflow))))

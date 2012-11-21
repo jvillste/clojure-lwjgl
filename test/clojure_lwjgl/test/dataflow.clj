@@ -105,7 +105,7 @@
           children-to-be-undefined (if (= new-value ::undefined)
                                      #{} #_new-children
                                      (clojure.set/difference old-children new-children))]
-      (println "Updating " path " = " new-value)
+      (println "Updating " path " = " new-value #_(apply str (take 100 (str new-value))))
 
       (-> @new-dataflow
           (undefine-many children-to-be-undefined)
@@ -178,7 +178,6 @@
   (get-global-value-from @current-dataflow path))
 
 (defn get-value [path-or-key]
-  (println "get-value " (absolute-path path-or-key))
   (get-global-value (absolute-path path-or-key)))
 
 (defn get-value-from [dataflow path-or-key]
