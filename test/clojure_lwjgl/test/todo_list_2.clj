@@ -143,93 +143,8 @@
   (window/request-close (:window application))
   application)
 
-;; TODO-LIST
 
-(defn add-item [application-state item-list index value]
-  (let [new-id (rand-int 10000)]
-    (println "adding item " new-id " to " item-list " " index)
-    (-> application-state
-        (dataflow/define-to (concat item-list [:items new-id]) value)
-        (dataflow/define-to (concat item-list [:item-order]) (zipper-list/insert (get application-state (concat item-list [:item-order]))
-                                                                                 new-id
-                                                                                 index)))))
-
-(defn remove-item [application-state item-list index]
-  (let [id (get (apply vector (zipper-list/items (get application-state (concat item-list [:item-order]))))
-                (get application-state (concat item-list [:selection])))]
-    (-> application-state
-        (dataflow/undefine (concat item-list [:items id]))
-        (dataflow/apply-to-value  (concat item-list [:item-order])  #(zipper-list/remove % id)))))
-
-(defn handle-editor-event [application application-state editor event]
-  (cond
-   (and (key-pressed event input/escape)
-        (get application-state (concat editor [:editing])))
-   (assoc (dataflow/apply-to-value application-state (concat editor [:editing]) not)
-     :event-handled true)
-
-   (key-pressed event input/enter)
-   (dataflow/apply-to-value application-state (concat editor [:editing]) not)
-
-   (key-pressed event input/left)
-   (dataflow/apply-to-value application-state (concat editor [:cursor-position]) dec)
-
-   (key-pressed event input/right)
-   (dataflow/apply-to-value application-state (concat editor [:cursor-position]) inc)
-
-   :default application-state))
-
-(defn handle-item-list-view-event [application application-state item-list-view event]
-  (cond
-   (key-pressed event input/down)
-   (dataflow/apply-to-value application-state (concat item-list-view [:selection]) inc)
-
-   (key-pressed event input/up)
-   (dataflow/apply-to-value application-state (concat item-list-view [:selection]) dec)
-
-   (key-pressed event input/space)
-   (add-item application-state item-list-view  (get application-state  (concat item-list-view [:selection])) "New item" )
-
-   (key-pressed event input/backspace)
-   (remove-item application-state item-list-view  (get application-state (concat item-list-view [:selection])))
-
-   :default (let [application-state (handle-editor-event application
-                                                         application-state
-                                                         (concat item-list-view [(keyword (str "editor" (get application-state (concat item-list-view [:selection])))) :element])
-                                                         event)]
-              (if (not (:event-handled application-state))
-                application-state
-                application-state))))
-
-(defn handle-event [application application-state event]
-
-  (let [application-state (handle-item-list-view-event application application-state [:root-view-part :element :item-list-view :element] event)]
-     (if (not (:event-handled application-state))
-       (cond
-        (key-pressed event input/escape)
-        (close-application application-state)
-
-        :default application-state)
-       
-       application-state)))
-
-(defmacro definition [key value]
-  `(dataflow/define [id ~key] ~value))
-
-#_(defmacro view-part [name arguments definitions root-element]
-    (let [id (gensym "id")]
-      `(defn ~name [~id ~@arguments]
-         ~@(map (fn [[key value]]
-                  `(dataflow/define [~id ~key] ~value))
-                (partition 2 definitions))
-         (dataflow/define [~id] (fn []
-                                  (let [root# ~root-element]
-                                    (dataflow/define [:preferred-height] (preferred-height root#))
-                                    (dataflow/define [:preferred-width] (preferred-width root#))
-                                    (drawing-commands root#
-                                                      (dataflow/get-value :width)
-                                                      (dataflow/get-value :height)))))
-         (->ViewPartCall (dataflow/absolute-path ~id)))))
+;; VIEW PARTS
 
 (defrecord ViewPart [drawing-commands-generator preferred-width-generator preferred-height-generator]
   Element
@@ -262,6 +177,8 @@
 
        (create-view-part ~id))))
 
+
+;; ELEMENTS
 
 (defrecord Text [contents font color]
   Element
@@ -359,6 +276,82 @@
   (toString [_] (str "(->Transaltion " x " " y " " element ")")))
 
 
+;; TODO-LIST
+
+(defn add-item [application-state item-list index value]
+  (let [new-id (rand-int 10000)]
+    (-> application-state
+        (dataflow/define-to (concat item-list [:items new-id]) value)
+        (dataflow/define-to (concat item-list [:item-order]) (zipper-list/insert (get application-state (concat item-list [:item-order]))
+                                                                                 new-id
+                                                                                 index)))))
+
+(defn remove-item [application-state item-list index]
+  (let [id (get (apply vector (zipper-list/items (get application-state (concat item-list [:item-order]))))
+                (get application-state (concat item-list [:selection])))]
+    (-> application-state
+        (dataflow/undefine (concat item-list [:items id]))
+        (dataflow/apply-to-value  (concat item-list [:item-order])  #(zipper-list/remove % id)))))
+
+
+(defn handle-editing-event [application application-state editor event]
+  (cond
+   (key-pressed event input/escape)
+   (assoc (dataflow/apply-to-value application-state (concat editor [:editing]) not)
+     :event-handled true)
+
+   (key-pressed event input/left)
+   (dataflow/apply-to-value application-state (concat editor [:cursor-position]) dec)
+
+   (key-pressed event input/right)
+   (dataflow/apply-to-value application-state (concat editor [:cursor-position]) inc)
+
+   :default application-state))
+
+(defn handle-editor-event [application application-state editor event]
+  (cond
+
+   (key-pressed event input/enter)
+   (dataflow/apply-to-value application-state (concat editor [:editing]) not)
+
+   :default (if (get application-state (concat editor [:editing]))
+              (handle-editing-event application application-state editor event)
+              application-state)))
+
+(defn handle-item-list-view-event [application application-state item-list-view event]
+  (cond
+
+   (key-pressed event input/down)
+   (dataflow/apply-to-value application-state (concat item-list-view [:selection]) inc)
+
+   (key-pressed event input/up)
+   (dataflow/apply-to-value application-state (concat item-list-view [:selection]) dec)
+
+   (key-pressed event input/space)
+   (add-item application-state item-list-view  (get application-state  (concat item-list-view [:selection])) "New item" )
+
+   (key-pressed event input/backspace)
+   (remove-item application-state item-list-view  (get application-state (concat item-list-view [:selection])))
+
+   :default (handle-editor-event application
+                                 application-state
+                                 (concat item-list-view [(keyword (str "editor" (get application-state (concat item-list-view [:selection])))) :element])
+                                 event)))
+
+(defn handle-event [application application-state event]
+
+  (let [application-state (handle-item-list-view-event application application-state [:root-view-part :element :item-list-view :element] event)]
+    (if (not (:event-handled application-state))
+      (cond
+       (key-pressed event input/escape)
+       (close-application application-state)
+
+       :default application-state)
+
+      application-state)))
+
+
+
 (view-part cursor [width height]
            []
            (->Rectangle width
@@ -372,6 +365,7 @@
 (view-part editor [value selected]
            [:selected selected
             :value value
+            :edited-value value
             :editing false
             :cursor-position 0]
 
@@ -423,13 +417,11 @@
   (println "Creating application")
   (let [application (create-application window handle-event item-view)]
     (swap! application (fn [application-state]
-                         (-> application-state
-                             (dataflow/print-dataflow)
-                             (add-item [:root-view-part :element :item-list-view :element] 0 "Foo")
-                             (add-item [:root-view-part :element :item-list-view :element] 0 "Bar")
-                             #_(add-item 0 "FooBar")
-                             #_(add-item 0 "FooBar3")
-                             (dataflow/print-dataflow))))
+                         (let [item-list-view-element [:root-view-part :element :item-list-view :element]]
+                           (-> application-state
+                               (add-item item-list-view-element 0 "Foo")
+                               (add-item item-list-view-element 0 "Bar")
+                               (dataflow/print-dataflow)))))
     application))
 
 (defn start []
