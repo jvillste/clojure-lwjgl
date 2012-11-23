@@ -128,7 +128,11 @@
            :key-pressed
            :key-released)
    :key-code (:key-code lwjgl-event)
-   :character (:character lwjgl-event)})
+   :character (let [character (:character lwjgl-event)]
+                (if (or (nil? character)
+                        (= 0 (int character)))
+                  nil
+                  character))})
 
 (defn combined-key-code [key-code]
   (case key-code

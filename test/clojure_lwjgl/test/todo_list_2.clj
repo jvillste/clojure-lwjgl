@@ -306,6 +306,18 @@
    (key-pressed event input/right)
    (dataflow/apply-to-value application-state (concat editor [:cursor-position]) inc)
 
+   (not (nil? (:character event)))
+   (-> application-state
+       (dataflow/apply-to-value (concat editor [:edited-value]) (fn [edited-value]
+                                                                  (-> (StringBuffer. edited-value)
+                                                                      (.insert (get application-state (concat editor [:cursor-position])) (:character event))
+                                                                      (.toString))))
+
+       (dataflow/apply-to-value  (concat editor [:cursor-position]) inc)
+       (assoc :event-handled true))
+
+
+
    :default application-state))
 
 (defn handle-editor-event [application application-state editor event]
@@ -327,18 +339,25 @@
    (key-pressed event input/up)
    (dataflow/apply-to-value application-state (concat item-list-view [:selection]) dec)
 
-   (key-pressed event input/space)
-   (add-item application-state item-list-view  (get application-state  (concat item-list-view [:selection])) "New item" )
 
    (key-pressed event input/backspace)
    (remove-item application-state item-list-view  (get application-state (concat item-list-view [:selection])))
 
-   :default (handle-editor-event application
-                                 application-state
-                                 (concat item-list-view [(keyword (str "editor" (get application-state (concat item-list-view [:selection])))) :element])
-                                 event)))
+   :default (let [application-state (handle-editor-event application
+                                                         application-state
+                                                         (concat item-list-view [(keyword (str "editor" (get application-state (concat item-list-view [:selection])))) :element])
+                                                         event)]
+              (if (not (:event-handled application-state))
+                (cond
+                 (key-pressed event input/space)
+                 (add-item application-state item-list-view  (get application-state  (concat item-list-view [:selection])) "New item" )
+
+                 :default application-state)
+
+                application-state))))
 
 (defn handle-event [application application-state event]
+
 
   (let [application-state (handle-item-list-view-event application application-state [:root-view-part :element :item-list-view :element] event)]
     (if (not (:event-handled application-state))
@@ -369,7 +388,9 @@
             :editing false
             :cursor-position 0]
 
-           (let [text (dataflow/get-value :value)
+           (let [text (if (dataflow/get-value :editing)
+                        (dataflow/get-value :edited-value)
+                        (dataflow/get-value :value))
                  cursor-position (dataflow/get-value :cursor-position)
                  font (font/create "LiberationSans-Regular.ttf" 15)]
              (->Box 2
