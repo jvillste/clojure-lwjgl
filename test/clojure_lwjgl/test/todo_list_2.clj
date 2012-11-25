@@ -139,8 +139,8 @@
         :height  @(:height window)
         :elements root-element-constructor
         :commands #(drawing-commands (dataflow/get-global-value :elements)
-                                                  (dataflow/get-global-value :width)
-                                                  (dataflow/get-global-value :height)))
+                                     (dataflow/get-global-value :width)
+                                     (dataflow/get-global-value :height)))
       (define-view-part [:commands])
       (atom)))
 
@@ -250,6 +250,29 @@
   Object
   (toString [_] (str "(->VerticalStack " elements ")")))
 
+(defrecord HorizontalStack [elements]
+  Element
+  (drawing-commands [horizontal-stack
+                     requested-width
+                     requested-height] (let [height (apply max (conj (map preferred-height elements)
+                                                                    0))]
+                                         (vec (concat [(push-modelview/->PushModelview)]
+                                                      (reduce (fn [commands element]
+                                                                (concat commands
+                                                                        (drawing-commands element
+                                                                                          (preferred-width element)
+                                                                                          height)
+                                                                        [(translate/->Translate (preferred-width element) 0 )]))
+                                                              []
+                                                              elements)
+                                                      [(pop-modelview/->PopModelview)]))))
+  (preferred-height [horizontal-stack] (apply max (conj (map preferred-height elements)
+                                                        0)))
+  (preferred-width [horizontal-stack] (reduce + (map preferred-width elements)))
+  Object
+  (toString [_] (str "(->VerticalStack " elements ")")))
+
+
 (defrecord Stack [elements]
   Element
   (drawing-commands [stack requested-width requested-height] (vec (mapcat (fn [element]
@@ -305,8 +328,11 @@
 (defn handle-editing-event [application application-state editor event]
   (cond
    (key-pressed event input/escape)
-   (assoc (dataflow/apply-to-value application-state (concat editor [:editing]) not)
-     :event-handled true)
+   (-> application-state
+       (dataflow/define-to (concat editor [:cursor-position]) 0)
+       (dataflow/define-to (concat editor [:editing]) false)
+       (dataflow/define-to (concat editor [:edited-value]) (get application-state (concat editor [:value])))
+       (assoc :event-handled true))
 
    (key-pressed event input/left)
    (dataflow/apply-to-value application-state (concat editor [:cursor-position]) dec)
@@ -332,7 +358,12 @@
   (cond
 
    (key-pressed event input/enter)
-   (dataflow/apply-to-value application-state (concat editor [:editing]) not)
+   (if (get application-state (concat editor [:editing]))
+     (dataflow/define-to application-state
+       (concat editor [:value]) (get application-state (concat editor [:edited-value]))
+       (concat editor [:cursor-position]) 0
+       (concat editor [:editing]) false)
+     (dataflow/define-to application-state (concat editor [:editing]) true))
 
    :default (if (get application-state (concat editor [:editing]))
               (handle-editing-event application application-state editor event)
@@ -346,7 +377,6 @@
 
    (key-pressed event input/up)
    (dataflow/apply-to-value application-state (concat item-list-view [:selection]) dec)
-
 
    (key-pressed event input/backspace)
    (remove-item application-state item-list-view  (get application-state (concat item-list-view [:selection])))
@@ -437,9 +467,7 @@
            []
            (->Rectangle 0 0 [1 1 1 1]))
 
-
 (defn item-view []
-  (debug "creating item view element ")
   (->Stack [(background :background)
             (item-list-view :item-list-view)]))
 
@@ -447,10 +475,10 @@
   (println "Creating application")
   (let [application (create-application window handle-event item-view)]
     (swap! application (fn [application-state]
-                         (let [item-list-view-element [:elements :item-list-view]]
+                         (let [item-list-view [:elements :item-list-view]]
                            (-> application-state
-                               (add-item item-list-view-element 0 "Foo")
-                               (add-item item-list-view-element 0 "Bar")
+                               (add-item item-list-view 0 "Foo")
+                               (add-item item-list-view 0 "Bar")
                                (dataflow/print-dataflow)))))
     application))
 
