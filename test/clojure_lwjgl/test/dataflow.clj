@@ -105,7 +105,7 @@
           children-to-be-undefined (if (= new-value ::undefined)
                                      #{} #_new-children
                                      (clojure.set/difference old-children new-children))]
-      #_(println "Updating " path " = " new-value #_(apply str (take 100 (str new-value))))
+      (println "Updating " path " = " new-value #_(apply str (take 100 (str new-value))))
 
       (-> @new-dataflow
           (undefine-many children-to-be-undefined)

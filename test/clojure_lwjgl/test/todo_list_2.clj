@@ -23,8 +23,10 @@
            [clojure_lwjgl.triangle_batch TriangleBatch]
            [java.io File]))
 
+(defn debug [& messages]
+  #_(apply println messages))
 
-(defrecord ViewPartCall [id])
+(defrecord ViewPartCall [view-part-command-path])
 
 (defprotocol Element
   (drawing-commands [element width height])
@@ -39,20 +41,22 @@
    :run identity}
   Element
   {:drawing-commands (fn [view-part-call width height] [view-part-call])
-   :preferred-width (fn [view-part-call]  (dataflow/get-global-value (conj (:id view-part-call) :preferred-width)))
-   :preferred-height (fn [view-part-call] (dataflow/get-global-value (conj (:id view-part-call) :preferred-height)))})
+   :preferred-width (fn [view-part-call]  (dataflow/get-global-value (conj (:view-part-command-path view-part-call) :preferred-width)))
+   :preferred-height (fn [view-part-call] (dataflow/get-global-value (conj (:view-part-command-path view-part-call) :preferred-height)))})
 
-(defn draw-view-part [application-state view-part-id]
-  (doseq [command-runner (get-in application-state [:view-part-command-runners view-part-id])]
+(defn draw-view-part [application-state view-part-command-path]
+  (debug "drawing view part " view-part-command-path)
+  (doseq [command-runner (get-in application-state [:view-part-command-runners view-part-command-path])]
+    (debug "running command runner " (type command-runner))
     (if (instance? ViewPartCall command-runner)
-      (draw-view-part application-state (:id command-runner))
+      (draw-view-part application-state (:view-part-command-path command-runner))
       (command/run command-runner))))
 
 (defn render [application-state]
   (GL11/glClearColor 0 0 0 0)
   (GL11/glClear GL11/GL_COLOR_BUFFER_BIT)
 
-  (draw-view-part application-state [:root-view-part])
+  (draw-view-part application-state [:commands])
 
   application-state)
 
@@ -74,34 +78,35 @@
                                 :event-handled false)
                               event)))))))
 
-(defn view-part-is-defined? [application-state view-part-id]
-  (contains? (:view-part-ids application-state) view-part-id))
+(defn view-part-is-defined? [application-state view-part-commands-path]
+  (contains? (:view-part-command-paths application-state) view-part-commands-path))
 
-(defn undefine-view-part [application-state view-part-id]
-  (dorun (map command/delete (get-in application-state [:view-part-command-runners view-part-id])))
+(defn undefine-view-part [application-state view-part-commands-path]
+  (debug "undefining view part " view-part-commands-path)
+  (dorun (map command/delete (get-in application-state [:view-part-command-runners view-part-commands-path])))
 
-  (update-in application-state [:view-part-ids] disj view-part-id))
+  (update-in application-state [:view-part-command-paths] disj view-part-commands-path))
 
-(defn define-view-part [application-state view-part-id]
-  (undefine-view-part application-state view-part-id)
-  (let [drawing-commands (if (contains? application-state view-part-id)
-                           (get application-state view-part-id)
-                           [])
+(defn define-view-part [application-state view-part-commands-path]
+  (debug "defining view part " view-part-commands-path)
+  (undefine-view-part application-state view-part-commands-path)
+  (let [drawing-commands (get application-state view-part-commands-path [])
         application-state (reduce define-view-part
                                   application-state
                                   (->> (filter #(and (instance? ViewPartCall %)
-                                                     (not (view-part-is-defined? application-state (:id %))))
+                                                     (not (view-part-is-defined? application-state (:view-part-command-path %))))
                                                drawing-commands)
-                                       (map :id)))]
+                                       (map :view-part-command-path)))]
 
     (-> application-state
-        (assoc-in [:view-part-command-runners view-part-id] (command/command-runners-for-commands drawing-commands))
-        (update-in [:view-part-ids] conj view-part-id))))
+        (assoc-in [:view-part-command-runners view-part-commands-path] (command/command-runners-for-commands drawing-commands))
+        (update-in [:view-part-command-paths] conj view-part-commands-path))))
 
-(defn update-view-part [application-state view-part-id]
-  (if (contains? application-state view-part-id)
-    (define-view-part application-state view-part-id)
-    (undefine-view-part application-state view-part-id)))
+(defn update-view-part [application-state view-part-commands-path]
+  (debug "updating view part " view-part-commands-path)
+  (if (contains? application-state view-part-commands-path)
+    (define-view-part application-state view-part-commands-path)
+    (undefine-view-part application-state view-part-commands-path)))
 
 (defn update-view [application]
   (when (not (empty? (dataflow/changes @application)))
@@ -109,11 +114,11 @@
                                                     (assoc :changes-to-be-processed (dataflow/changes %))
                                                     (dataflow/reset-changes)))
 
-          changed-view-part-ids (filter #(view-part-is-defined? application-state %)
-                                        (:changes-to-be-processed application-state))]
+          changed-view-part-command-paths (filter #(view-part-is-defined? application-state %)
+                                                  (:changes-to-be-processed application-state))]
       (render (swap! application
                      (fn [application-state]
-                       (reduce update-view-part application-state changed-view-part-ids)))))))
+                       (reduce update-view-part application-state changed-view-part-command-paths)))))))
 
 (defn update [application]
   (handle-events application)
@@ -127,16 +132,16 @@
       (assoc
           :window window
           :view-part-command-runners {}
-          :view-part-ids #{}
+          :view-part-command-paths #{}
           :event-handler event-handler)
       (dataflow/define-to
         :width  @(:width window)
         :height  @(:height window)
-        [:root-view-part :element] root-element-constructor
-        :root-view-part #(drawing-commands (dataflow/get-value :element)
-                                           (dataflow/get-global-value :width)
-                                           (dataflow/get-global-value :height)))
-      (define-view-part [:root-view-part])
+        :elements root-element-constructor
+        :commands #(drawing-commands (dataflow/get-global-value :elements)
+                                                  (dataflow/get-global-value :width)
+                                                  (dataflow/get-global-value :height)))
+      (define-view-part [:commands])
       (atom)))
 
 (defn close-application [application]
@@ -154,26 +159,29 @@
 
 (defn run-view-part-definitions [id definitions]
   (dorun (map (fn [[key value]]
-                (dataflow/define [id :element key] value))
+                (dataflow/define [id key] value))
               (partition 2 definitions))))
 
-(defn create-view-part [id]
-  (let [absolute-element-path (dataflow/absolute-path [id :element])]
+(defn create-view-part [local-id]
+  (let [root-element-path (dataflow/absolute-path local-id)]
+    (debug "creating view part " root-element-path)
     (->ViewPart (fn [width height]
-                  (dataflow/define [id] (fn []
-                                          (drawing-commands (dataflow/get-global-value absolute-element-path)
-                                                            width
-                                                            height)))
-                  [(->ViewPartCall (dataflow/absolute-path id))])
-                (fn [] (preferred-width (dataflow/get-global-value absolute-element-path)))
-                (fn [] (preferred-height (dataflow/get-global-value absolute-element-path))))))
+                  (dataflow/define local-id (fn []
+                                              (drawing-commands (dataflow/get-global-value root-element-path)
+                                                                width
+                                                                height)))
+                  [(->ViewPartCall (dataflow/absolute-path local-id))])
+                (fn [] (preferred-width (dataflow/get-global-value root-element-path)))
+                (fn [] (preferred-height (dataflow/get-global-value root-element-path))))))
 
 (defmacro view-part [name arguments definitions root-element]
+
   (let [id (gensym "id")]
     `(defn ~name [~id ~@arguments]
+
        (run-view-part-definitions ~id ~definitions)
-       (dataflow/define [~id :element] (fn []
-                                         ~root-element))
+       (dataflow/define [~id] (fn []
+                                ~root-element))
 
        (create-view-part ~id))))
 
@@ -345,7 +353,7 @@
 
    :default (let [application-state (handle-editor-event application
                                                          application-state
-                                                         (concat item-list-view [(keyword (str "editor" (get application-state (concat item-list-view [:selection])))) :element])
+                                                         (concat item-list-view [(keyword (str "editor" (get application-state (concat item-list-view [:selection]))))])
                                                          event)]
               (if (not (:event-handled application-state))
                 (cond
@@ -357,9 +365,9 @@
                 application-state))))
 
 (defn handle-event [application application-state event]
+  (debug "handling event " event)
 
-
-  (let [application-state (handle-item-list-view-event application application-state [:root-view-part :element :item-list-view :element] event)]
+  (let [application-state (handle-item-list-view-event application application-state [:elements :item-list-view] event)]
     (if (not (:event-handled application-state))
       (cond
        (key-pressed event input/escape)
@@ -431,6 +439,7 @@
 
 
 (defn item-view []
+  (debug "creating item view element ")
   (->Stack [(background :background)
             (item-list-view :item-list-view)]))
 
@@ -438,7 +447,7 @@
   (println "Creating application")
   (let [application (create-application window handle-event item-view)]
     (swap! application (fn [application-state]
-                         (let [item-list-view-element [:root-view-part :element :item-list-view :element]]
+                         (let [item-list-view-element [:elements :item-list-view]]
                            (-> application-state
                                (add-item item-list-view-element 0 "Foo")
                                (add-item item-list-view-element 0 "Bar")
