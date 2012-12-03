@@ -10,7 +10,7 @@
      ~argument))
 
 (defn multimap-add
-  "Adds key-value pairs the multimap."
+  "Adds key-value pairs to the multimap."
   ([mm k v]
      (assoc mm k (conj (get mm k #{}) v)))
   ([mm k v & kvs]
@@ -66,7 +66,7 @@
   value)
 
 (defn undefine [dataflow path]
-  #_(println "undefinig " path)
+  (println "undefinig " path)
   (-> (reduce (fn [dataflow child]
                 (undefine dataflow child))
               dataflow
@@ -105,8 +105,7 @@
           children-to-be-undefined (if (= new-value ::undefined)
                                      #{} #_new-children
                                      (clojure.set/difference old-children new-children))]
-      #_(println "Updating " path " = " new-value #_(apply str (take 100 (str new-value))))
-
+      (println "Updating " path " = " new-value #_(apply str (take 100 (str new-value))))
       (-> @new-dataflow
           (undefine-many children-to-be-undefined)
           (assoc-if-defined path new-value)
@@ -166,8 +165,29 @@
   (swap! current-dataflow (fn [dataflow]
                             (apply define-to dataflow paths-and-functions))))
 
+(defn initialize [& paths-and-functions]
+  (apply define (->> paths-and-functions
+                     (partition 2)
+                     (map (fn [[path function]]
+                            (swap! current-dataflow (fn [dataflow]
+                                                      (update-in dataflow [::children] #(multimap-add % current-path (absolute-path path)))))
+                            [path function]))
+                     (filter (fn [[path function]]
+                               (not (contains? @current-dataflow (absolute-path path)))))
+                     (apply concat))))
+
+(defn define-with-prefix [prefix & paths-and-functions]
+  (let [prefix (as-path prefix)
+        add-prefix (fn [[path function]]
+                     [(concat prefix (as-path path))
+                      function])]
+    (apply define (->> paths-and-functions
+                       (partition 2)
+                       (map add-prefix)
+                       (apply concat)))))
 
 (defn get-global-value-from [dataflow path]
+  (println "Get " path)
   (let [path (as-path path)]
     (if (contains? dataflow path)
       (logged-access/get dataflow path)
@@ -231,7 +251,7 @@
   (defn text [value-path]
     )
 
-(-> (create)
+  (-> (create)
       (define-to
         [:value 1] "Foo1"
         [:value 2] "Foo2"
@@ -255,12 +275,12 @@
 
       #_(print-dataflow))
 
-(-> (create)
-    (define-to :a (fn [] (define :a1 (fn [] (define :a2 1)
-                                       (inc (get-value :a2))))
-                    (inc (get-value :a1))))
-    (define-to [:a :a1 :a2] 2)
-    (print-dataflow))
+  (-> (create)
+      (define-to :a (fn [] (define :a1 (fn [] (define :a2 1)
+                                         (inc (get-value :a2))))
+                      (inc (get-value :a1))))
+      (define-to [:a :a1 :a2] 2)
+      (print-dataflow))
 
   (-> (create)
       (define-to :a 1)
