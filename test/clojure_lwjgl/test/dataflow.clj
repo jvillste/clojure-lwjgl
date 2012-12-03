@@ -123,7 +123,7 @@
   (reduce (fn [dataflow dependant-path]
             (if (not (= dependant-path current-path))
               (do
-                #_(println "updating dependant path " dependant-path " of " path)
+                (println "updating dependant path " dependant-path " of " path)
                 (let [old-value (get dataflow dependant-path)]
                   (-> dataflow
                       (update-value dependant-path)
@@ -187,7 +187,7 @@
                        (apply concat)))))
 
 (defn get-global-value-from [dataflow path]
-  (println "Get " path)
+  #_(println "Get " path)
   (let [path (as-path path)]
     (if (contains? dataflow path)
       (logged-access/get dataflow path)
