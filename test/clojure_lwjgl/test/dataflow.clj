@@ -66,7 +66,7 @@
   value)
 
 (defn undefine [dataflow path]
-  (println "undefinig " path)
+  #_(println "undefinig " path)
   (-> (reduce (fn [dataflow child]
                 (undefine dataflow child))
               dataflow
@@ -105,7 +105,7 @@
           children-to-be-undefined (if (= new-value ::undefined)
                                      #{} #_new-children
                                      (clojure.set/difference old-children new-children))]
-      (println "Updating " path " = " new-value #_(apply str (take 100 (str new-value))))
+      #_(println "Updating " path " = " new-value #_(apply str (take 100 (str new-value))))
       (-> @new-dataflow
           (undefine-many children-to-be-undefined)
           (assoc-if-defined path new-value)
@@ -123,7 +123,7 @@
   (reduce (fn [dataflow dependant-path]
             (if (not (= dependant-path current-path))
               (do
-                (println "updating dependant path " dependant-path " of " path)
+                #_(println "updating dependant path " dependant-path " of " path)
                 (let [old-value (get dataflow dependant-path)]
                   (-> dataflow
                       (update-value dependant-path)

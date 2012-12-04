@@ -76,7 +76,6 @@
       (doseq [event unread-events]
         (swap! application (fn [application-state]
                              ((:event-handler application-state)
-                              application
                               (assoc application-state
                                 :event-handled false)
                               [:elements]
@@ -96,7 +95,6 @@
   (undefine-view-part application-state view-part-commands-path)
 
   (debug "defining view part " view-part-commands-path)
-  (println "defining view part " view-part-commands-path)
   (let [drawing-commands (get application-state view-part-commands-path [])
         application-state (reduce define-view-part
                                   application-state
@@ -145,15 +143,20 @@
                                      (dataflow/get-global-value :height)))))
 
 (defn create-application [window event-handler root-element-constructor]
-  (-> (initialize-application-state @(:width window)
-                                    @(:height window)
-                                    root-element-constructor)
-      (assoc
-          :window window
-          :view-part-command-runners {}
-          :view-part-command-paths #{}
-          :event-handler event-handler)
-      (define-view-part [:commands])))
+  (let [application-state (-> (initialize-application-state @(:width window)
+                                                            @(:height window)
+                                                            root-element-constructor)
+                              (assoc
+                                  :window window
+                                  :view-part-command-runners {}
+                                  :view-part-command-paths #{}
+                                  :event-handler event-handler)
+                              (define-view-part [:commands]))
+        application (atom application-state)]
+
+    #_(swap! application (fn [application-state]
+                           (assoc application-state :atom application)))
+    application))
 
 (defn close-application [application]
   (window/request-close (:window application))
@@ -319,8 +322,11 @@
         (dataflow/undefine (concat item-list [:items id]))
         (dataflow/apply-to-value  (concat item-list [:item-order])  #(zipper-list/remove % id)))))
 
+(defn items [application-state item-view]
+  (map (fn [item-id] (property-from application-state item-view [:item-list-view :items item-id]))
+       (zipper-list/items (property-from application-state item-view [:item-list-view :item-order]))))
 
-(defn handle-editing-event [application application-state editor event]
+(defn handle-editing-event [application-state editor event]
   (cond
    (key-pressed event input/escape)
    (-> application-state
@@ -349,27 +355,35 @@
 
    :default application-state))
 
-(defn handle-editor-event [application application-state editor event]
+(defn handle-editor-event [application-state editor event]
   (cond
 
    (key-pressed event input/enter)
-   (if (get application-state (concat editor [:editing]))
-     (dataflow/define-to application-state
-       (concat editor [:value]) (get application-state (concat editor [:edited-value]))
-       (concat editor [:cursor-position]) 0
-       (concat editor [:editing]) false)
+   (if (property-from application-state editor :editing)
+     ((property-from application-state editor :change-listener)
+      (dataflow/define-to application-state
+        (concat editor [:value]) (property-from application-state editor :edited-value)
+        (concat editor [:cursor-position]) 0
+        (concat editor [:editing]) false)
+      (property-from application-state editor :edited-value))
      (dataflow/define-to application-state (concat editor [:editing]) true))
 
    :default (if (get application-state (concat editor [:editing]))
-              (handle-editing-event application application-state editor event)
+              (handle-editing-event application-state editor event)
               application-state)))
 
 
 (defn property [element-path key]
-  (dataflow/get-global-value (concat element-path [key])))
+  (dataflow/get-global-value (concat element-path (dataflow/as-path key))))
+
+(defn property-from [dataflow element-path key]
+  (dataflow/get-global-value-from dataflow (concat element-path (dataflow/as-path key))))
+
+(defn init-and-call [view-part-id view-part-element-function]
+  (dataflow/initialize view-part-id view-part-element-function)
+  (call-view-part view-part-id))
 
 (defn cursor [editor font]
-  (println "updating cursor " (dataflow/absolute-path []))
   (let [text (property editor :edited-value)
         cursor-position (property editor :cursor-position)
         width (font/width font (subs text
@@ -386,9 +400,7 @@
                                  0 0 1]))))
 
 
-(defn editor [value selected]
-  (println "updating editor " (dataflow/absolute-path []))
-
+(defn editor [value selected change-listener]
   (let [font (font/create "LiberationSans-Regular.ttf" 15)
         editor-path (dataflow/absolute-path [])]
     (dataflow/initialize
@@ -398,7 +410,8 @@
      :editing false
      :cursor-position 0
      :cursor #(cursor editor-path
-                      font))
+                      font)
+     :change-listener (fn [] change-listener))
 
     (let [text (if (dataflow/get-value :editing)
                  (dataflow/get-value :edited-value)
@@ -418,7 +431,8 @@
                                        [0 0 0 1])]))))))
 
 (defn editor-id [item-id]
-  (keyword (str "editor" item-id)))
+  [:editor item-id]
+  #_(keyword (str "editor" item-id)))
 
 
 (defn item-list-view []
@@ -427,19 +441,25 @@
      :selection 0
      :item-order (zipper-list/create)
      :selected-item-id #(nth (zipper-list/items (property item-list-view-path :item-order))
-                             (dataflow/get-global-value (concat item-list-view-path [:selection]))
+                             (property item-list-view-path :selection)
                              nil))
 
     (->VerticalStack (vec (doall (map-indexed (fn [index item-id]
-                                                (let [editor-id (editor-id item-id)]
-                                                  (dataflow/initialize editor-id  (fn [] (editor #(dataflow/get-global-value (concat item-list-view-path [:items item-id]))
-                                                                                                 #(= item-id
-                                                                                                     (dataflow/get-global-value (concat item-list-view-path [:selected-item-id]))))))
-                                                  (call-view-part editor-id)))
-                                              (zipper-list/items (dataflow/get-value :item-order))))))))
+                                                (init-and-call (editor-id item-id) (fn [] (editor (property item-list-view-path [:items item-id])
+
+                                                                                                  #(= item-id
+                                                                                                      (property item-list-view-path :selected-item-id))
+                                                                                                  
+                                                                                                  (fn [application-state new-value]
+                                                                                                    (dataflow/define-to
+                                                                                                      application-state
+                                                                                                      (concat item-list-view-path [:items item-id])
+                                                                                                      new-value))))))
+
+                                              (zipper-list/items (property item-list-view-path :item-order))))))))
 
 
-(defn handle-item-list-view-event [application application-state item-list-view event]
+(defn handle-item-list-view-event [application-state item-list-view event]
   (cond
 
    (key-pressed event input/down)
@@ -451,11 +471,8 @@
    (key-pressed event input/backspace)
    (remove-item application-state item-list-view  (get application-state (concat item-list-view [:selection])))
 
-   :default (let [application-state (handle-editor-event application
-                                                         application-state
-                                                         (concat item-list-view [(editor-id (let [selection (get application-state (concat item-list-view [:selection]))
-                                                                                                  item-order (zipper-list/items (get application-state (concat item-list-view [:item-order])))]
-                                                                                              (nth item-order selection)))])
+   :default (let [application-state (handle-editor-event application-state
+                                                         (concat item-list-view (editor-id (property-from application-state item-list-view :selected-item-id)))
                                                          event)]
               (if (not (:event-handled application-state))
                 (cond
@@ -471,19 +488,15 @@
   (->Rectangle 0 0 [1 1 1 1]))
 
 (defn item-view []
-  (dataflow/initialize
-   :item-list-view (fn [] (item-list-view))
-   :background (fn [] (background)))
-
-  (->Stack [(call-view-part :background)
-            (call-view-part :item-list-view)]))
+  (->Stack [(init-and-call :background background)
+            (init-and-call :item-list-view item-list-view)]))
 
 
-(defn handle-item-view-event [application application-state item-view event]
+(defn handle-item-view-event [application-state item-view event]
   (debug "handling event " event)
-  (println "handling event " event)
+  (println (items application-state item-view))
 
-  (let [application-state (handle-item-list-view-event application application-state (concat item-view [:item-list-view]) event)]
+  (let [application-state (handle-item-list-view-event application-state (concat item-view [:item-list-view]) event)]
     (if (not (:event-handled application-state))
       (cond
        (key-pressed event input/escape)
@@ -494,15 +507,15 @@
       application-state)))
 
 
+
 (defn create-todo-list [window]
-  (println "Creating application")
-  (let [application (atom (create-application window handle-item-view-event item-view))]
+  (let [application (create-application window handle-item-view-event item-view)]
     (swap! application (fn [application-state]
                          (let [item-list-view [:elements :item-list-view]]
                            (-> application-state
                                (add-item item-list-view 0 "Foo")
                                (add-item item-list-view 0 "Bar")
-                               (dataflow/print-dataflow)))))
+                               #_(dataflow/print-dataflow)))))
     application))
 
 (defn start []
@@ -527,8 +540,7 @@
         application-state (-> (initialize-application-state 300 300 item-view)
                               (add-item item-list-view 0 "Foo")
                               (add-item item-list-view 0 "Bar"))]
-    (-> (handle-item-view-event (atom application-state)
-                                application-state
+    (-> (handle-item-view-event application-state
                                 [:elements]
                                 {:type :key-released, :key-code input/enter, :character nil})
         (dataflow/print-dataflow))))

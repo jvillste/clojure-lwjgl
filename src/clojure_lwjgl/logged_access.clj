@@ -13,14 +13,16 @@
 
 (defn add-access [log key]
   (swap! log (fn [log]
-               (clojure.set/union log
-                                  (hash-set key)))))
+                 (clojure.set/union log
+                                    (hash-set key)))))
 
 (defn add-change [key]
-  (add-access changes key))
+  (when (bound? (var changes))
+    (add-access changes key)))
 
 (defn add-read [key]
-  (add-access reads key))
+  (when (bound? (var reads))
+   (add-access reads key)))
 
 
 ;;; PUBLIC
