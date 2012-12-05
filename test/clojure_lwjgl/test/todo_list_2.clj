@@ -431,8 +431,7 @@
                                        [0 0 0 1])]))))))
 
 (defn editor-id [item-id]
-  [:editor item-id]
-  #_(keyword (str "editor" item-id)))
+  [:editor item-id])
 
 
 (defn item-list-view []
