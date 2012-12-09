@@ -33,8 +33,11 @@
   (preferred-width [element])
   (preferred-height [element]))
 
-(defprotocol EventHandler
-  (handle-event [event-handler application application-state event]))
+(defprotocol MouseEventHandler
+  (handle-mouse-event [mouse-event-handler application-state event]))
+
+(defprotocol MouseEventHandlerContainer
+  (child-mouse-event-handlers [mouse-event-handler-container requested-width requested-height]))
 
 (extend ViewPartCall
   command/Command
@@ -165,23 +168,24 @@
 
 ;; VIEW PARTS
 
-(defrecord ViewPart [drawing-commands-generator preferred-width-generator preferred-height-generator]
+(defrecord ViewPart [mouse-event-handler local-id root-element-path]
   Element
-  (drawing-commands [view-part width height] (drawing-commands-generator width height))
-  (preferred-width [view-part] (preferred-width-generator))
-  (preferred-height [view-part] (preferred-height-generator)))
+  (drawing-commands [view-part width height]
+    (dataflow/define local-id (fn [] (drawing-commands (dataflow/get-global-value root-element-path)
+                                                       width
+                                                       height)))
+    [(->ViewPartCall (dataflow/absolute-path local-id))])
+  (preferred-width [view-part] (preferred-width (dataflow/get-global-value root-element-path)))
+  (preferred-height [view-part] (preferred-height (dataflow/get-global-value root-element-path)))
 
-(defn call-view-part [local-id]
-  (let [root-element-path (dataflow/absolute-path local-id)]
-    (debug "creating view part " root-element-path)
-    (->ViewPart (fn [width height]
-                  (dataflow/define local-id (fn []
-                                              (drawing-commands (dataflow/get-global-value root-element-path)
-                                                                width
-                                                                height)))
-                  [(->ViewPartCall (dataflow/absolute-path local-id))])
-                (fn [] (preferred-width (dataflow/get-global-value root-element-path)))
-                (fn [] (preferred-height (dataflow/get-global-value root-element-path))))))
+  MouseEventHandler
+  (handle-mouse-event [view-part application-state event] (mouse-event-handler application-state event)))
+
+(defn call-view-part
+  ([local-id]
+     (->ViewPart (fn [application-state event] application-state) local-id (dataflow/absolute-path local-id)))
+  ([local-id mouse-event-handler]
+     (->ViewPart mouse-event-handler local-id (dataflow/absolute-path local-id))))
 
 
 ;; ELEMENTS
@@ -224,27 +228,65 @@
                             (preferred-width inner)))
 
   (preferred-height [box] (+ (* 2 margin)
-                             (preferred-height inner))))
+                             (preferred-height inner)))
+
+  MouseEventHandlerContainer
+  (child-mouse-event-handlers [box requested-width requested-height]
+    [{:x margin
+      :y margin
+      :width (preferred-width inner)
+      :height (preferred-height inner)
+      :mouse-event-handler inner}
+
+     {:x 0
+      :y 0
+      :width requested-width
+      :height requested-height
+      :mouse-event-handler outer}]))
+
+
+
+(defn vertical-stack-width [elements]
+  (apply max (conj (map preferred-width elements)
+                   0)))
 
 (defrecord VerticalStack [elements]
   Element
   (drawing-commands [vertical-stack
                      requested-width
-                     requested-height] (let [width (apply max (conj (map preferred-width elements)
-                                                                    0))]
+                     requested-height] (let [width (vertical-stack-width elements)]
                                          (vec (concat [(push-modelview/->PushModelview)]
                                                       (reduce (fn [commands element]
-                                                                (concat commands
-                                                                        (drawing-commands element
-                                                                                          width
-                                                                                          (preferred-height element))
-                                                                        [(translate/->Translate 0 (preferred-height element))]))
+                                                                (let [preferred-height (preferred-height element)]
+                                                                  (concat commands
+                                                                          (drawing-commands element
+                                                                                            width
+                                                                                            preferred-height)
+                                                                          [(translate/->Translate 0 preferred-height)])))
                                                               []
                                                               elements)
                                                       [(pop-modelview/->PopModelview)]))))
   (preferred-height [vertical-stack] (reduce + (map preferred-height elements)))
   (preferred-width [vertical-stack] (apply max (conj (map preferred-width elements)
                                                      0)))
+
+  MouseEventHandlerContainer
+  (child-mouse-event-handlers [vertical-stack requested-width requested-height]
+    (let [width (vertical-stack-width elements)]
+      (loop [mouse-event-handlers []
+             y 0
+             elements elements]
+        (if (seq elements)
+          (let [preferred-height (preferred-height (first elements))]
+            (recur (conj mouse-event-handlers {:x 0
+                                               :y y
+                                               :width width
+                                               :height preferred-height
+                                               :mouse-event-handler (first elements)})
+                   (+ y preferred-height)
+                   (rest elements)))
+          mouse-event-handlers))))
+
   Object
   (toString [_] (str "(->VerticalStack " elements ")")))
 
@@ -271,19 +313,42 @@
   (toString [_] (str "(->VerticalStack " elements ")")))
 
 
+
+#_(defn route-mouse-event [application-state mouse-event-handler-container event]
+    (loop [application-state application-state
+           mouse-event-handlers (mouse-event-handlers mouse-event-handler-container)]
+      (if (and (seq mouse-event-handlers)
+               (not (:event-handled application-state)))
+        (if (satisfies? MouseEventHandler (first mouse-event-handlers))
+          (recur (handle-mouse-event (first mouse-event-handlers) application-state event)
+                 (rest mouse-event-handlers))
+          (recur application-state
+                 (rest mouse-event-handlers)))
+        application-state)))
+
 (defrecord Stack [elements]
   Element
-  (drawing-commands [stack requested-width requested-height] (vec (mapcat (fn [element]
-                                                                            (drawing-commands element
-                                                                                              requested-width
-                                                                                              requested-height))
-                                                                          elements)))
+  (drawing-commands [stack requested-width requested-height]
+    (vec (mapcat (fn [element]
+                   (drawing-commands element
+                                     requested-width
+                                     requested-height))
+                 elements)))
   (preferred-width [stack]
     (apply max (conj (map preferred-width elements)
                      0)))
   (preferred-height [stack]
     (apply max (conj (map preferred-height elements)
                      0)))
+
+  MouseEventHandlerContainer
+  (child-mouse-event-handlers [stack requested-width requested-height]
+    (map (fn [element] {:x 0
+                        :y 0
+                        :width requested-width
+                        :height requested-height
+                        :mouse-event-handler element})
+         elements))
 
   Object
   (toString [_] (str "(->Stack " elements ")")))
@@ -448,7 +513,7 @@
 
                                                                                                   #(= item-id
                                                                                                       (property item-list-view-path :selected-item-id))
-                                                                                                  
+
                                                                                                   (fn [application-state new-value]
                                                                                                     (dataflow/define-to
                                                                                                       application-state
@@ -532,6 +597,35 @@
                             :height height))
                   application)))
 
+(defn mouse-event-handlers [mouse-event-handler-container application-state width height]
+  (doseq [mouse-event-handler-spec (child-mouse-event-handlers mouse-event-handler-container width height)]
+    (let [mouse-event-handler (:mouse-event-handler mouse-event-handler-spec)]
+      (when (satisfies? MouseEventHandler mouse-event-handler)
+        (println "handler")
+        (println mouse-event-handler-spec))
+      (when (satisfies? MouseEventHandlerContainer mouse-event-handler)
+        (mouse-event-handlers mouse-event-handler
+                              application-state
+                              (:width mouse-event-handler-spec)
+                              (:height mouse-event-handler-spec)))
+      (when (instance? ViewPart mouse-event-handler)
+        (let [root-element (get application-state (:root-element-path mouse-event-handler))]
+          (when (satisfies? MouseEventHandlerContainer root-element)
+            (mouse-event-handlers root-element
+                                  application-state
+                                  (:width mouse-event-handler-spec)
+                                  (:height mouse-event-handler-spec))))))))
+
+(let [item-list-view [:elements :item-list-view]
+      application-state (-> (initialize-application-state 300 300 item-view)
+                            (add-item item-list-view 0 "Foo")
+                            (add-item item-list-view 0 "Bar"))]
+  (binding [dataflow/current-dataflow (atom application-state)]
+    (mouse-event-handlers (get application-state [:elements])
+                          application-state
+                          200
+                          200)))
+
 (comment
   (start)
 
@@ -539,7 +633,9 @@
         application-state (-> (initialize-application-state 300 300 item-view)
                               (add-item item-list-view 0 "Foo")
                               (add-item item-list-view 0 "Bar"))]
-    (-> (handle-item-view-event application-state
-                                [:elements]
-                                {:type :key-released, :key-code input/enter, :character nil})
-        (dataflow/print-dataflow))))
+    (mouse-event-handlers (get application-state [:elements]))
+
+    #_(-> application-state
+          (handle-item-view-event [:elements]
+                                  {:type :key-released, :key-code input/enter, :character nil})
+          (dataflow/print-dataflow))))
