@@ -23,15 +23,37 @@
            [clojure_lwjgl.triangle_batch TriangleBatch]
            [java.io File]))
 
+;; DATAFLOW HELPERS
+
+(defn property [element-path key]
+  (dataflow/get-global-value (concat element-path (dataflow/as-path key))))
+
+(defn property-from [dataflow element-path key]
+  (dataflow/get-global-value-from dataflow (concat element-path (dataflow/as-path key))))
+
+
+
 (defn debug [& messages]
   #_(apply println messages))
 
-(defrecord ViewPartCall [view-part-command-path])
+(defn debug-print [message value]
+  (println message " " value)
+  value)
 
-(defprotocol Element
-  (drawing-commands [element width height])
+#_(defprotocol Element
+    (drawing-commands [element width height])
+    (preferred-width [element])
+    (preferred-height [element]))
+
+(defprotocol Layout
+  (layout [layout requested-width requested-height]))
+
+(defprotocol Layoutable
   (preferred-width [element])
   (preferred-height [element]))
+
+(defprotocol Drawable
+  (drawing-commands [element width height]))
 
 (defprotocol MouseEventHandler
   (handle-mouse-event [mouse-event-handler application-state event]))
@@ -39,30 +61,70 @@
 (defprotocol MouseEventHandlerContainer
   (child-mouse-event-handlers [mouse-event-handler-container requested-width requested-height]))
 
-(extend ViewPartCall
+(defrecord ViewPartCall [view-part-layout-path]
   command/Command
-  {:create-runner identity}
+  (create-runner [view-part-call] view-part-call)
   command/CommandRunner
-  {:delete identity
-   :run identity}
-  Element
-  {:drawing-commands (fn [view-part-call width height] [view-part-call])
-   :preferred-width (fn [view-part-call]  (dataflow/get-global-value (conj (:view-part-command-path view-part-call) :preferred-width)))
-   :preferred-height (fn [view-part-call] (dataflow/get-global-value (conj (:view-part-command-path view-part-call) :preferred-height)))})
+  (delete [view-part-call])
+  (run [view-part-call]))
 
-(defn draw-view-part [application-state view-part-command-path]
-  #_(debug "drawing view part " view-part-command-path)
-  (doseq [command-runner (get-in application-state [:view-part-command-runners view-part-command-path])]
-    #_(debug "running command runner " (type command-runner))
+
+(defrecord ViewPart [mouse-event-handler local-id root-element-path]
+  Drawable
+  (drawing-commands [view-part width height]
+    [(->ViewPartCall root-element-path)])
+
+  Layoutable
+  (preferred-width [view-part] (property root-element-path [:preferred-width]))
+  (preferred-height [view-part] (property root-element-path [:preferred-height]))
+
+  MouseEventHandler
+  (handle-mouse-event [view-part application-state event] (mouse-event-handler application-state event))
+
+  Object
+  (toString [_] (str "(->ViewPart " root-element-path)))
+
+(defn call-view-part
+  ([local-id]
+     (->ViewPart (fn [application-state event] application-state) local-id (dataflow/absolute-path local-id)))
+  ([local-id mouse-event-handler]
+     (->ViewPart mouse-event-handler local-id (dataflow/absolute-path local-id))))
+
+(defn initialize-view-part [view-part-id view-part-element-function]
+  (dataflow/initialize view-part-id view-part-element-function)
+  (let [view-part-path (dataflow/absolute-path view-part-id)]
+    (dataflow/initialize (concat (dataflow/as-path view-part-id) [:preferred-width]) #(preferred-width (dataflow/get-global-value view-part-path)))
+    (dataflow/initialize (concat (dataflow/as-path view-part-id) [:preferred-height]) #(preferred-height (dataflow/get-global-value view-part-path)))))
+
+(defn init-and-call [view-part-id view-part-element-function]
+  (initialize-view-part view-part-id view-part-element-function)
+  (call-view-part view-part-id))
+
+
+#_(extend ViewPartCall
+    command/Command
+    {:create-runner identity}
+    command/CommandRunner
+    {:delete identity
+     :run identity}
+    Element
+    {:drawing-commands (fn [view-part-call width height] [view-part-call])
+     :preferred-width (fn [view-part-call]  (dataflow/get-global-value (conj (:view-part-layout-path view-part-call) :preferred-width)))
+     :preferred-height (fn [view-part-call] (dataflow/get-global-value (conj (:view-part-layout-path view-part-call) :preferred-height)))})
+
+(defn draw-view-part [application-state layout-path]
+  (println "drawing view part " layout-path)
+  (doseq [command-runner (get-in application-state [:view-part-command-runners layout-path])]
+    (println "running command runner " (type command-runner))
     (if (instance? ViewPartCall command-runner)
-      (draw-view-part application-state (:view-part-command-path command-runner))
+      (draw-view-part application-state (:view-part-layout-path command-runner))
       (command/run command-runner))))
 
 (defn render [application-state]
   (GL11/glClearColor 0 0 0 0)
   (GL11/glClear GL11/GL_COLOR_BUFFER_BIT)
 
-  (draw-view-part application-state [:commands])
+  (draw-view-part application-state [:layout])
 
   application-state)
 
@@ -84,37 +146,58 @@
                               [:elements]
                                 event)))))))
 
+
+
+
 (defn view-part-is-defined? [application-state view-part-commands-path]
-  (contains? (:view-part-command-paths application-state) view-part-commands-path))
+  (contains? (:view-part-layout-paths application-state) view-part-commands-path))
 
-(defn undefine-view-part [application-state view-part-commands-path]
-  (debug "undefining view part " view-part-commands-path)
-  (dorun (map command/delete (get-in application-state [:view-part-command-runners view-part-commands-path])))
+(defn unload-view-part [application-state layout-path]
+  (debug "undefining view part " layout-path)
+  (dorun (map command/delete (get-in application-state [:view-part-command-runners layout-path])))
 
-  (update-in application-state [:view-part-command-paths] disj view-part-commands-path))
+  (update-in application-state [:view-part-layout-paths] disj layout-path))
 
-(defn define-view-part [application-state view-part-commands-path]
+(defn view-part-drawing-commands [root-layout]
+  (vec (concat [(push-modelview/->PushModelview)]
+               (reduce (fn [commands layoutable]
+                         (concat commands
+                                 (if (satisfies? Drawable layoutable)
+                                   (concat (if (or (not (= (:x layoutable) 0))
+                                                   (not (= (:y layoutable) 0)))
+                                             [(translate/->Translate (:x layoutable)
+                                                                     (:y layoutable))]
+                                             [])
+                                           (drawing-commands layoutable
+                                                             (:width layoutable)
+                                                             (:height layoutable)))
+                                   [])))
+                       []
+                       (:children root-layout))
+               [(pop-modelview/->PopModelview)])))
 
-  (undefine-view-part application-state view-part-commands-path)
+(defn load-view-part [application-state layout-path]
 
-  (debug "defining view part " view-part-commands-path)
-  (let [drawing-commands (get application-state view-part-commands-path [])
-        application-state (reduce define-view-part
+  (unload-view-part application-state layout-path)
+
+  (println "loading view part " layout-path)
+  (let [drawing-commands (view-part-drawing-commands (get application-state layout-path))
+        application-state (reduce load-view-part
                                   application-state
-                                  (->> (filter #(and (instance? ViewPartCall %)
-                                                     (not (view-part-is-defined? application-state (:view-part-command-path %))))
+                                  (->> (filter #(and (instance? ViewPartCall (debug-print "is view part call?" %))
+                                                     (not (view-part-is-defined? application-state (:view-part-layout-path %))))
                                                drawing-commands)
-                                       (map :view-part-command-path)))]
+                                       (map :view-part-layout-path)))]
 
     (-> application-state
-        (assoc-in [:view-part-command-runners view-part-commands-path] (command/command-runners-for-commands drawing-commands))
-        (update-in [:view-part-command-paths] conj view-part-commands-path))))
+        (assoc-in [:view-part-command-runners layout-path] (command/command-runners-for-commands drawing-commands))
+        (update-in [:view-part-layout-paths] conj layout-path))))
 
-(defn update-view-part [application-state view-part-commands-path]
-  #_(debug "updating view part " view-part-commands-path)
-  (if (contains? application-state view-part-commands-path)
-    (define-view-part application-state view-part-commands-path)
-    (undefine-view-part application-state view-part-commands-path)))
+(defn update-view-part [application-state layout-path]
+  #_(debug "updating view part " layout-path)
+  (if (contains? application-state layout-path)
+    (load-view-part application-state layout-path)
+    (unload-view-part application-state layout-path)))
 
 (defn update-view [application]
   (when (not (empty? (dataflow/changes @application)))
@@ -122,11 +205,11 @@
                                                     (assoc :changes-to-be-processed (dataflow/changes %))
                                                     (dataflow/reset-changes)))
 
-          changed-view-part-command-paths (filter #(view-part-is-defined? application-state %)
+          changed-view-part-layout-paths (filter #(view-part-is-defined? application-state %)
                                                   (:changes-to-be-processed application-state))]
       (render (swap! application
                      (fn [application-state]
-                       (reduce update-view-part application-state changed-view-part-command-paths)))))))
+                       (reduce update-view-part application-state changed-view-part-layout-paths)))))))
 
 (defn update [application]
   (handle-events application)
@@ -135,15 +218,34 @@
   (update-view application)
   application)
 
+(defn create-layout [parent-layoutable width height]
+  (if (satisfies? Layout parent-layoutable)
+    (assoc parent-layoutable
+      :children (vec (map (fn [child-layoutable]
+                            (if (instance? ViewPart child-layoutable)
+                              (do (dataflow/define (:local-id child-layoutable)
+                                    #(create-layout (dataflow/get-global-value (:root-element-path child-layoutable))
+                                                    (:width child-layoutable)
+                                                    (:height child-layoutable)))
+                                  child-layoutable)
+                              (create-layout child-layoutable
+                                             (:width child-layoutable)
+                                             (:height child-layoutable))))
+
+                          (layout parent-layoutable width height))))
+    parent-layoutable))
+
+
+
 (defn initialize-application-state [window-width window-height root-element-constructor]
   (-> (dataflow/create)
       (dataflow/define-to
         :width  window-width
         :height  window-height
         :elements root-element-constructor
-        :commands #(drawing-commands (dataflow/get-global-value :elements)
-                                     (dataflow/get-global-value :width)
-                                     (dataflow/get-global-value :height)))))
+        :layout #(create-layout (dataflow/get-global-value :elements)
+                                (dataflow/get-global-value :width)
+                                (dataflow/get-global-value :height)))))
 
 (defn create-application [window event-handler root-element-constructor]
   (let [application-state (-> (initialize-application-state @(:width window)
@@ -152,9 +254,9 @@
                               (assoc
                                   :window window
                                   :view-part-command-runners {}
-                                  :view-part-command-paths #{}
+                                  :view-part-layout-paths #{}
                                   :event-handler event-handler)
-                              (define-view-part [:commands]))
+                              (load-view-part [:layout]))
         application (atom application-state)]
 
     #_(swap! application (fn [application-state]
@@ -166,208 +268,154 @@
   application)
 
 
-;; VIEW PARTS
-
-(defrecord ViewPart [mouse-event-handler local-id root-element-path]
-  Element
-  (drawing-commands [view-part width height]
-    (dataflow/define local-id (fn [] (drawing-commands (dataflow/get-global-value root-element-path)
-                                                       width
-                                                       height)))
-    [(->ViewPartCall (dataflow/absolute-path local-id))])
-  (preferred-width [view-part] (preferred-width (dataflow/get-global-value root-element-path)))
-  (preferred-height [view-part] (preferred-height (dataflow/get-global-value root-element-path)))
-
-  MouseEventHandler
-  (handle-mouse-event [view-part application-state event] (mouse-event-handler application-state event)))
-
-(defn call-view-part
-  ([local-id]
-     (->ViewPart (fn [application-state event] application-state) local-id (dataflow/absolute-path local-id)))
-  ([local-id mouse-event-handler]
-     (->ViewPart mouse-event-handler local-id (dataflow/absolute-path local-id))))
-
-
-;; ELEMENTS
+;; DRAWABLES
 
 (defrecord Text [contents font color]
-  Element
+  Drawable
   (drawing-commands [text width height] [(text/create 0 0
                                                       contents
                                                       font
                                                       color)])
+
+  Layoutable
   (preferred-width [text] (font/width font contents))
   (preferred-height [text] (font/height font)))
 
 (defrecord Rectangle [width height color]
-  Element
+  Drawable
   (drawing-commands [rectangle requested-width requested-height]
     [(vector-rectangle/rectangle 0
                                  0
                                  requested-width
                                  requested-height
                                  color)])
-
+  Layoutable
   (preferred-width [rectangle] width)
   (preferred-height [rectangle] height)
 
   Object
   (toString [_] (str "(->Rectangle " width " " height " " color ")")))
 
-(defrecord Box [margin outer inner]
-  Element
-  (drawing-commands [box requested-width requested-height]
-    (concat (drawing-commands outer
-                              requested-width
-                              requested-height)
-            (apply translate/translate margin margin (drawing-commands inner
-                                                                       (preferred-width inner)
-                                                                       (preferred-height inner)))))
 
+;; LAYOUTS
+
+(defrecord Box [margin outer inner]
+  Layout
+  (layout [box requested-width requested-height]
+    [(assoc outer
+       :x 0
+       :y 0
+       :width requested-width
+       :height requested-height)
+     (assoc inner
+       :x margin
+       :y margin
+       :width (preferred-width inner)
+       :height (preferred-height inner))])
+
+  Layoutable
   (preferred-width [box] (+ (* 2 margin)
                             (preferred-width inner)))
 
   (preferred-height [box] (+ (* 2 margin)
                              (preferred-height inner)))
 
-  MouseEventHandlerContainer
-  (child-mouse-event-handlers [box requested-width requested-height]
-    [{:x margin
-      :y margin
-      :width (preferred-width inner)
-      :height (preferred-height inner)
-      :mouse-event-handler inner}
-
-     {:x 0
-      :y 0
-      :width requested-width
-      :height requested-height
-      :mouse-event-handler outer}]))
+  Object
+  (toString [_] (str "(->Box " margin " " outer " " inner)))
 
 
 
-(defn vertical-stack-width [elements]
-  (apply max (conj (map preferred-width elements)
-                   0)))
+(defrecord VerticalStack [layoutables]
+  Layout
+  (layout [vertical-stack requested-width requested-height]
+    (let [width (apply max (conj (map preferred-width layoutables)
+                                 0))]
+      (loop [layouted-layoutables []
+             y 0
+             layoutables layoutables]
+        (if (seq layoutables)
+          (let [height (preferred-height (first layoutables))]
+            (recur (conj layouted-layoutables (assoc (first layoutables)
+                                                :x 0
+                                                :y y
+                                                :width width
+                                                :height height))
+                   (+ y height)
+                   (rest layoutables)))
+          layouted-layoutables))))
 
-(defrecord VerticalStack [elements]
-  Element
-  (drawing-commands [vertical-stack
-                     requested-width
-                     requested-height] (let [width (vertical-stack-width elements)]
-                                         (vec (concat [(push-modelview/->PushModelview)]
-                                                      (reduce (fn [commands element]
-                                                                (let [preferred-height (preferred-height element)]
-                                                                  (concat commands
-                                                                          (drawing-commands element
-                                                                                            width
-                                                                                            preferred-height)
-                                                                          [(translate/->Translate 0 preferred-height)])))
-                                                              []
-                                                              elements)
-                                                      [(pop-modelview/->PopModelview)]))))
-  (preferred-height [vertical-stack] (reduce + (map preferred-height elements)))
-  (preferred-width [vertical-stack] (apply max (conj (map preferred-width elements)
+  Layoutable
+  (preferred-height [vertical-stack] (reduce + (map preferred-height layoutables)))
+
+  (preferred-width [vertical-stack] (apply max (conj (map preferred-width layoutables)
                                                      0)))
 
-  MouseEventHandlerContainer
-  (child-mouse-event-handlers [vertical-stack requested-width requested-height]
-    (let [width (vertical-stack-width elements)]
-      (loop [mouse-event-handlers []
-             y 0
-             elements elements]
-        (if (seq elements)
-          (let [preferred-height (preferred-height (first elements))]
-            (recur (conj mouse-event-handlers {:x 0
-                                               :y y
-                                               :width width
-                                               :height preferred-height
-                                               :mouse-event-handler (first elements)})
-                   (+ y preferred-height)
-                   (rest elements)))
-          mouse-event-handlers))))
 
   Object
-  (toString [_] (str "(->VerticalStack " elements ")")))
+  (toString [_] (str "(->VerticalStack " layoutables)))
 
-(defrecord HorizontalStack [elements]
-  Element
-  (drawing-commands [horizontal-stack
-                     requested-width
-                     requested-height] (let [height (apply max (conj (map preferred-height elements)
-                                                                     0))]
-                                         (vec (concat [(push-modelview/->PushModelview)]
-                                                      (reduce (fn [commands element]
-                                                                (concat commands
-                                                                        (drawing-commands element
-                                                                                          (preferred-width element)
-                                                                                          height)
-                                                                        [(translate/->Translate (preferred-width element) 0 )]))
-                                                              []
-                                                              elements)
-                                                      [(pop-modelview/->PopModelview)]))))
-  (preferred-height [horizontal-stack] (apply max (conj (map preferred-height elements)
-                                                        0)))
-  (preferred-width [horizontal-stack] (reduce + (map preferred-width elements)))
-  Object
-  (toString [_] (str "(->VerticalStack " elements ")")))
+#_(defrecord HorizontalStack [elements]
+    Element
+    (drawing-commands [horizontal-stack
+                       requested-width
+                       requested-height] (let [height (apply max (conj (map preferred-height elements)
+                                                                       0))]
+                                           (vec (concat [(push-modelview/->PushModelview)]
+                                                        (reduce (fn [commands element]
+                                                                  (concat commands
+                                                                          (drawing-commands element
+                                                                                            (preferred-width element)
+                                                                                            height)
+                                                                          [(translate/->Translate (preferred-width element) 0 )]))
+                                                                []
+                                                                elements)
+                                                        [(pop-modelview/->PopModelview)]))))
+    (preferred-height [horizontal-stack] (apply max (conj (map preferred-height elements)
+                                                          0)))
+    (preferred-width [horizontal-stack] (reduce + (map preferred-width elements)))
+    Object
+    (toString [_] (str "(->VerticalStack " elements ")")))
 
 
+(defrecord Stack [layoutables]
+  Layout
+  (layout [stack requested-width requested-height]
+    (map (fn [layoutable]
+           (assoc layoutable
+             :x 0
+             :y 0
+             :width requested-width
+             :height requested-height))
+         layoutables))
 
-#_(defn route-mouse-event [application-state mouse-event-handler-container event]
-    (loop [application-state application-state
-           mouse-event-handlers (mouse-event-handlers mouse-event-handler-container)]
-      (if (and (seq mouse-event-handlers)
-               (not (:event-handled application-state)))
-        (if (satisfies? MouseEventHandler (first mouse-event-handlers))
-          (recur (handle-mouse-event (first mouse-event-handlers) application-state event)
-                 (rest mouse-event-handlers))
-          (recur application-state
-                 (rest mouse-event-handlers)))
-        application-state)))
-
-(defrecord Stack [elements]
-  Element
-  (drawing-commands [stack requested-width requested-height]
-    (vec (mapcat (fn [element]
-                   (drawing-commands element
-                                     requested-width
-                                     requested-height))
-                 elements)))
+  Layoutable
   (preferred-width [stack]
-    (apply max (conj (map preferred-width elements)
+    (apply max (conj (map preferred-width layoutables)
                      0)))
+
   (preferred-height [stack]
-    (apply max (conj (map preferred-height elements)
+    (apply max (conj (map preferred-height layoutables)
                      0)))
 
-  MouseEventHandlerContainer
-  (child-mouse-event-handlers [stack requested-width requested-height]
-    (map (fn [element] {:x 0
-                        :y 0
-                        :width requested-width
-                        :height requested-height
-                        :mouse-event-handler element})
-         elements))
+  Object
+  (toString [_] (str "(->Stack " (vec layoutables) ")")))
+
+(defrecord Translation [x y layoutable]
+  Layout
+  (layout [stack requested-width requested-height]
+    [(assoc layoutable
+       :x x
+       :y y
+       :width (preferred-width layoutable)
+       :height (preferred-height layoutable))])
+
+  Layoutable
+  (preferred-width [translation] (+ x (preferred-width layoutable)))
+
+  (preferred-height [translation] (+ y (preferred-height layoutable)))
 
   Object
-  (toString [_] (str "(->Stack " elements ")")))
-
-(defrecord Translation [x y element]
-  Element
-  (drawing-commands [translation requested-width requested-height] (vec (apply translate/translate
-                                                                               x
-                                                                               y
-                                                                               (drawing-commands element
-                                                                                                 (preferred-width element)
-                                                                                                 (preferred-height element)))))
-  (preferred-width [translation] (+ x (preferred-width element)))
-
-  (preferred-height [translation] (+ y (preferred-height element)))
-
-
-  Object
-  (toString [_] (str "(->Transaltion " x " " y " " element ")")))
+  (toString [_] (str "(->Transaltion " x " " y " " layoutable ")")))
 
 
 ;; TODO-LIST
@@ -438,15 +486,6 @@
               application-state)))
 
 
-(defn property [element-path key]
-  (dataflow/get-global-value (concat element-path (dataflow/as-path key))))
-
-(defn property-from [dataflow element-path key]
-  (dataflow/get-global-value-from dataflow (concat element-path (dataflow/as-path key))))
-
-(defn init-and-call [view-part-id view-part-element-function]
-  (dataflow/initialize view-part-id view-part-element-function)
-  (call-view-part view-part-id))
 
 (defn cursor [editor font]
   (let [text (property editor :edited-value)
@@ -474,9 +513,10 @@
      :edited-value value
      :editing false
      :cursor-position 0
-     :cursor #(cursor editor-path
-                      font)
      :change-listener (fn [] change-listener))
+
+    (initialize-view-part :cursor #(cursor editor-path
+                                           font))
 
     (let [text (if (dataflow/get-value :editing)
                  (dataflow/get-value :edited-value)
@@ -508,19 +548,19 @@
                              (property item-list-view-path :selection)
                              nil))
 
-    (->VerticalStack (vec (doall (map-indexed (fn [index item-id]
-                                                (init-and-call (editor-id item-id) (fn [] (editor (property item-list-view-path [:items item-id])
+    (->VerticalStack (vec (map-indexed (fn [index item-id]
+                                         (init-and-call (editor-id item-id) (fn [] (editor (property item-list-view-path [:items item-id])
 
-                                                                                                  #(= item-id
-                                                                                                      (property item-list-view-path :selected-item-id))
+                                                                                           #(= item-id
+                                                                                               (property item-list-view-path :selected-item-id))
 
-                                                                                                  (fn [application-state new-value]
-                                                                                                    (dataflow/define-to
-                                                                                                      application-state
-                                                                                                      (concat item-list-view-path [:items item-id])
-                                                                                                      new-value))))))
+                                                                                           (fn [application-state new-value]
+                                                                                             (dataflow/define-to
+                                                                                               application-state
+                                                                                               (concat item-list-view-path [:items item-id])
+                                                                                               new-value))))))
 
-                                              (zipper-list/items (property item-list-view-path :item-order))))))))
+                                       (zipper-list/items (property item-list-view-path :item-order)))))))
 
 
 (defn handle-item-list-view-event [application-state item-list-view event]
@@ -558,8 +598,6 @@
 
 (defn handle-item-view-event [application-state item-view event]
   (debug "handling event " event)
-  (println (items application-state item-view))
-
   (let [application-state (handle-item-list-view-event application-state (concat item-view [:item-list-view]) event)]
     (if (not (:event-handled application-state))
       (cond
@@ -616,18 +654,26 @@
                                   (:width mouse-event-handler-spec)
                                   (:height mouse-event-handler-spec))))))))
 
-(let [item-list-view [:elements :item-list-view]
-      application-state (-> (initialize-application-state 300 300 item-view)
-                            (add-item item-list-view 0 "Foo")
-                            (add-item item-list-view 0 "Bar"))]
-  (binding [dataflow/current-dataflow (atom application-state)]
-    (mouse-event-handlers (get application-state [:elements])
-                          application-state
-                          200
-                          200)))
+
+#_(let [item-list-view [:elements :item-list-view]
+        application-state (-> (initialize-application-state 300 300 item-view)
+                              (add-item item-list-view 0 "Foo")
+                              (add-item item-list-view 0 "Bar"))]
+    (binding [dataflow/current-dataflow (atom application-state)]
+      (mouse-event-handlers (get application-state [:elements])
+                            application-state
+                            200
+                            200)))
+
+#_(let [item-list-view [:elements :item-list-view]]
+  (let [application-state (-> (initialize-application-state 300 300 item-view)
+                              (add-item item-list-view 0 "Foo")
+                              (add-item item-list-view 0 "Bar")
+                              (dataflow/print-dataflow))]
+    (println (view-part-drawing-commands (get application-state [:layout :item-list-view])))))
 
 (comment
-  (start)
+(start)
 
   (let [item-list-view [:elements :item-list-view]
         application-state (-> (initialize-application-state 300 300 item-view)
