@@ -31,19 +31,11 @@
 (defn property-from [dataflow element-path key]
   (dataflow/get-global-value-from dataflow (concat element-path (dataflow/as-path key))))
 
-
-
 (defn debug [& messages]
-  #_(apply println messages))
+  (apply println messages)
+  (last messages))
 
-(defn debug-print [message value]
-  (println message " " value)
-  value)
 
-#_(defprotocol Element
-    (drawing-commands [element width height])
-    (preferred-width [element])
-    (preferred-height [element]))
 
 (defprotocol Layout
   (layout [layout requested-width requested-height]))
@@ -68,11 +60,13 @@
   (delete [view-part-call])
   (run [view-part-call]))
 
+(defn element-path-to-layout-path [element-path]
+  (concat [:layout] (rest element-path)))
 
 (defrecord ViewPart [mouse-event-handler local-id root-element-path]
   Drawable
   (drawing-commands [view-part width height]
-    [(->ViewPartCall root-element-path)])
+    [(->ViewPartCall (element-path-to-layout-path root-element-path))])
 
   Layoutable
   (preferred-width [view-part] (property root-element-path [:preferred-width]))
@@ -101,21 +95,10 @@
   (call-view-part view-part-id))
 
 
-#_(extend ViewPartCall
-    command/Command
-    {:create-runner identity}
-    command/CommandRunner
-    {:delete identity
-     :run identity}
-    Element
-    {:drawing-commands (fn [view-part-call width height] [view-part-call])
-     :preferred-width (fn [view-part-call]  (dataflow/get-global-value (conj (:view-part-layout-path view-part-call) :preferred-width)))
-     :preferred-height (fn [view-part-call] (dataflow/get-global-value (conj (:view-part-layout-path view-part-call) :preferred-height)))})
+;; RENDERING
 
 (defn draw-view-part [application-state layout-path]
-  (println "drawing view part " layout-path)
   (doseq [command-runner (get-in application-state [:view-part-command-runners layout-path])]
-    (println "running command runner " (type command-runner))
     (if (instance? ViewPartCall command-runner)
       (draw-view-part application-state (:view-part-layout-path command-runner))
       (command/run command-runner))))
@@ -127,6 +110,9 @@
   (draw-view-part application-state [:layout])
 
   application-state)
+
+
+;; EVENT HANDLING
 
 (defn key-pressed [keyboard-event key]
   (and (= (:key-code keyboard-event)
@@ -148,43 +134,50 @@
 
 
 
+;; VIEW PARTS
 
 (defn view-part-is-defined? [application-state view-part-commands-path]
   (contains? (:view-part-layout-paths application-state) view-part-commands-path))
 
 (defn unload-view-part [application-state layout-path]
-  (debug "undefining view part " layout-path)
   (dorun (map command/delete (get-in application-state [:view-part-command-runners layout-path])))
 
   (update-in application-state [:view-part-layout-paths] disj layout-path))
 
-(defn view-part-drawing-commands [root-layout]
+(declare layoutable-drawing-commands)
+
+(defn layout-drawing-commands [layout]
   (vec (concat [(push-modelview/->PushModelview)]
                (reduce (fn [commands layoutable]
                          (concat commands
-                                 (if (satisfies? Drawable layoutable)
-                                   (concat (if (or (not (= (:x layoutable) 0))
-                                                   (not (= (:y layoutable) 0)))
-                                             [(translate/->Translate (:x layoutable)
-                                                                     (:y layoutable))]
-                                             [])
-                                           (drawing-commands layoutable
-                                                             (:width layoutable)
-                                                             (:height layoutable)))
-                                   [])))
+                                 (concat (if (or (not (= (:x layoutable) 0))
+                                                 (not (= (:y layoutable) 0)))
+                                           [(translate/->Translate (:x layoutable)
+                                                                   (:y layoutable))]
+                                           [])
+                                         (layoutable-drawing-commands layoutable))))
                        []
-                       (:children root-layout))
+                       (:children layout)
+                       )
                [(pop-modelview/->PopModelview)])))
+
+(defn layoutable-drawing-commands [layoutable]
+  (if (satisfies? Layout layoutable)
+           (layout-drawing-commands layoutable)
+           (if (satisfies? Drawable layoutable)
+             (drawing-commands layoutable
+                               (:width layoutable)
+                               (:height layoutable))
+             [])))
 
 (defn load-view-part [application-state layout-path]
 
   (unload-view-part application-state layout-path)
 
-  (println "loading view part " layout-path)
-  (let [drawing-commands (view-part-drawing-commands (get application-state layout-path))
+  (let [drawing-commands (layoutable-drawing-commands (get application-state layout-path))
         application-state (reduce load-view-part
                                   application-state
-                                  (->> (filter #(and (instance? ViewPartCall (debug-print "is view part call?" %))
+                                  (->> (filter #(and (instance? ViewPartCall %)
                                                      (not (view-part-is-defined? application-state (:view-part-layout-path %))))
                                                drawing-commands)
                                        (map :view-part-layout-path)))]
@@ -194,7 +187,6 @@
         (update-in [:view-part-layout-paths] conj layout-path))))
 
 (defn update-view-part [application-state layout-path]
-  #_(debug "updating view part " layout-path)
   (if (contains? application-state layout-path)
     (load-view-part application-state layout-path)
     (unload-view-part application-state layout-path)))
@@ -206,7 +198,7 @@
                                                     (dataflow/reset-changes)))
 
           changed-view-part-layout-paths (filter #(view-part-is-defined? application-state %)
-                                                  (:changes-to-be-processed application-state))]
+                                                 (:changes-to-be-processed application-state))]
       (render (swap! application
                      (fn [application-state]
                        (reduce update-view-part application-state changed-view-part-layout-paths)))))))
@@ -218,24 +210,37 @@
   (update-view application)
   application)
 
-(defn create-layout [parent-layoutable width height]
+
+;; LAYOUT
+
+(declare create-view-part-layout)
+
+(defn create-layout [parent-layoutable]
   (if (satisfies? Layout parent-layoutable)
     (assoc parent-layoutable
       :children (vec (map (fn [child-layoutable]
                             (if (instance? ViewPart child-layoutable)
                               (do (dataflow/define (:local-id child-layoutable)
-                                    #(create-layout (dataflow/get-global-value (:root-element-path child-layoutable))
-                                                    (:width child-layoutable)
-                                                    (:height child-layoutable)))
+                                    #(create-view-part-layout (dataflow/get-global-value (:root-element-path child-layoutable))
+                                                              (:width child-layoutable)
+                                                              (:height child-layoutable)))
                                   child-layoutable)
-                              (create-layout child-layoutable
-                                             (:width child-layoutable)
-                                             (:height child-layoutable))))
+                              (create-layout child-layoutable)))
 
-                          (layout parent-layoutable width height))))
+                          (layout parent-layoutable
+                                  (:width parent-layoutable)
+                                  (:height parent-layoutable)))))
     parent-layoutable))
 
+(defn create-view-part-layout [root-layoutable width height]
+  (create-layout (assoc root-layoutable
+                    :x 0
+                    :y 0
+                    :width width
+                    :height height)))
 
+
+;; INITIALIZATION
 
 (defn initialize-application-state [window-width window-height root-element-constructor]
   (-> (dataflow/create)
@@ -243,9 +248,9 @@
         :width  window-width
         :height  window-height
         :elements root-element-constructor
-        :layout #(create-layout (dataflow/get-global-value :elements)
-                                (dataflow/get-global-value :width)
-                                (dataflow/get-global-value :height)))))
+        :layout #(create-view-part-layout (dataflow/get-global-value :elements)
+                                          (dataflow/get-global-value :width)
+                                          (dataflow/get-global-value :height)))))
 
 (defn create-application [window event-handler root-element-constructor]
   (let [application-state (-> (initialize-application-state @(:width window)
@@ -354,29 +359,6 @@
   Object
   (toString [_] (str "(->VerticalStack " layoutables)))
 
-#_(defrecord HorizontalStack [elements]
-    Element
-    (drawing-commands [horizontal-stack
-                       requested-width
-                       requested-height] (let [height (apply max (conj (map preferred-height elements)
-                                                                       0))]
-                                           (vec (concat [(push-modelview/->PushModelview)]
-                                                        (reduce (fn [commands element]
-                                                                  (concat commands
-                                                                          (drawing-commands element
-                                                                                            (preferred-width element)
-                                                                                            height)
-                                                                          [(translate/->Translate (preferred-width element) 0 )]))
-                                                                []
-                                                                elements)
-                                                        [(pop-modelview/->PopModelview)]))))
-    (preferred-height [horizontal-stack] (apply max (conj (map preferred-height elements)
-                                                          0)))
-    (preferred-width [horizontal-stack] (reduce + (map preferred-width elements)))
-    Object
-    (toString [_] (str "(->VerticalStack " elements ")")))
-
-
 (defrecord Stack [layoutables]
   Layout
   (layout [stack requested-width requested-height]
@@ -400,22 +382,22 @@
   Object
   (toString [_] (str "(->Stack " (vec layoutables) ")")))
 
-(defrecord Translation [x y layoutable]
+(defrecord Translation [translate-x translate-y layoutable]
   Layout
-  (layout [stack requested-width requested-height]
+  (layout [translation requested-width requested-height]
     [(assoc layoutable
-       :x x
-       :y y
+       :x translate-x
+       :y translate-y
        :width (preferred-width layoutable)
        :height (preferred-height layoutable))])
 
   Layoutable
-  (preferred-width [translation] (+ x (preferred-width layoutable)))
+  (preferred-width [translation] (+ translate-x (preferred-width layoutable)))
 
-  (preferred-height [translation] (+ y (preferred-height layoutable)))
+  (preferred-height [translation] (+ translate-y (preferred-height layoutable)))
 
   Object
-  (toString [_] (str "(->Transaltion " x " " y " " layoutable ")")))
+  (toString [_] (str "(->Transaltion " translate-x " " translate-y " " layoutable ")")))
 
 
 ;; TODO-LIST
@@ -597,7 +579,6 @@
 
 
 (defn handle-item-view-event [application-state item-view event]
-  (debug "handling event " event)
   (let [application-state (handle-item-list-view-event application-state (concat item-view [:item-list-view]) event)]
     (if (not (:event-handled application-state))
       (cond
@@ -666,14 +647,14 @@
                             200)))
 
 #_(let [item-list-view [:elements :item-list-view]]
-  (let [application-state (-> (initialize-application-state 300 300 item-view)
-                              (add-item item-list-view 0 "Foo")
-                              (add-item item-list-view 0 "Bar")
-                              (dataflow/print-dataflow))]
-    (println (view-part-drawing-commands (get application-state [:layout :item-list-view])))))
+    (let [application-state (-> (initialize-application-state 300 300 item-view)
+                                (add-item item-list-view 0 "Foo")
+                                (add-item item-list-view 0 "Bar")
+                                (dataflow/print-dataflow))]
+      (println (view-part-drawing-commands (get application-state [:layout :item-list-view])))))
 
 (comment
-(start)
+  (start)
 
   (let [item-list-view [:elements :item-list-view]
         application-state (-> (initialize-application-state 300 300 item-view)
