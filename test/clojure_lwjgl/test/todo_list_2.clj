@@ -148,30 +148,37 @@
 
 (defn layout-drawing-commands [layout]
   (vec (concat [(push-modelview/->PushModelview)]
-               (reduce (fn [commands layoutable]
-                         (concat commands
-                                 (concat (if (or (not (= (:x layoutable) 0))
-                                                 (not (= (:y layoutable) 0)))
-                                           [(translate/->Translate (:x layoutable)
-                                                                   (:y layoutable))]
-                                           [])
-                                         (layoutable-drawing-commands layoutable))))
-                       []
-                       (:children layout)
-                       )
+               (loop [commands []
+                      x 0
+                      y 0
+                      layoutables (:children layout)]
+                 (if (seq layoutables)
+                   (let [layoutable (first layoutables)]
+                     (recur (concat commands
+                                    (concat (if (or (not (= (:x layoutable) x))
+                                                    (not (= (:y layoutable) y)))
+                                              [(translate/->Translate (- (:x layoutable)
+                                                                         x)
+                                                                      (- (:y layoutable)
+                                                                         y))]
+                                              [])
+                                            (layoutable-drawing-commands layoutable)))
+                            (:x layoutable)
+                            (:y layoutable)
+                            (rest layoutables)))
+                   commands))
                [(pop-modelview/->PopModelview)])))
 
 (defn layoutable-drawing-commands [layoutable]
   (if (satisfies? Layout layoutable)
-           (layout-drawing-commands layoutable)
-           (if (satisfies? Drawable layoutable)
-             (drawing-commands layoutable
-                               (:width layoutable)
-                               (:height layoutable))
-             [])))
+    (layout-drawing-commands layoutable)
+    (if (satisfies? Drawable layoutable)
+      (drawing-commands layoutable
+                        (:width layoutable)
+                        (:height layoutable))
+      [])))
 
 (defn load-view-part [application-state layout-path]
-
   (unload-view-part application-state layout-path)
 
   (let [drawing-commands (layoutable-drawing-commands (get application-state layout-path))
@@ -187,7 +194,8 @@
         (update-in [:view-part-layout-paths] conj layout-path))))
 
 (defn update-view-part [application-state layout-path]
-  (if (contains? application-state layout-path)
+
+  (if (dataflow/is-defined? application-state layout-path)
     (load-view-part application-state layout-path)
     (unload-view-part application-state layout-path)))
 
@@ -234,11 +242,54 @@
 
 (defn create-view-part-layout [root-layoutable width height]
   (create-layout (assoc root-layoutable
-                    :x 0
-                    :y 0
-                    :width width
-                    :height height)))
+                   :x 0
+                   :y 0
+                   :width width
+                   :height height)))
 
+
+(defn in-coordinates [layoutable x y]
+  (and (>= x
+           (:x layoutable))
+       (<= x
+           (+ (:x layoutable) (:width layoutable)))
+       (>= y
+           (:y layoutable))
+       (<= y
+           (+ (:y layoutable) (:height layoutable)))))
+
+(defn layoutables-in-coordinates [application-state layoutable x y]
+  (if (satisfies? Layout layoutable)
+    (loop [result [layoutable]
+           x x
+           y y
+           layoutables (:children layoutable)]
+
+      (if (seq layoutables)
+        (let [layoutable (first layoutables)]
+          (if (in-coordinates layoutable x y)
+            (recur (concat (conj result
+                                 layoutable)
+                           (if (satisfies? Layout layoutable)
+                             (layoutables-in-coordinates application-state
+                                                         layoutable
+                                                         (+ x (:x layoutable))
+                                                         (+ y (:y layoutable)))
+                             (if (instance? ViewPart layoutable)
+                               (layoutables-in-coordinates application-state
+                                                           (get application-state (element-path-to-layout-path (:root-element-path layoutable)))
+                                                           (+ x (:x layoutable))
+                                                           (+ y (:y layoutable)))
+                               [])))
+                   x
+                   y
+                   (rest layoutables))
+            (recur result
+                   x
+                   y
+                   (rest layoutables))))
+        result))
+    [layoutable]))
 
 ;; INITIALIZATION
 
@@ -398,6 +449,25 @@
 
   Object
   (toString [_] (str "(->Transaltion " translate-x " " translate-y " " layoutable ")")))
+
+(defrecord DockBottom [layoutable]
+  Layout
+  (layout [dock-bottom requested-width requested-height]
+    (let [height (preferred-height layoutable)]
+      [(assoc layoutable
+         :x 0
+         :y (- requested-height
+               height)
+         :width (preferred-width layoutable)
+         :height height)]))
+
+  Layoutable
+  (preferred-width [dock-bottom] (preferred-width layoutable))
+
+  (preferred-height [dock-bottom] (preferred-height layoutable))
+
+  Object
+  (toString [_] (str "(->DockBottom " layoutable)))
 
 
 ;; TODO-LIST
@@ -573,23 +643,41 @@
 (defn background []
   (->Rectangle 0 0 [1 1 1 1]))
 
+(defn status []
+
+  (->DockBottom (->VerticalStack
+                 (->> (dataflow/get-global-value [:status])
+                      (map str)
+                      (map (fn [message]
+                             (->Text message
+                                     (font/create "LiberationSans-Regular.ttf" 15)
+                                     [0 0 0 1])))))))
+
 (defn item-view []
   (->Stack [(init-and-call :background background)
-            (init-and-call :item-list-view item-list-view)]))
+            (init-and-call :item-list-view item-list-view)
+            (init-and-call :status status)]))
 
 
 (defn handle-item-view-event [application-state item-view event]
-  (let [application-state (handle-item-list-view-event application-state (concat item-view [:item-list-view]) event)]
-    (if (not (:event-handled application-state))
-      (cond
-       (key-pressed event input/escape)
-       (close-application application-state)
+  (let [application-state (if (= (:type event)
+                                 :mouse-moved)
+                            (dataflow/define-to application-state [:status] (concat [(str "x: " (:mouse-x event) "y: " (:mouse-y event))]
+                                                                                    (map str (map type (layoutables-in-coordinates application-state
+                                                                                                                                   (get application-state [:layout])
+                                                                                                                                   (:mouse-x event)
+                                                                                                                                   (:mouse-y event))))))
+                            application-state)]
 
-       :default application-state)
+    (let [application-state (handle-item-list-view-event application-state (concat item-view [:item-list-view]) event)]
+      (if (not (:event-handled application-state))
+        (cond
+         (key-pressed event input/escape)
+         (close-application application-state)
 
-      application-state)))
+         :default application-state)
 
-
+        application-state))))
 
 (defn create-todo-list [window]
   (let [application (create-application window handle-item-view-event item-view)]

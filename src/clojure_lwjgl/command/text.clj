@@ -25,8 +25,10 @@
                 (image-list/add-image index
                                       (:x text)
                                       (:y text)
-                                      (font/width (:font text) (:content text))
-                                      (font/height (:font text)))
+                                      (max 1
+                                           (font/width (:font text) (:content text)))
+                                      (max 1
+                                           (font/height (:font text))))
                 (image-list/draw-on-image index
                                           (fn [graphics] (draw-text graphics text)))))
           (image-list/create)

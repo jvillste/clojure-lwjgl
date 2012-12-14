@@ -35,6 +35,7 @@
     (println (str key " = " (get dataflow key) " depends on " (get-in dataflow [::dependencies key]))))
 
   #_(println "Dependencies " (::dependencies dataflow))
+  (println "Functions " (keys (::functions dataflow)))
   (println "Changes " (::changed-paths dataflow))
   dataflow)
 
@@ -64,6 +65,10 @@
 (defn debug [value message]
   (println message " " value)
   value)
+
+(defn is-defined? [dataflow path]
+  (contains? (::functions dataflow)
+             path))
 
 (defn undefine [dataflow path]
   #_(println "undefinig " path)
@@ -276,10 +281,7 @@
       #_(print-dataflow))
 
   (-> (create)
-      (define-to :a (fn [] (define :a1 (fn [] (define :a2 1)
-                                         (inc (get-value :a2))))
-                      (inc (get-value :a1))))
-      (define-to [:a :a1 :a2] 2)
+      (define-to :a (fn [] (get-global-value :b)))
       (print-dataflow))
 
   (-> (create)
