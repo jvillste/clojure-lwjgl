@@ -120,9 +120,16 @@
        (= (:type keyboard-event)
           :key-pressed)))
 
+(defn invert-mouse-y [window-height mouse-event]
+  (if (contains? mouse-event :mouse-y)
+    (assoc mouse-event :mouse-y (- window-height
+                                   (:mouse-y mouse-event)))
+    mouse-event))
+
 (defn handle-events [application]
   (let [unread-events (concat (input/unread-keyboard-events)
-                              (input/unread-mouse-events))]
+                              (map (partial invert-mouse-y (get @application [:height]))
+                                   (input/unread-mouse-events)))]
     (when (not (empty? unread-events))
       (doseq [event unread-events]
         (swap! application (fn [application-state]
@@ -649,7 +656,7 @@
                  (->> (dataflow/get-global-value [:status])
                       (map str)
                       (map (fn [message]
-                             (->Text message
+                             (->Text (str message)
                                      (font/create "LiberationSans-Regular.ttf" 15)
                                      [0 0 0 1])))))))
 
@@ -659,14 +666,15 @@
             (init-and-call :status status)]))
 
 
+
 (defn handle-item-view-event [application-state item-view event]
   (let [application-state (if (= (:type event)
                                  :mouse-moved)
                             (dataflow/define-to application-state [:status] (concat [(str "x: " (:mouse-x event) "y: " (:mouse-y event))]
-                                                                                    (map str (map type (layoutables-in-coordinates application-state
-                                                                                                                                   (get application-state [:layout])
-                                                                                                                                   (:mouse-x event)
-                                                                                                                                   (:mouse-y event))))))
+                                                                                    (map :root-element-path (layoutables-in-coordinates application-state
+                                                                                                                                        (get application-state [:layout])
+                                                                                                                                        (:mouse-x event)
+                                                                                                                                        (:mouse-y event)))))
                             application-state)]
 
     (let [application-state (handle-item-list-view-event application-state (concat item-view [:item-list-view]) event)]
