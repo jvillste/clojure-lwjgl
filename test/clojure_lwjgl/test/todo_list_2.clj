@@ -371,7 +371,6 @@
 
 
 
-
 ;; INITIALIZATION
 
 (defn initialize-application-state [window-width window-height root-element-constructor]
@@ -670,6 +669,7 @@
                                      [(->Text text
                                               font
                                               [0 0 0 1])])))
+
         :mouse-entered-handler (fn [application-state]
                                  (println "mouse entered" (property-from application-state editor-path :value))
                                  (dataflow/define-to application-state (concat editor-path [:mouse-over]) true))
@@ -740,13 +740,14 @@
 
 (defn status []
   (->VerticalStack
-   (->> (dataflow/get-global-value [:status])
-        (filter (fn [message] (not (= message nil))))
-        (map str)
-        (map (fn [message]
-               (->Text (str message)
-                       (font/create "LiberationSans-Regular.ttf" 12)
-                       [0 0 0 1]))))))
+   (concat [(init-and-call :fps fps)]
+           (->> (dataflow/get-global-value [:status])
+                (filter (fn [message] (not (= message nil))))
+                (map str)
+                (map (fn [message]
+                       (->Text (str message)
+                               (font/create "LiberationSans-Regular.ttf" 12)
+                               [0 0 0 1])))))))
 
 (defn fps []
   (->Text (str (float (dataflow/get-global-value :fps)))
@@ -755,17 +756,14 @@
 
 (defn item-view []
   (->Stack [(init-and-call :background background)
-            (->VerticalStack [(init-and-call :fps fps)
-                              (init-and-call :item-list-view item-list-view)])
+            (init-and-call :item-list-view item-list-view)
             (->DockBottom (init-and-call :status status))]))
 
 (defn handle-item-view-event [application-state item-view event]
   (let [application-state (if (= (:type event)
                                  :mouse-moved)
                             (dataflow/define-to application-state [:status] (concat [(str "x: " (:mouse-x event) "y: " (:mouse-y event))]
-                                                                                    (map :root-element-path (layoutables-in-coordinates application-state
-                                                                                                                                        (:mouse-x event)
-                                                                                                                                        (:mouse-y event)))))
+                                                                                    (map :root-element-path (get application-state :layoutables-under-mouse))))
 
                             application-state)]
 
@@ -784,9 +782,10 @@
     (swap! application (fn [application-state]
                          (let [item-list-view [:elements :item-list-view]]
                            (-> application-state
+                               (dataflow/define-to [:status] [])
                                (add-item item-list-view 0 "Foo")
                                (add-item item-list-view 0 "Bar")
-                               #_(dataflow/print-dataflow)))))
+                               (dataflow/print-dataflow)))))
     application))
 
 (defn start []

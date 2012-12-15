@@ -31,11 +31,11 @@
           ::changed-paths))
 
 (defn print-dataflow [dataflow]
-  (doseq [key (filter vector? (keys (strip dataflow)))]
+  (doseq [key (filter vector? (keys (::functions dataflow)))]
     (println (str key " = " (get dataflow key) " depends on " (get-in dataflow [::dependencies key]))))
 
   #_(println "Dependencies " (::dependencies dataflow))
-  (println "Functions " (keys (::functions dataflow)))
+  #_(println "Functions " (keys (::functions dataflow)))
   (println "Changes " (::changed-paths dataflow))
   dataflow)
 
