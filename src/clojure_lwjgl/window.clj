@@ -110,4 +110,5 @@
       (catch Exception e
         (println "Exception in window loop: " e)
         (.printStackTrace e)
-        (close window)))))
+        (close window)
+        (throw e)))))

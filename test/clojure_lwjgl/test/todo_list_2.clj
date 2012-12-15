@@ -15,9 +15,10 @@
                                    [pop-modelview :as pop-modelview])
             (clojure.java [shell :as shell]
                           [io :as io])
+            (clojure.contrib [profile :as profile])
             [clojure-lwjgl.test.dataflow :as dataflow]
             (clojure [string :as string]
-                     [set]))
+                     [set :as set]))
   (:import [org.lwjgl.opengl GL11 GL20 ARBVertexBufferObject ARBVertexProgram ARBVertexShader]
            [java.awt Color Font FontMetrics RenderingHints]
            [clojure_lwjgl.triangle_batch TriangleBatch]
@@ -126,6 +127,86 @@
                                    (:mouse-y mouse-event)))
     mouse-event))
 
+(defn update-mouse-position [application-state event]
+  (if(= (:type event)
+        :mouse-moved)
+    (dataflow/define-to application-state
+      :mouse-x (:mouse-x event)
+      :mouse-y (:mouse-y event))
+    application-state))
+
+(defn call-handlers [application-state handler-key layoutables]
+  (reduce (fn [application-state layoutable]
+            (if-let [handler (get layoutable handler-key)]
+              (handler application-state)
+              application-state))
+          application-state
+          layoutables))
+
+(defn in-coordinates [layoutable x y]
+  (and (>= x
+           (:x layoutable))
+       (<= x
+           (+ (:x layoutable) (:width layoutable)))
+       (>= y
+           (:y layoutable))
+       (<= y
+           (+ (:y layoutable) (:height layoutable)))))
+
+(defn layoutables-in-coordinates
+  ([application-state x y]
+     (layoutables-in-coordinates application-state
+                                 x
+                                 y
+                                 (get application-state [:layout])))
+
+  ([application-state x y layoutable]
+     (if (satisfies? Layout layoutable)
+       (loop [result [layoutable]
+              x x
+              y y
+              layoutables (:children layoutable)]
+
+         (if (seq layoutables)
+           (let [layoutable (first layoutables)]
+             (if (in-coordinates layoutable x y)
+               (recur (concat (conj result
+                                    layoutable)
+                              (if (satisfies? Layout layoutable)
+                                (layoutables-in-coordinates application-state
+                                                            (+ x (:x layoutable))
+                                                            (+ y (:y layoutable))
+                                                            layoutable)
+                                (if (instance? ViewPart layoutable)
+                                  (layoutables-in-coordinates application-state
+                                                              (+ x (:x layoutable))
+                                                              (+ y (:y layoutable))
+                                                              (get application-state (element-path-to-layout-path (:root-element-path layoutable))))
+                                  [])))
+                      x
+                      y
+                      (rest layoutables))
+               (recur result
+                      x
+                      y
+                      (rest layoutables))))
+           result))
+       [layoutable])))
+
+(defn update-layoutables-under-mouse [application-state]
+  (let [current-layoutables-under-mouse (set (layoutables-in-coordinates application-state
+                                                                         (get application-state [:mouse-x])
+                                                                         (get application-state [:mouse-y])))
+        mouse-left (clojure.set/difference (:layoutables-under-mouse application-state)
+                                           current-layoutables-under-mouse)
+        mouse-entered (clojure.set/difference current-layoutables-under-mouse
+                                              (:layoutables-under-mouse application-state))]
+
+    (-> application-state
+        (call-handlers :mouse-entered-handler mouse-entered)
+        (call-handlers :mouse-left-handler mouse-left)
+        (assoc :layoutables-under-mouse current-layoutables-under-mouse))))
+
 (defn handle-events [application]
   (let [unread-events (concat (input/unread-keyboard-events)
                               (map (partial invert-mouse-y (get @application [:height]))
@@ -133,11 +214,14 @@
     (when (not (empty? unread-events))
       (doseq [event unread-events]
         (swap! application (fn [application-state]
-                             ((:event-handler application-state)
-                              (assoc application-state
-                                :event-handled false)
-                              [:elements]
-                                event)))))))
+                             (let [application-state (-> application-state
+                                                         (assoc :event-handled false)
+                                                         (update-mouse-position event)
+                                                         (update-layoutables-under-mouse))]
+                               ((:event-handler application-state)
+                                application-state
+                                [:elements]
+                                  event))))))))
 
 
 
@@ -201,7 +285,6 @@
         (update-in [:view-part-layout-paths] conj layout-path))))
 
 (defn update-view-part [application-state layout-path]
-
   (if (dataflow/is-defined? application-state layout-path)
     (load-view-part application-state layout-path)
     (unload-view-part application-state layout-path)))
@@ -218,11 +301,42 @@
                      (fn [application-state]
                        (reduce update-view-part application-state changed-view-part-layout-paths)))))))
 
+
+
+(defn add-fps [application-state time-now]
+  (update-in application-state [:fpss]
+             (fn [fpss]
+               (let [fpss (conj fpss (/ 1
+                                        (/ (- time-now
+                                              (:last-update-time application-state))
+                                           1E9)))]
+                 (if (> (count fpss)
+                        20)
+                   (vec (rest fpss))
+                   fpss)))))
+
+(defn average-fps [application-state]
+  (let [fpss (:fpss application-state)]
+    (/ (apply + fpss)
+       (max 1 (count fpss)))))
+
+(defn update-fps [application]
+  (swap! application (fn [application-state]
+                       (let [time-now (System/nanoTime)]
+                         (-> application-state
+                             (add-fps time-now)
+                             (dataflow/define-to :fps (average-fps application-state))
+                             (assoc :last-update-time time-now))))))
+
+(defn update-time [application]
+  (swap! application dataflow/define-to :time (System/nanoTime)))
+
 (defn update [application]
   (handle-events application)
-  #_(swap! application (fn [application-state]
-                         (dataflow/define-to application-state :time (System/nanoTime))))
+  ;;(update-time application)
+  (update-fps application)
   (update-view application)
+
   application)
 
 
@@ -255,48 +369,8 @@
                    :height height)))
 
 
-(defn in-coordinates [layoutable x y]
-  (and (>= x
-           (:x layoutable))
-       (<= x
-           (+ (:x layoutable) (:width layoutable)))
-       (>= y
-           (:y layoutable))
-       (<= y
-           (+ (:y layoutable) (:height layoutable)))))
 
-(defn layoutables-in-coordinates [application-state layoutable x y]
-  (if (satisfies? Layout layoutable)
-    (loop [result [layoutable]
-           x x
-           y y
-           layoutables (:children layoutable)]
 
-      (if (seq layoutables)
-        (let [layoutable (first layoutables)]
-          (if (in-coordinates layoutable x y)
-            (recur (concat (conj result
-                                 layoutable)
-                           (if (satisfies? Layout layoutable)
-                             (layoutables-in-coordinates application-state
-                                                         layoutable
-                                                         (+ x (:x layoutable))
-                                                         (+ y (:y layoutable)))
-                             (if (instance? ViewPart layoutable)
-                               (layoutables-in-coordinates application-state
-                                                           (get application-state (element-path-to-layout-path (:root-element-path layoutable)))
-                                                           (+ x (:x layoutable))
-                                                           (+ y (:y layoutable)))
-                               [])))
-                   x
-                   y
-                   (rest layoutables))
-            (recur result
-                   x
-                   y
-                   (rest layoutables))))
-        result))
-    [layoutable]))
 
 ;; INITIALIZATION
 
@@ -315,6 +389,9 @@
                                                             @(:height window)
                                                             root-element-constructor)
                               (assoc
+                                  :fpss []
+                                  :last-update-time (System/nanoTime)
+                                  :layoutables-under-mouse #{}
                                   :window window
                                   :view-part-command-runners {}
                                   :view-part-layout-paths #{}
@@ -385,8 +462,6 @@
 
   Object
   (toString [_] (str "(->Box " margin " " outer " " inner)))
-
-
 
 (defrecord VerticalStack [layoutables]
   Layout
@@ -545,7 +620,6 @@
               application-state)))
 
 
-
 (defn cursor [editor font]
   (let [text (property editor :edited-value)
         cursor-position (property editor :cursor-position)
@@ -572,7 +646,8 @@
      :edited-value value
      :editing false
      :cursor-position 0
-     :change-listener (fn [] change-listener))
+     :change-listener (fn [] change-listener)
+     :mouse-over false)
 
     (initialize-view-part :cursor #(cursor editor-path
                                            font))
@@ -581,18 +656,26 @@
                  (dataflow/get-value :edited-value)
                  (dataflow/get-value :value))]
 
-      (->Box 2
-             (->Rectangle 0
-                          0
-                          (if (dataflow/get-value :selected)
-                            [0 0 1 1]
-                            [1 1 1 1]))
-             (->Stack (concat (if (dataflow/get-value :editing)
-                                [(call-view-part :cursor)]
-                                [])
-                              [(->Text text
-                                       font
-                                       [0 0 0 1])]))))))
+      (assoc (->Box 2
+                    (->Rectangle 0
+                                 0
+                                 (if (dataflow/get-value :mouse-over)
+                                   [0.8 0.8 0.8 1]
+                                   (if (dataflow/get-value :selected)
+                                     [0 0 1 1]
+                                     [1 1 1 1])))
+                    (->Stack (concat (if (dataflow/get-value :editing)
+                                       [(call-view-part :cursor)]
+                                       [])
+                                     [(->Text text
+                                              font
+                                              [0 0 0 1])])))
+        :mouse-entered-handler (fn [application-state]
+                                 (println "mouse entered" (property-from application-state editor-path :value))
+                                 (dataflow/define-to application-state (concat editor-path [:mouse-over]) true))
+
+        :mouse-left-handler (fn [application-state]
+                              (dataflow/define-to application-state (concat editor-path [:mouse-over]) false))))))
 
 (defn editor-id [item-id]
   [:editor item-id])
@@ -608,16 +691,21 @@
                              nil))
 
     (->VerticalStack (vec (map-indexed (fn [index item-id]
-                                         (init-and-call (editor-id item-id) (fn [] (editor (property item-list-view-path [:items item-id])
+                                         (-> (init-and-call (editor-id item-id) (fn [] (editor (property item-list-view-path [:items item-id])
 
-                                                                                           #(= item-id
-                                                                                               (property item-list-view-path :selected-item-id))
+                                                                                               #(= item-id
+                                                                                                   (property item-list-view-path :selected-item-id))
 
-                                                                                           (fn [application-state new-value]
-                                                                                             (dataflow/define-to
-                                                                                               application-state
-                                                                                               (concat item-list-view-path [:items item-id])
-                                                                                               new-value))))))
+                                                                                               (fn [application-state new-value]
+                                                                                                 (dataflow/define-to
+                                                                                                   application-state
+                                                                                                   (concat item-list-view-path [:items item-id])
+                                                                                                   new-value)))))
+                                             (assoc :mouse-event-handler (fn [application-state event]
+                                                                           (if (= (:type event)
+                                                                                  :left-mouse-button-up)
+                                                                             (dataflow/define-to application-state (concat item-list-view-path [:selection]) index)
+                                                                             application-state)))))
 
                                        (zipper-list/items (property item-list-view-path :item-order)))))))
 
@@ -651,30 +739,34 @@
   (->Rectangle 0 0 [1 1 1 1]))
 
 (defn status []
+  (->VerticalStack
+   (->> (dataflow/get-global-value [:status])
+        (filter (fn [message] (not (= message nil))))
+        (map str)
+        (map (fn [message]
+               (->Text (str message)
+                       (font/create "LiberationSans-Regular.ttf" 12)
+                       [0 0 0 1]))))))
 
-  (->DockBottom (->VerticalStack
-                 (->> (dataflow/get-global-value [:status])
-                      (map str)
-                      (map (fn [message]
-                             (->Text (str message)
-                                     (font/create "LiberationSans-Regular.ttf" 15)
-                                     [0 0 0 1])))))))
+(defn fps []
+  (->Text (str (float (dataflow/get-global-value :fps)))
+          (font/create "LiberationSans-Regular.ttf" 12)
+          [0 0 0 1]))
 
 (defn item-view []
   (->Stack [(init-and-call :background background)
-            (init-and-call :item-list-view item-list-view)
-            (init-and-call :status status)]))
-
-
+            (->VerticalStack [(init-and-call :fps fps)
+                              (init-and-call :item-list-view item-list-view)])
+            (->DockBottom (init-and-call :status status))]))
 
 (defn handle-item-view-event [application-state item-view event]
   (let [application-state (if (= (:type event)
                                  :mouse-moved)
                             (dataflow/define-to application-state [:status] (concat [(str "x: " (:mouse-x event) "y: " (:mouse-y event))]
                                                                                     (map :root-element-path (layoutables-in-coordinates application-state
-                                                                                                                                        (get application-state [:layout])
                                                                                                                                         (:mouse-x event)
                                                                                                                                         (:mouse-y event)))))
+
                             application-state)]
 
     (let [application-state (handle-item-list-view-event application-state (concat item-view [:item-list-view]) event)]
@@ -712,53 +804,6 @@
                             :height height))
                   application)))
 
-(defn mouse-event-handlers [mouse-event-handler-container application-state width height]
-  (doseq [mouse-event-handler-spec (child-mouse-event-handlers mouse-event-handler-container width height)]
-    (let [mouse-event-handler (:mouse-event-handler mouse-event-handler-spec)]
-      (when (satisfies? MouseEventHandler mouse-event-handler)
-        (println "handler")
-        (println mouse-event-handler-spec))
-      (when (satisfies? MouseEventHandlerContainer mouse-event-handler)
-        (mouse-event-handlers mouse-event-handler
-                              application-state
-                              (:width mouse-event-handler-spec)
-                              (:height mouse-event-handler-spec)))
-      (when (instance? ViewPart mouse-event-handler)
-        (let [root-element (get application-state (:root-element-path mouse-event-handler))]
-          (when (satisfies? MouseEventHandlerContainer root-element)
-            (mouse-event-handlers root-element
-                                  application-state
-                                  (:width mouse-event-handler-spec)
-                                  (:height mouse-event-handler-spec))))))))
-
-
-#_(let [item-list-view [:elements :item-list-view]
-        application-state (-> (initialize-application-state 300 300 item-view)
-                              (add-item item-list-view 0 "Foo")
-                              (add-item item-list-view 0 "Bar"))]
-    (binding [dataflow/current-dataflow (atom application-state)]
-      (mouse-event-handlers (get application-state [:elements])
-                            application-state
-                            200
-                            200)))
-
-#_(let [item-list-view [:elements :item-list-view]]
-    (let [application-state (-> (initialize-application-state 300 300 item-view)
-                                (add-item item-list-view 0 "Foo")
-                                (add-item item-list-view 0 "Bar")
-                                (dataflow/print-dataflow))]
-      (println (view-part-drawing-commands (get application-state [:layout :item-list-view])))))
-
 (comment
   (start)
-
-  (let [item-list-view [:elements :item-list-view]
-        application-state (-> (initialize-application-state 300 300 item-view)
-                              (add-item item-list-view 0 "Foo")
-                              (add-item item-list-view 0 "Bar"))]
-    (mouse-event-handlers (get application-state [:elements]))
-
-    #_(-> application-state
-          (handle-item-view-event [:elements]
-                                  {:type :key-released, :key-code input/enter, :character nil})
-          (dataflow/print-dataflow))))
+  )
