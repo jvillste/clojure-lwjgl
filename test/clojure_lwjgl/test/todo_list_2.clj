@@ -65,9 +65,6 @@
   (preferred-width [view-part] (property root-element-path [:preferred-width]))
   (preferred-height [view-part] (property root-element-path [:preferred-height]))
 
-  MouseEventHandler
-  (handle-mouse-event [view-part application-state event] (mouse-event-handler application-state event))
-
   Object
   (toString [_] (str "(->ViewPart " root-element-path)))
 
@@ -78,7 +75,7 @@
      (->ViewPart mouse-event-handler local-id (dataflow/absolute-path local-id))))
 
 (defn initialize-view-part [view-part-id view-part-element-function]
-  (dataflow/initialize view-part-id view-part-element-function)
+  (dataflow/define view-part-id view-part-element-function)
   (let [view-part-path (dataflow/absolute-path view-part-id)]
     (dataflow/initialize (concat (dataflow/as-path view-part-id) [:preferred-width]) #(preferred-width (dataflow/get-global-value view-part-path)))
     (dataflow/initialize (concat (dataflow/as-path view-part-id) [:preferred-height]) #(preferred-height (dataflow/get-global-value view-part-path)))))
@@ -227,6 +224,15 @@
       (assoc :event-handling-direction :up)
       (call-mouse-click-handlers event (reverse (:view-parts-under-mouse application-state)))))
 
+(defn add-mouse-clicked-handler [layoutable new-handler]
+  (assoc layoutable
+    :mouse-click-handler (fn [application-state event]
+                           (if-let [handler (:mouse-click-handler layoutable)]
+                             (-> application-state
+                                 (handler event)
+                                 (new-handler event))
+                             (new-handler application-state event)))))
+
 (defn handle-mouse-event [application-state event]
   (if (= (:type event)
          :mouse-moved)
@@ -365,7 +371,7 @@
 (defn update [application]
   (handle-events application)
   ;;(update-time application)
-  (update-fps application)
+  ;;(update-fps application)
   (update-view application)
 
   application)
@@ -687,61 +693,60 @@
     (let [text (if (dataflow/get-value :editing)
                  (dataflow/get-value :edited-value)
                  (dataflow/get-value :value))]
+      (-> (->Box 2
+                 (->Rectangle 0
+                              0
+                              (if (dataflow/get-value :mouse-over)
+                                [0.8 0.8 0.8 1]
+                                (if (dataflow/get-value :selected)
+                                  [0 0 1 1]
+                                  [1 1 1 1])))
+                 (->Stack (concat (if (dataflow/get-value :editing)
+                                    [(call-view-part :cursor)]
+                                    [])
+                                  [(->Text text
+                                           font
+                                           [0 0 0 1])])))
 
-      (assoc (->Box 2
-                    (->Rectangle 0
-                                 0
-                                 (if (dataflow/get-value :mouse-over)
-                                   [0.8 0.8 0.8 1]
-                                   (if (dataflow/get-value :selected)
-                                     [0 0 1 1]
-                                     [1 1 1 1])))
-                    (->Stack (concat (if (dataflow/get-value :editing)
-                                       [(call-view-part :cursor)]
-                                       [])
-                                     [(->Text text
-                                              font
-                                              [0 0 0 1])])))
+          (assoc :mouse-entered-handler (fn [application-state]
+                                          (dataflow/define-to application-state (concat editor-path [:mouse-over]) true))
 
-        :mouse-entered-handler (fn [application-state]
-                                 (dataflow/define-to application-state (concat editor-path [:mouse-over]) true))
-
-        :mouse-left-handler (fn [application-state]
-                              (dataflow/define-to application-state (concat editor-path [:mouse-over]) false))
-
-        :mouse-click-handler (fn [application-state event]
-                               (println editor-path (:type event) (:event-handling-direction application-state))
-                               application-state)))))
+                 :mouse-left-handler (fn [application-state]
+                                       (dataflow/define-to application-state (concat editor-path [:mouse-over]) false)))))))
 
 (defn editor-id [item-id]
-  [:editor item-id])
+  [(keyword (str "editor-" item-id))])
 
 
 (defn item-list-view []
   (let [item-list-view-path (dataflow/absolute-path [])]
     (dataflow/initialize
-     :selection 0
+     :selection 1
      :item-order (zipper-list/create)
      :selected-item-id #(nth (zipper-list/items (property item-list-view-path :item-order))
                              (property item-list-view-path :selection)
                              nil))
 
     (->VerticalStack (vec (map-indexed (fn [index item-id]
-                                         (-> (init-and-call (editor-id item-id) (fn [] (editor (property item-list-view-path [:items item-id])
+                                         (init-and-call (editor-id item-id)
+                                                          (fn []
+                                                            (-> (editor (property item-list-view-path [:items item-id])
 
-                                                                                               #(= item-id
-                                                                                                   (property item-list-view-path :selected-item-id))
+                                                                        #(= item-id
+                                                                            (property item-list-view-path :selected-item-id))
 
-                                                                                               (fn [application-state new-value]
-                                                                                                 (dataflow/define-to
-                                                                                                   application-state
-                                                                                                   (concat item-list-view-path [:items item-id])
-                                                                                                   new-value)))))
-                                             (assoc :mouse-event-handler (fn [application-state event]
-                                                                           (if (= (:type event)
-                                                                                  :left-mouse-button-up)
-                                                                             (dataflow/define-to application-state (concat item-list-view-path [:selection]) index)
-                                                                             application-state)))))
+                                                                        (fn [application-state new-value]
+                                                                          (dataflow/define-to
+                                                                            application-state
+                                                                            (concat item-list-view-path [:items item-id])
+                                                                            new-value)))
+
+                                                                (add-mouse-clicked-handler (fn [application-state event]
+                                                                                             (if (and (= (:type event)
+                                                                                                         :left-mouse-button-up)
+                                                                                                      (= (:event-handling-direction application-state) :up))
+                                                                                               (dataflow/define-to application-state (concat item-list-view-path [:selection]) index)
+                                                                                               application-state)))))))
 
                                        (zipper-list/items (property item-list-view-path :item-order)))))))
 
