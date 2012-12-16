@@ -51,18 +51,20 @@
   (update-in gui :mouse-state (fn [mouse-state] (update-mouse-state mouse-state event))))
 
 (defn create-mouse-event [lwjgl-event]
-  (cond (or (not (= (:mouse-delta-x lwjgl-event) 0))
-            (not (= (:mouse-delta-y lwjgl-event) 0)))
-        {:type :mouse-moved
-         :mouse-x (:mouse-x lwjgl-event)
-         :mouse-y (:mouse-y lwjgl-event)}
+  (->(cond (or (not (= (:mouse-delta-x lwjgl-event) 0))
+             (not (= (:mouse-delta-y lwjgl-event) 0)))
+         {:type :mouse-moved
+          :mouse-x (:mouse-x lwjgl-event)
+          :mouse-y (:mouse-y lwjgl-event)}
 
-        (not (= 0 (:mouse-wheel-delta lwjgl-event)))
-        {:type :mouse-wheel-moved
-         :mouse-wheel-delta (:mouse-wheel-delta lwjgl-event)}
+         (not (= 0 (:mouse-wheel-delta lwjgl-event)))
+         {:type :mouse-wheel-moved
+          :mouse-wheel-delta (:mouse-wheel-delta lwjgl-event)}
 
-        (not (= (:mouse-button lwjgl-event) -1))
-        {:type (mouse-button-event-type lwjgl-event)}))
+         (not (= (:mouse-button lwjgl-event) -1))
+         {:type (mouse-button-event-type lwjgl-event)})
+     (assoc :time (:time lwjgl-event)
+            :source :mouse)))
 
 (defn read-lwjgl-mouse-event []
   {:mouse-button (Mouse/getEventButton)
@@ -121,7 +123,8 @@
 (defn read-lwjgl-keyboard-event []
   {:key-state (Keyboard/getEventKeyState)
    :key-code (Keyboard/getEventKey)
-   :character (Keyboard/getEventCharacter)})
+   :character (Keyboard/getEventCharacter)
+   :time (Keyboard/getEventNanoseconds)})
 
 (defn create-keyboard-event [lwjgl-event]
   {:type (if (:key-state lwjgl-event)
@@ -132,7 +135,9 @@
                 (if (or (nil? character)
                         (= 0 (int character)))
                   nil
-                  character))})
+                  character))
+   :time (:time lwjgl-event)
+   :source :keyboard})
 
 (defn combined-key-code [key-code]
   (case key-code

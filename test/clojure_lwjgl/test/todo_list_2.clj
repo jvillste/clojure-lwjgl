@@ -36,8 +36,6 @@
   (apply println messages)
   (last messages))
 
-
-
 (defprotocol Layout
   (layout [layout requested-width requested-height]))
 
@@ -47,12 +45,6 @@
 
 (defprotocol Drawable
   (drawing-commands [element width height]))
-
-(defprotocol MouseEventHandler
-  (handle-mouse-event [mouse-event-handler application-state event]))
-
-(defprotocol MouseEventHandlerContainer
-  (child-mouse-event-handlers [mouse-event-handler-container requested-width requested-height]))
 
 (defrecord ViewPartCall [view-part-layout-path]
   command/Command
@@ -127,13 +119,7 @@
                                    (:mouse-y mouse-event)))
     mouse-event))
 
-(defn update-mouse-position [application-state event]
-  (if(= (:type event)
-        :mouse-moved)
-    (dataflow/define-to application-state
-      :mouse-x (:mouse-x event)
-      :mouse-y (:mouse-y event))
-    application-state))
+
 
 (defn call-handlers [application-state handler-key view-part-layout-paths]
   (reduce (fn [application-state view-part-layout-path]
@@ -197,39 +183,76 @@
 
 (defn view-parts-in-coordinates [application-state x y]
   (filter (partial instance? ViewPart)
-                                  (layoutables-in-coordinates application-state x y)))
+          (layoutables-in-coordinates application-state x y)))
 
 (defn update-view-parts-under-mouse [application-state]
-  (let [current-view-parts-under-mouse (set (->> (view-parts-in-coordinates application-state
-                                                                            (get application-state [:mouse-x])
-                                                                            (get application-state [:mouse-y]))
-                                                 (map (fn [view-part]
-                                                        (element-path-to-layout-path (:root-element-path view-part))))))
-        mouse-left (clojure.set/difference (:view-parts-under-mouse application-state)
-                                           current-view-parts-under-mouse)
-        mouse-entered (clojure.set/difference current-view-parts-under-mouse
-                                              (:view-parts-under-mouse application-state))]
+  (let [current-view-parts-under-mouse (->> (view-parts-in-coordinates application-state
+                                                                       (get application-state [:mouse-x])
+                                                                       (get application-state [:mouse-y]))
+                                            (map (fn [view-part]
+                                                   (element-path-to-layout-path (:root-element-path view-part)))))
+        current-set (set current-view-parts-under-mouse)
+        old-set (set (:view-parts-under-mouse application-state))
+        mouse-left (clojure.set/difference (set old-set)
+                                           (set current-set))
+        mouse-entered (clojure.set/difference (set current-set)
+                                              (set old-set))]
 
     (-> application-state
         (call-handlers :mouse-entered-handler mouse-entered)
         (call-handlers :mouse-left-handler mouse-left)
         (assoc :view-parts-under-mouse current-view-parts-under-mouse))))
 
+(defn update-mouse-position [application-state event]
+  (-> application-state
+      (dataflow/define-to
+        :mouse-x (:mouse-x event)
+        :mouse-y (:mouse-y event))
+      (update-view-parts-under-mouse)))
+
+(defn call-mouse-click-handlers [application-state event view-part-layout-paths]
+  (reduce (fn [application-state view-part-layout-path]
+            (if-let [handler (-> application-state
+                                 (get view-part-layout-path)
+                                 (get :mouse-click-handler))]
+              (handler application-state event)
+              application-state))
+          application-state
+          view-part-layout-paths))
+
+(defn handle-mouse-click-event [application-state event]
+  (-> application-state
+      (assoc :event-handling-direction :down)
+      (call-mouse-click-handlers event (:view-parts-under-mouse application-state))
+      (assoc :event-handling-direction :up)
+      (call-mouse-click-handlers event (reverse (:view-parts-under-mouse application-state)))))
+
+(defn handle-mouse-event [application-state event]
+  (if (= (:type event)
+         :mouse-moved)
+    (update-mouse-position application-state event)
+    (handle-mouse-click-event application-state event)))
+
+(defn handle-keyboard-event [application-state event]
+  ((:event-handler application-state)
+   application-state
+   [:elements]
+     event))
+
+(defn handle-event [application-state event]
+  (let [application-state (assoc application-state :event-handled false)]
+    (case (:source event)
+      :keyboard (handle-keyboard-event application-state event)
+      :mouse (handle-mouse-event application-state event))))
+
 (defn handle-events [application]
-  (let [unread-events (concat (input/unread-keyboard-events)
-                              (map (partial invert-mouse-y (get @application [:height]))
-                                   (input/unread-mouse-events)))]
+  (let [unread-events (->> (concat (input/unread-keyboard-events)
+                                   (->> (input/unread-mouse-events)
+                                        (map (partial invert-mouse-y (get @application [:height])))))
+                           (sort-by :time))]
     (when (not (empty? unread-events))
       (doseq [event unread-events]
-        (swap! application (fn [application-state]
-                             (let [application-state (-> application-state
-                                                         (assoc :event-handled false)
-                                                         (update-mouse-position event)
-                                                         (update-view-parts-under-mouse))]
-                               ((:event-handler application-state)
-                                application-state
-                                [:elements]
-                                  event))))))))
+        (swap! application handle-event event)))))
 
 
 
@@ -400,7 +423,7 @@
                               (assoc
                                   :fpss []
                                   :last-update-time (System/nanoTime)
-                                  :view-parts-under-mouse #{}
+                                  :view-parts-under-mouse []
                                   :window window
                                   :view-part-command-runners {}
                                   :view-part-layout-paths #{}
@@ -684,7 +707,11 @@
                                  (dataflow/define-to application-state (concat editor-path [:mouse-over]) true))
 
         :mouse-left-handler (fn [application-state]
-                              (dataflow/define-to application-state (concat editor-path [:mouse-over]) false))))))
+                              (dataflow/define-to application-state (concat editor-path [:mouse-over]) false))
+
+        :mouse-click-handler (fn [application-state event]
+                               (println editor-path (:type event) (:event-handling-direction application-state))
+                               application-state)))))
 
 (defn editor-id [item-id]
   [:editor item-id])
@@ -754,7 +781,7 @@
 
 (defn status []
   (->VerticalStack
-   (concat [(init-and-call :fps fps)]
+   (concat #_[(init-and-call :fps fps)]
            (->> (concat [(str "x: " (dataflow/get-global-value :mouse-x) " y: " (dataflow/get-global-value :mouse-y))]
                         (dataflow/get-global-value [:status]))
                 (filter (fn [message] (not (= message nil))))
