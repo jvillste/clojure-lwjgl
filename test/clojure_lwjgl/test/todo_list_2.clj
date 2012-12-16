@@ -62,7 +62,7 @@
   (run [view-part-call]))
 
 (defn element-path-to-layout-path [element-path]
-  (concat [:layout] (rest element-path)))
+  (vec (concat [:layout] (rest element-path))))
 
 (defrecord ViewPart [mouse-event-handler local-id root-element-path]
   Drawable
@@ -135,13 +135,15 @@
       :mouse-y (:mouse-y event))
     application-state))
 
-(defn call-handlers [application-state handler-key layoutables]
-  (reduce (fn [application-state layoutable]
-            (if-let [handler (get layoutable handler-key)]
+(defn call-handlers [application-state handler-key view-part-layout-paths]
+  (reduce (fn [application-state view-part-layout-path]
+            (if-let [handler (-> application-state
+                                 (get view-part-layout-path)
+                                 (get handler-key))]
               (handler application-state)
               application-state))
           application-state
-          layoutables))
+          view-part-layout-paths))
 
 (defn in-coordinates [layoutable x y]
   (and (>= x
@@ -193,19 +195,25 @@
            result))
        [layoutable])))
 
-(defn update-layoutables-under-mouse [application-state]
-  (let [current-layoutables-under-mouse (set (layoutables-in-coordinates application-state
-                                                                         (get application-state [:mouse-x])
-                                                                         (get application-state [:mouse-y])))
-        mouse-left (clojure.set/difference (:layoutables-under-mouse application-state)
-                                           current-layoutables-under-mouse)
-        mouse-entered (clojure.set/difference current-layoutables-under-mouse
-                                              (:layoutables-under-mouse application-state))]
+(defn view-parts-in-coordinates [application-state x y]
+  (filter (partial instance? ViewPart)
+                                  (layoutables-in-coordinates application-state x y)))
+
+(defn update-view-parts-under-mouse [application-state]
+  (let [current-view-parts-under-mouse (set (->> (view-parts-in-coordinates application-state
+                                                                            (get application-state [:mouse-x])
+                                                                            (get application-state [:mouse-y]))
+                                                 (map (fn [view-part]
+                                                        (element-path-to-layout-path (:root-element-path view-part))))))
+        mouse-left (clojure.set/difference (:view-parts-under-mouse application-state)
+                                           current-view-parts-under-mouse)
+        mouse-entered (clojure.set/difference current-view-parts-under-mouse
+                                              (:view-parts-under-mouse application-state))]
 
     (-> application-state
         (call-handlers :mouse-entered-handler mouse-entered)
         (call-handlers :mouse-left-handler mouse-left)
-        (assoc :layoutables-under-mouse current-layoutables-under-mouse))))
+        (assoc :view-parts-under-mouse current-view-parts-under-mouse))))
 
 (defn handle-events [application]
   (let [unread-events (concat (input/unread-keyboard-events)
@@ -217,7 +225,7 @@
                              (let [application-state (-> application-state
                                                          (assoc :event-handled false)
                                                          (update-mouse-position event)
-                                                         (update-layoutables-under-mouse))]
+                                                         (update-view-parts-under-mouse))]
                                ((:event-handler application-state)
                                 application-state
                                 [:elements]
@@ -378,6 +386,8 @@
       (dataflow/define-to
         :width  window-width
         :height  window-height
+        :mouse-x 0
+        :mouse-y 0
         :elements root-element-constructor
         :layout #(create-view-part-layout (dataflow/get-global-value :elements)
                                           (dataflow/get-global-value :width)
@@ -390,7 +400,7 @@
                               (assoc
                                   :fpss []
                                   :last-update-time (System/nanoTime)
-                                  :layoutables-under-mouse #{}
+                                  :view-parts-under-mouse #{}
                                   :window window
                                   :view-part-command-runners {}
                                   :view-part-layout-paths #{}
@@ -671,7 +681,6 @@
                                               [0 0 0 1])])))
 
         :mouse-entered-handler (fn [application-state]
-                                 (println "mouse entered" (property-from application-state editor-path :value))
                                  (dataflow/define-to application-state (concat editor-path [:mouse-over]) true))
 
         :mouse-left-handler (fn [application-state]
@@ -738,21 +747,22 @@
 (defn background []
   (->Rectangle 0 0 [1 1 1 1]))
 
+(defn fps []
+  (->Text (str (float (dataflow/get-global-value :fps)))
+          (font/create "LiberationSans-Regular.ttf" 12)
+          [0 0 0 1]))
+
 (defn status []
   (->VerticalStack
    (concat [(init-and-call :fps fps)]
-           (->> (dataflow/get-global-value [:status])
+           (->> (concat [(str "x: " (dataflow/get-global-value :mouse-x) " y: " (dataflow/get-global-value :mouse-y))]
+                        (dataflow/get-global-value [:status]))
                 (filter (fn [message] (not (= message nil))))
                 (map str)
                 (map (fn [message]
                        (->Text (str message)
                                (font/create "LiberationSans-Regular.ttf" 12)
                                [0 0 0 1])))))))
-
-(defn fps []
-  (->Text (str (float (dataflow/get-global-value :fps)))
-          (font/create "LiberationSans-Regular.ttf" 12)
-          [0 0 0 1]))
 
 (defn item-view []
   (->Stack [(init-and-call :background background)
@@ -762,9 +772,7 @@
 (defn handle-item-view-event [application-state item-view event]
   (let [application-state (if (= (:type event)
                                  :mouse-moved)
-                            (dataflow/define-to application-state [:status] (concat [(str "x: " (:mouse-x event) "y: " (:mouse-y event))]
-                                                                                    (map :root-element-path (get application-state :layoutables-under-mouse))))
-
+                            (dataflow/define-to application-state [:status] (get application-state :view-parts-under-mouse))
                             application-state)]
 
     (let [application-state (handle-item-list-view-event application-state (concat item-view [:item-list-view]) event)]
@@ -785,7 +793,11 @@
                                (dataflow/define-to [:status] [])
                                (add-item item-list-view 0 "Foo")
                                (add-item item-list-view 0 "Bar")
-                               (dataflow/print-dataflow)))))
+                               (add-item item-list-view 0 "Bar2")
+                               (add-item item-list-view 0 "Bar3")
+                               (add-item item-list-view 0 "Bar4")
+                               (add-item item-list-view 0 "Bar5")
+                               #_(dataflow/print-dataflow)))))
     application))
 
 (defn start []
