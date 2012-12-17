@@ -249,11 +249,25 @@
   (let [application-state (assoc application-state :event-handled false)]
     (case (:source event)
       :keyboard (handle-keyboard-event application-state event)
-      :mouse (handle-mouse-event application-state event))))
+      :mouse (handle-mouse-event application-state event)
+      (throw (Exception. (str "unknown source " (:source event)))))))
+
+(defn trim-mouse-movements [events]
+  (letfn [(is-mouse-move [event] (= :mouse-moved (:type event)))]
+    (loop [events events
+           trimmed-events []]
+      (if-let [event (first events)]
+        (recur (rest events)
+               (if (and (is-mouse-move event)
+                        (is-mouse-move (first (rest events))))
+                 trimmed-events
+                 (conj trimmed-events event)))
+        trimmed-events))))
 
 (defn handle-events [application]
   (let [unread-events (->> (concat (input/unread-keyboard-events)
                                    (->> (input/unread-mouse-events)
+                                        (trim-mouse-movements)
                                         (map (partial invert-mouse-y (get @application [:height])))))
                            (sort-by :time))]
     (when (not (empty? unread-events))
@@ -334,11 +348,11 @@
 
           changed-view-part-layout-paths (filter #(view-part-is-defined? application-state %)
                                                  (:changes-to-be-processed application-state))]
-      (render (swap! application
-                     (fn [application-state]
-                       (reduce update-view-part application-state changed-view-part-layout-paths)))))))
-
-
+      #_(debug "updating" changed-view-part-layout-paths)
+      (-> (swap! application
+                 (fn [application-state]
+                   (reduce update-view-part application-state changed-view-part-layout-paths)))
+          (render)))))
 
 (defn add-fps [application-state time-now]
   (update-in application-state [:fpss]
@@ -729,24 +743,24 @@
 
     (->VerticalStack (vec (map-indexed (fn [index item-id]
                                          (init-and-call (editor-id item-id)
-                                                          (fn []
-                                                            (-> (editor (property item-list-view-path [:items item-id])
+                                                        (fn []
+                                                          (-> (editor (property item-list-view-path [:items item-id])
 
-                                                                        #(= item-id
-                                                                            (property item-list-view-path :selected-item-id))
+                                                                      #(= item-id
+                                                                          (property item-list-view-path :selected-item-id))
 
-                                                                        (fn [application-state new-value]
-                                                                          (dataflow/define-to
-                                                                            application-state
-                                                                            (concat item-list-view-path [:items item-id])
-                                                                            new-value)))
+                                                                      (fn [application-state new-value]
+                                                                        (dataflow/define-to
+                                                                          application-state
+                                                                          (concat item-list-view-path [:items item-id])
+                                                                          new-value)))
 
-                                                                (add-mouse-clicked-handler (fn [application-state event]
-                                                                                             (if (and (= (:type event)
-                                                                                                         :left-mouse-button-up)
-                                                                                                      (= (:event-handling-direction application-state) :up))
-                                                                                               (dataflow/define-to application-state (concat item-list-view-path [:selection]) index)
-                                                                                               application-state)))))))
+                                                              (add-mouse-clicked-handler (fn [application-state event]
+                                                                                           (if (and (= (:type event)
+                                                                                                       :left-mouse-button-up)
+                                                                                                    (= (:event-handling-direction application-state) :up))
+                                                                                             (dataflow/define-to application-state (concat item-list-view-path [:selection]) index)
+                                                                                             application-state)))))))
 
                                        (zipper-list/items (property item-list-view-path :item-order)))))))
 
@@ -839,7 +853,6 @@
                 update
                 identity
                 (fn [application width height]
-                  (println "resize callback")
                   (swap! application
                          #(dataflow/define-to
                             %
@@ -849,4 +862,11 @@
 
 (comment
   (start)
+
+(trim-mouse-movements [{:type :mouse-moved :time 1}
+                       {:type :mouse-moved :time 2}
+                       {:type :mouse-button-down :time 2}
+                       {:type :mouse-moved :time 3}
+                       {:type :mouse-moved :time 4}])
+
   )
