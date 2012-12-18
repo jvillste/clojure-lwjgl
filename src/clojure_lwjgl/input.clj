@@ -26,12 +26,12 @@
 
 (defn mouse-button-event-type [lwjgl-event]
   (case [(:mouse-button lwjgl-event) (:mouse-button-state lwjgl-event)]
-    [0 true] :left-mouse-button-down
-    [1 true] :right-mouse-button-down
-    [2 true] :middle-mouse-button-down
-    [0 false] :left-mouse-button-up
-    [1 false] :right-mouse-button-up
-    [2 false] :middle-mouse-button-up
+    [0 false] :left-mouse-button-down
+    [1 false] :right-mouse-button-down
+    [2 false] :middle-mouse-button-down
+    [0 true] :left-mouse-button-up
+    [1 true] :right-mouse-button-up
+    [2 true] :middle-mouse-button-up
     nil))
 
 (defn update-mouse-state [mouse-state event]

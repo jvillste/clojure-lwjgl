@@ -36,6 +36,15 @@
   (apply println messages)
   (last messages))
 
+(defn debug-if [condition & messages]
+  (when (condition (last messages))
+    (apply println messages))
+  (last messages))
+
+(defn debug2 [& messages]
+  (apply println (drop-last messages))
+  (last messages))
+
 (defprotocol Layout
   (layout [layout requested-width requested-height]))
 
@@ -431,6 +440,7 @@
         :height  window-height
         :mouse-x 0
         :mouse-y 0
+        :fps 0
         :elements root-element-constructor
         :layout #(create-view-part-layout (dataflow/get-global-value :elements)
                                           (dataflow/get-global-value :width)
@@ -800,7 +810,7 @@
 
 (defn status []
   (->VerticalStack
-   (concat #_[(init-and-call :fps fps)]
+   (concat [(init-and-call :fps fps)]
            (->> (concat [(str "x: " (dataflow/get-global-value :mouse-x) " y: " (dataflow/get-global-value :mouse-y))]
                         (dataflow/get-global-value [:status]))
                 (filter (fn [message] (not (= message nil))))
