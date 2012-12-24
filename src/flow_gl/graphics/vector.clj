@@ -1,5 +1,5 @@
 (ns flow-gl.graphics.vector
-  (:require (clojure-lwjgl.command [triangle-batch :as triangle-batch])))
+  (:require (flow-gl.graphics.command [triangle-batch :as triangle-batch])))
 
 (defn rectangle [x y width height color]
   (triangle-batch/create [x y

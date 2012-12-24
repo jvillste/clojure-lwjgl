@@ -253,7 +253,7 @@
         (add-item item-list-view 0 "Bar3")
         (add-item item-list-view 0 "Bar4")
         (add-item item-list-view 0 "Bar5")
-        #_(dataflow/print-dataflow))))
+        #_(dataflow/debug-dataflow))))
 
 (defn start []
   (application/start 700 500

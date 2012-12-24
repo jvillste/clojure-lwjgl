@@ -1,5 +1,6 @@
 (ns flow-gl.dataflow
   (:require [flow-gl.logged-access :as logged-access]
+            [flow-gl.debug :as debug]
             clojure.set
             [slingshot.slingshot :as slingshot])
   (:use clojure.test))
@@ -30,13 +31,12 @@
           ::dependencies
           ::changed-paths))
 
-(defn print-dataflow [dataflow]
+(defn debug-dataflow [dataflow]
   (doseq [key (filter vector? (keys (::functions dataflow)))]
-    (println (str key " = " (get dataflow key) " depends on " (get-in dataflow [::dependencies key]))))
-
-  #_(println "Dependencies " (::dependencies dataflow))
-  #_(println "Functions " (keys (::functions dataflow)))
-  (println "Changes " (::changed-paths dataflow))
+    (debug/debug key " = " (get dataflow key) " depends on " (get-in dataflow [::dependencies key])))
+  #_(debug/debug "Functions " (keys (::functions dataflow)))
+  #_(debug/debug "Changes " (::changed-paths dataflow))
+  #_(debug/debug "Dependencies " (::dependencies dataflow))
   dataflow)
 
 (defn dependants [dataflow path]

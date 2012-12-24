@@ -52,7 +52,6 @@
 ;; RENDERING
 
 (defn draw-view-part [gpu-state layout-path]
-  (flow-gl.debug/debug "draw-view-part2 " layout-path)
   (doseq [command-runner (get-in gpu-state [:view-part-command-runners layout-path])]
     (if (instance? ViewPartCall command-runner)
       (draw-view-part gpu-state (:view-part-layout-path command-runner))
@@ -245,8 +244,8 @@
 
 ;; VIEW PARTS
 
-(defn view-part-is-defined? [view-state view-part-commands-path]
-  (contains? (:view-part-layout-paths view-state) view-part-commands-path))
+(defn view-part-is-loaded? [gpu-state view-part-layout-path]
+  (contains? (:view-part-layout-paths gpu-state) view-part-layout-path))
 
 (defn unload-view-part [gpu-state layout-path]
   (dorun (map command/delete (get-in gpu-state [:view-part-command-runners layout-path])))
@@ -285,6 +284,7 @@
       (drawable/drawing-commands layoutable
                                  (:width layoutable)
                                  (:height layoutable))
+
       [])))
 
 (defn load-view-part [gpu-state view-state layout-path]
@@ -295,7 +295,7 @@
                             (load-view-part gpu-state view-state layout-path))
                           gpu-state
                           (->> (filter #(and (instance? ViewPartCall %)
-                                             (not (view-part-is-defined? view-state (:view-part-layout-path %))))
+                                             (not (view-part-is-loaded? gpu-state (:view-part-layout-path %))))
                                        drawing-commands)
                                (map :view-part-layout-path)))]
 
@@ -314,7 +314,7 @@
                                            (assoc :changes-to-be-processed (dataflow/changes %))
                                            (dataflow/reset-changes)))
 
-          changed-view-part-layout-paths (filter #(view-part-is-defined? view-state %)
+          changed-view-part-layout-paths (filter #(view-part-is-loaded? @(:gpu-state view-state) %)
                                                  (:changes-to-be-processed view-state))]
 
 

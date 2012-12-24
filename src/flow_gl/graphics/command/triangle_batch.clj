@@ -1,6 +1,6 @@
 (ns flow-gl.graphics.command.triangle-batch
-  (:require [flow.opengl.triangle-list :as triangle-list]
-            [flow.graphics.command :as command]))
+  (:require [flow-gl.opengl.triangle-list :as triangle-list]
+            [flow-gl.graphics.command :as command]))
 
 (defrecord TriangleBatch [coordinates colors])
 
