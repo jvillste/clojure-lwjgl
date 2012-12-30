@@ -59,7 +59,8 @@
 (defn document-numbers [{:keys [archive-path]}]
   (->> (files-in-directory archive-path)
        (map #(.getName %))
-       (map #(first (clojure.string/split % #"_")))
+       (filter #(.endsWith % ".pdf"))
+       (map #(first (clojure.string/split % #"\.")))
        (map read-string)))
 
 (defn page-numbers [{:keys [archive-path] :as application}]
@@ -193,10 +194,10 @@
   (if (.exists (File. (preview-file-name application)))
 
     [(push-modelview/->PushModelview)
-     (translate/->Translate (- width (+ (* 1.3 550)
+     (translate/->Translate (- width (+ (* 0.7 550)
                                         10))
                             10)
-     (scale/->Scale 1.3)
+     (scale/->Scale 0.7)
      (image/create 0
                    0
                    (preview-file-name application))
@@ -310,7 +311,7 @@
                       (update-view)))))
 
 (comment
-  (start)
+(start)
 
 
   (defrecord CommandRunnerBatch [command-runners]

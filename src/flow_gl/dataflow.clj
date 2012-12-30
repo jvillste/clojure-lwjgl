@@ -31,12 +31,32 @@
           ::dependencies
           ::changed-paths))
 
+(defn function-to-string [dataflow key]
+  (str key " = " (if (contains? dataflow key)
+                   (apply str (take 100 (str (get dataflow key))))
+                   "UNDEFINED!")
+       (if (empty? (get-in dataflow [::dependencies key]))
+         ""
+         (str " depends on " (reduce (fn [string key]
+                                       (str string " " key (if (contains? dataflow key)
+                                                             ""
+                                                             " = UNDEFINED! ")))
+                                     ""
+                                     (get-in dataflow [::dependencies key]))))))
+
 (defn debug-dataflow [dataflow]
   (doseq [key (filter vector? (keys (::functions dataflow)))]
-    (debug/debug key " = " (get dataflow key) " depends on " (get-in dataflow [::dependencies key])))
+    (debug/debug (function-to-string dataflow key)))
+
   #_(debug/debug "Functions " (keys (::functions dataflow)))
   #_(debug/debug "Changes " (::changed-paths dataflow))
   #_(debug/debug "Dependencies " (::dependencies dataflow))
+  dataflow)
+
+(defn debug-dataflow-undefined [dataflow]
+  (doseq [key (keys (::functions dataflow))
+          :when (not (contains? dataflow key))]
+    (debug/debug (function-to-string dataflow key)))
   dataflow)
 
 (defn dependants [dataflow path]
@@ -62,9 +82,6 @@
 
 (def ^:dynamic parent-path [])
 
-(defn debug [value message]
-  (println message " " value)
-  value)
 
 (defn is-defined? [dataflow path]
   (contains? (::functions dataflow)
@@ -94,7 +111,6 @@
     dataflow))
 
 (defn update-value [dataflow path]
-
   (logged-access/with-access-logging
     (let [old-children (get-in dataflow [::children path])
           new-dataflow (atom (assoc-in dataflow [::children path] #{}))
@@ -110,7 +126,7 @@
           children-to-be-undefined (if (= new-value ::undefined)
                                      #{} #_new-children
                                      (clojure.set/difference old-children new-children))]
-      #_(println "Updating " path " = " new-value #_(apply str (take 100 (str new-value))))
+      #_(flow-gl.debug/debug "Updating " path " = " (apply str (take 100 (str new-value))))
       (-> @new-dataflow
           (undefine-many children-to-be-undefined)
           (assoc-if-defined path new-value)
@@ -125,20 +141,25 @@
     ::changed-paths #{}))
 
 (defn update-dependant-paths [dataflow path]
-  (reduce (fn [dataflow dependant-path]
-            (if (not (= dependant-path current-path))
-              (do
-                #_(println "updating dependant path " dependant-path " of " path)
-                (let [old-value (get dataflow dependant-path)]
-                  (-> dataflow
-                      (update-value dependant-path)
-                      ((fn [dataflow] (if (not (= old-value
-                                                  (get dataflow dependant-path)))
-                                        (update-dependant-paths dataflow dependant-path)
-                                        dataflow))))))
-              dataflow))
-          dataflow
-          (dependants dataflow path)))
+  (flow-gl.debug/debug "updating dependands for " path)
+  (-> (reduce (fn [dataflow dependant-path]
+                (if (not (or (= dependant-path current-path)
+                             (contains? (::updated-paths dataflow)
+                                        path)))
+                  (do
+                    (let [old-value (get dataflow dependant-path)]
+                      (-> dataflow
+                          (update-value dependant-path)
+                          (update-in [::updated-paths] conj dependant-path)
+                          ((fn [dataflow] (if (not (= old-value
+                                                      (get dataflow dependant-path)))
+                                            (flow-gl.debug/debug-drop-last "updated dependant path " dependant-path " of " path " = " (apply str (take 100 (str (get dataflow dependant-path)))) (update-dependant-paths dataflow dependant-path))
+
+                                            dataflow))))))
+                  dataflow))
+              dataflow
+              (dependants dataflow path))
+      (update-in [::changes-to-be-propagated] disj path)))
 
 (defn as-path [keyword-or-path]
   (if (instance? java.util.Collection keyword-or-path)
@@ -147,6 +168,14 @@
 
 (defn absolute-path [local-path-or-key]
   (vec (concat current-path (as-path local-path-or-key))))
+
+(defn propagate-changes [dataflow]
+  (flow-gl.debug/debug "propagate changes " (::changes-to-be-propagated dataflow))
+  (let [dataflow (assoc dataflow
+                   ::updated-paths #{})]
+    (reduce update-dependant-paths
+            dataflow
+            (::changes-to-be-propagated dataflow))))
 
 (defn define-to [dataflow & paths-and-functions]
   (reduce (fn [dataflow [path function]]
@@ -161,10 +190,13 @@
                   (update-value path)
                   ((fn [dataflow] (if (not (= old-value
                                               (get dataflow path)))
-                                    (update-dependant-paths dataflow path)
+                                    (flow-gl.debug/debug-drop-last "updated " path " = " (apply str (take 100 (str (get dataflow path))))
+                                                                   (update-in dataflow [::changes-to-be-propagated] conj path))
                                     dataflow))))))
           dataflow
           (partition 2 paths-and-functions)))
+
+
 
 (defn define [& paths-and-functions]
   (swap! current-dataflow (fn [dataflow]
@@ -236,4 +268,6 @@
 
 (defn create []
   {::changed-paths #{}
-   ::children {}})
+   ::children {}
+   ::changes-to-be-propagated #{}
+   ::updated-paths #{}})

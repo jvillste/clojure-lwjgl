@@ -15,9 +15,6 @@
 
             (clojure.contrib [profile :as profile])))
 
-;; TODO-LIST
-
-
 (defn add-item [application-state item-list index value]
   (let [new-id (rand-int 10000)]
     (-> application-state
@@ -225,7 +222,7 @@
 (defn item-view []
   (layout/->Stack [(view/init-and-call :background background)
                    (view/init-and-call :item-list-view item-list-view)
-                   (layout/->DockBottom (view/init-and-call :status status))]))
+                   #_(layout/->DockBottom (view/init-and-call :status2 status))]))
 
 (defn handle-item-view-event [application-state item-view event]
   (let [application-state (if (= (:type event)
@@ -253,7 +250,8 @@
         (add-item item-list-view 0 "Bar3")
         (add-item item-list-view 0 "Bar4")
         (add-item item-list-view 0 "Bar5")
-        #_(dataflow/debug-dataflow))))
+        (dataflow/propagate-changes)
+        (dataflow/debug-dataflow-undefined))))
 
 (defn start []
   (application/start 700 500
