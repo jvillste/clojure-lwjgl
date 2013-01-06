@@ -66,7 +66,6 @@
                     (conj -1)))))
 
 (defn update-value [dataflow path]
-  (println "updating" path)
   (logged-access/with-access-logging
     (let [old-children (get-in dataflow [::children path])
           new-dataflow (atom (assoc-in dataflow [::children path] #{}))
@@ -100,7 +99,7 @@
   (assoc-in dataflow [::need-to-be-updated path] (get-in dataflow [::heights path])))
 
 (defn undefine [dataflow path]
-  #_(println "undefinig " path)
+  (debug/debug :dataflow "undefining" path)
   (-> (reduce (fn [dataflow child]
                 (undefine dataflow child))
               dataflow
@@ -153,7 +152,7 @@
            ((fn [dataflow] (if (not (= old-value
                                        (get dataflow path)))
                              (do
-                               (flow-gl.debug/debug "defined " path " = " (apply str (take 100 (str (get dataflow path)))))
+                               (flow-gl.debug/debug :dataflow "defined " path " = " (apply str (take 100 (str (get dataflow path)))))
                                (reduce schedule-for-update
                                        dataflow
                                        (dependants dataflow path)))
@@ -200,7 +199,7 @@
     ::changed-paths #{}))
 
 (defn propagate-changes [dataflow]
-  (flow-gl.debug/debug "propagate changes " (::need-to-be-updated dataflow))
+  (flow-gl.debug/debug :dataflow "propagate changes " (vec (map first (::need-to-be-updated dataflow))))
   (let [dataflow (reduce (fn [dataflow [path priority]]
                            (let [old-value (get dataflow path)]
                              (-> dataflow
@@ -208,7 +207,7 @@
                                  (update-in [::need-to-be-updated] dissoc path)
                                  ((fn [dataflow] (if (not (= old-value
                                                              (get dataflow path)))
-                                                   (do (flow-gl.debug/debug "updated path " path " = " (apply str (take 100 (str (get dataflow path)))))
+                                                   (do (flow-gl.debug/debug :dataflow "updated path " path " = " (apply str (take 100 (str (get dataflow path)))))
                                                        (reduce schedule-for-update dataflow (dependants dataflow path)))
                                                    dataflow))))))
                          dataflow
@@ -325,13 +324,12 @@
 
 
 (defn debug-dataflow [dataflow]
-  (debug/debug-all (describe-dataflow dataflow))
+  (debug/debug-all :dataflow (describe-dataflow dataflow))
   dataflow)
 
 ;; TESTS
 
 (deftest propagate-test
-  (debug/reset-log)
   (is (= (-> (create)
              (define-to
                :a 1
@@ -348,15 +346,11 @@
              (define-to :a 2)
 
              (propagate-changes)
-             ((fn [dataflow]
-                (debug/debug-all (describe-dataflow dataflow))
-                dataflow))
+             (debug-dataflow)
              (get-value-from :d))
-         6))
-  (debug/write-log))
+         6)))
 
 (deftest children-test
-  (debug/reset-log)
   (is (= (-> (create)
              (define-to
                :a #(do (initialize :b 1)
@@ -365,17 +359,14 @@
              (define-to [:a :b] 2)
 
              (propagate-changes)
-             ((fn [dataflow]
-                (debug/debug-all (describe-dataflow dataflow))
-                dataflow))
+             (debug-dataflow)
+
              (get-value-from :a))
-         2))
-  (debug/write-log))
+         2)))
 
 
 
 (deftest dynamic-reconfiguration-test
-  (debug/reset-log)
   (let [dataflow (-> (create)
                      (define-to
                        :a 1
@@ -399,9 +390,7 @@
          3 (get-value-from dataflow :d)
          4 (get-value-from dataflow :e)
          2 (get-in dataflow [::heights [:d]])
-         3 (get-in dataflow [::heights [:e]])))
-
-  (debug/write-log))
+         3 (get-in dataflow [::heights [:e]]))))
 
 (comment
 
@@ -414,9 +403,7 @@
           (define-to [:a :b] 2)
 
           (propagate-changes)
-          ((fn [dataflow]
-             (debug/debug-all (describe-dataflow dataflow))
-             dataflow)))
+          (debug-dataflow))
       (debug/write-log))
 
   (-> {:p (priority-map/priority-map)}

@@ -7,7 +7,8 @@
                           [drawable :as drawable]
                           [input :as input])
              (flow-gl [opengl :as opengl]
-                      [dataflow :as dataflow])))
+                      [dataflow :as dataflow]
+                      [debug :as debug])))
 
 (defn describe-gpu-state [gpu-state]
   (for [key (keys (:view-part-command-runners gpu-state))]
@@ -42,8 +43,8 @@
      (->ViewPart mouse-event-handler local-id (dataflow/absolute-path local-id))))
 
 (defn initialize-view-part [view-part-id view-part-element-function]
-  (flow-gl.debug/debug "initializing " view-part-id)
-  (dataflow/define view-part-id view-part-element-function)
+  (debug/debug :view-definition "initializing " view-part-id)
+  (dataflow/initialize view-part-id view-part-element-function)
   (let [view-part-path (dataflow/absolute-path view-part-id)]
     (dataflow/initialize (concat (dataflow/as-path view-part-id) [:preferred-width]) #(layout/preferred-width (dataflow/get-global-value view-part-path)))
     (dataflow/initialize (concat (dataflow/as-path view-part-id) [:preferred-height]) #(layout/preferred-height (dataflow/get-global-value view-part-path)))))
@@ -56,12 +57,13 @@
 ;; RENDERING
 
 (defn draw-view-part [gpu-state layout-path]
-  (flow-gl.debug/debug "draw-view-part " layout-path)
+  (debug/debug :render "draw-view-part " layout-path)
 
   (doseq [command-runner (get-in gpu-state [:view-part-command-runners layout-path])]
     (if (instance? ViewPartCall command-runner)
       (draw-view-part gpu-state (:view-part-layout-path command-runner))
-      (flow-gl.debug/debug-drop-last "running" (type command-runner) (command/run command-runner)))))
+      (debug/debug-drop-last :render "running" (type command-runner)
+                                     (command/run command-runner)))))
 
 (defn render [gpu-state]
   (opengl/clear 0 0 0 0)
@@ -218,7 +220,7 @@
      {:type :close}))
 
 (defn handle-event [view-state event]
-  (flow-gl.debug/debug "handle event " event)
+  (debug/debug :events "handle event " event)
   (let [view-state (assoc view-state :event-handled false)]
     (case (:source event)
       :keyboard (handle-keyboard-event view-state event)
@@ -247,8 +249,8 @@
       (-> (reduce handle-event view unread-events)
           (dataflow/propagate-changes)
           ((fn [view-state]
-             (flow-gl.debug/debug "New view state:")
-             (dorun (map flow-gl.debug/debug (dataflow/describe-dataflow view-state)))
+             (debug/debug :events "New view state:")
+             (dorun (map #(debug/debug :events %) (dataflow/describe-dataflow view-state)))
              view-state)))
       view)))
 
@@ -301,7 +303,7 @@
 (defn load-view-part [gpu-state view-state layout-path]
   (unload-view-part gpu-state layout-path)
 
-  (flow-gl.debug/debug "loading " layout-path)
+  (debug/debug :view-update "loading " layout-path)
 
   (let [drawing-commands (layoutable-drawing-commands (get view-state layout-path))
         gpu-state (reduce (fn [gpu-state layout-path]
@@ -336,8 +338,8 @@
                                gpu-state
                                changed-view-part-layout-paths)
                        ((fn [gpu-state]
-                          (flow-gl.debug/debug "New gpu state:")
-                          (dorun (map flow-gl.debug/debug (describe-gpu-state gpu-state)))
+                          (debug/debug :view-update "New gpu state:")
+                          (dorun (map #(debug/debug :view-update %) (describe-gpu-state gpu-state)))
                           gpu-state)))))
           (render)))))
 

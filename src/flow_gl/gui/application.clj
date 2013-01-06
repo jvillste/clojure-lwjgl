@@ -14,8 +14,8 @@
                            (initialize)
                            (dataflow/propagate-changes)
                            ((fn [view-state]
-                              (flow-gl.debug/debug "Initial view state:")
-                              (flow-gl.debug/debug-all (interpose "\n" (dataflow/describe-dataflow view-state)))
+                              (flow-gl.debug/debug :initialization "Initial view state:")
+                              (flow-gl.debug/debug-all :initialization (interpose "\n" (dataflow/describe-dataflow view-state)))
                               view-state))
                            (atom))]
         (loop []

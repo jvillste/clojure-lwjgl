@@ -259,4 +259,10 @@
                      item-view))
 
 (comment
-(start))
+(start)
+
+(debug/set-active-channels :view-definition
+                           :initialization
+                           :dataflow
+                           :events)
+(debug/set-active-channels))
