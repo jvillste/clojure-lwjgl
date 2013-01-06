@@ -312,9 +312,4 @@
 
 (comment
 (start)
-
-
-  (defrecord CommandRunnerBatch [command-runners]
-    CommandRunner
-    (delete [command-runner-batch] (update-in command-runner-batch [:command-runners] #(doall (map delete %))))
-    (run [command-runner-batch] (update-in command-runner-batch [:command-runners] #(doall (map run %))))))
+)

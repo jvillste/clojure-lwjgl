@@ -12,6 +12,10 @@
   (swap! log conj (apply str messages))
   (last messages))
 
+(defn debug-all [messages]
+  (doseq [message messages]
+    (debug message)))
+
 (defn debug-drop-last [& messages]
   (swap! log conj (apply str (drop-last messages)))
   (last messages))

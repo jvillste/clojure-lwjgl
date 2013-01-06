@@ -9,6 +9,9 @@
              (flow-gl [opengl :as opengl]
                       [dataflow :as dataflow])))
 
+(defn describe-gpu-state [gpu-state]
+  (for [key (keys (:view-part-command-runners gpu-state))]
+    (str key " = " (vec (get-in gpu-state [:view-part-command-runners key])))))
 
 (defrecord ViewPartCall [view-part-layout-path]
   command/Command
@@ -54,10 +57,11 @@
 
 (defn draw-view-part [gpu-state layout-path]
   (flow-gl.debug/debug "draw-view-part " layout-path)
+
   (doseq [command-runner (get-in gpu-state [:view-part-command-runners layout-path])]
     (if (instance? ViewPartCall command-runner)
       (draw-view-part gpu-state (:view-part-layout-path command-runner))
-      (command/run command-runner))))
+      (flow-gl.debug/debug-drop-last "running" (type command-runner) (command/run command-runner)))))
 
 (defn render [gpu-state]
   (opengl/clear 0 0 0 0)
@@ -240,7 +244,12 @@
                                         (map (partial invert-mouse-y (get view [:height])))))
                            (sort-by :time))]
     (if (not (empty? unread-events))
-      (reduce handle-event view unread-events)
+      (-> (reduce handle-event view unread-events)
+          (dataflow/propagate-changes)
+          ((fn [view-state]
+             (flow-gl.debug/debug "New view state:")
+             (dorun (map flow-gl.debug/debug (dataflow/describe-dataflow view-state)))
+             view-state)))
       view)))
 
 
@@ -248,12 +257,11 @@
 ;; VIEW PARTS
 
 (defn view-part-is-loaded? [gpu-state view-part-layout-path]
-  (contains? (:view-part-layout-paths gpu-state) view-part-layout-path))
+  (contains? (:view-part-command-runners gpu-state) view-part-layout-path))
 
 (defn unload-view-part [gpu-state layout-path]
   (dorun (map command/delete (get-in gpu-state [:view-part-command-runners layout-path])))
-
-  (update-in gpu-state [:view-part-layout-paths] disj layout-path))
+  (update-in gpu-state [:view-part-command-runners] dissoc layout-path))
 
 (declare layoutable-drawing-commands)
 
@@ -293,6 +301,8 @@
 (defn load-view-part [gpu-state view-state layout-path]
   (unload-view-part gpu-state layout-path)
 
+  (flow-gl.debug/debug "loading " layout-path)
+
   (let [drawing-commands (layoutable-drawing-commands (get view-state layout-path))
         gpu-state (reduce (fn [gpu-state layout-path]
                             (load-view-part gpu-state view-state layout-path))
@@ -302,9 +312,7 @@
                                        drawing-commands)
                                (map :view-part-layout-path)))]
 
-    (-> gpu-state
-        (assoc-in [:view-part-command-runners layout-path] (command/command-runners-for-commands drawing-commands))
-        (update-in [:view-part-layout-paths] conj layout-path))))
+    (assoc-in gpu-state [:view-part-command-runners layout-path] (command/command-runners-for-commands drawing-commands))))
 
 (defn update-view-part [gpu-state view-state layout-path]
   (if (dataflow/is-defined? view-state layout-path)
@@ -323,10 +331,14 @@
 
       (-> (swap! (:gpu-state view-state)
                  (fn [gpu-state]
-                   (reduce (fn [gpu-state layout-path]
-                             (update-view-part gpu-state view-state layout-path))
-                           gpu-state
-                           changed-view-part-layout-paths)))
+                   (-> (reduce (fn [gpu-state layout-path]
+                                 (update-view-part gpu-state view-state layout-path))
+                               gpu-state
+                               changed-view-part-layout-paths)
+                       ((fn [gpu-state]
+                          (flow-gl.debug/debug "New gpu state:")
+                          (dorun (map flow-gl.debug/debug (describe-gpu-state gpu-state)))
+                          gpu-state)))))
           (render)))))
 
 (defn add-fps [view-state time-now]
@@ -361,7 +373,6 @@
          (fn [view]
            (-> view
                (handle-events)
-               (dataflow/propagate-changes)
                ;;(update-time)
                ;;(update-fps)
                )))
@@ -379,9 +390,9 @@
       :children (vec (map (fn [child-layoutable]
                             (if (instance? ViewPart child-layoutable)
                               (do (dataflow/initialize (:local-id child-layoutable)
-                                    #(create-view-part-layout (dataflow/get-global-value (:root-element-path child-layoutable))
-                                                              (:width child-layoutable)
-                                                              (:height child-layoutable)))
+                                                       #(create-view-part-layout (dataflow/get-global-value (:root-element-path child-layoutable))
+                                                                                 (:width child-layoutable)
+                                                                                 (:height child-layoutable)))
                                   child-layoutable)
                               (create-layout child-layoutable)))
 
@@ -416,8 +427,7 @@
                                           (dataflow/get-global-value :height)))))
 
 (defn create [width height event-handler root-element-constructor]
-  (let [gpu-state (atom {:view-part-command-runners {}
-                         :view-part-layout-paths #{}})
+  (let [gpu-state (atom {:view-part-command-runners {}})
         view-state (-> (initialize-view-state width
                                               height
                                               root-element-constructor)

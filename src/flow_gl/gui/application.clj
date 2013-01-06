@@ -1,7 +1,8 @@
 (ns flow-gl.gui.application
   (:require (flow-gl.opengl [window :as window])
             (flow-gl.gui [view :as view])
-            [flow-gl.debug :as debug]))
+            [flow-gl.debug :as debug]
+            [flow-gl.dataflow :as dataflow]))
 
 
 (defn start [width height framerate initialize event-handler root-layoutable-constructor]
@@ -9,9 +10,14 @@
   (let [window-atom (window/create width height)]
     (try
       (let [state-atom (-> (view/create width height event-handler root-layoutable-constructor)
-                                                      (assoc :window-atom window-atom)
-                                                      (initialize)
-                                                      (atom))]
+                           (assoc :window-atom window-atom)
+                           (initialize)
+                           (dataflow/propagate-changes)
+                           ((fn [view-state]
+                              (flow-gl.debug/debug "Initial view state:")
+                              (flow-gl.debug/debug-all (interpose "\n" (dataflow/describe-dataflow view-state)))
+                              view-state))
+                           (atom))]
         (loop []
           (let [{:keys [resize-requested close-requested width height]} @window-atom]
             (if close-requested

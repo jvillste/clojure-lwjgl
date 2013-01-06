@@ -36,7 +36,7 @@
                              (preferred-height inner)))
 
   Object
-  (toString [_] (str "(->Box " margin " " outer " " inner)))
+  (toString [_] (str "(->Box " margin " " outer " " inner ")")))
 
 (defrecord VerticalStack [layoutables]
   Layout
@@ -65,7 +65,7 @@
 
 
   Object
-  (toString [_] (str "(->VerticalStack " layoutables)))
+  (toString [_] (str "(->VerticalStack " layoutables ")")))
 
 (defrecord Stack [layoutables]
   Layout
@@ -124,4 +124,4 @@
   (preferred-height [dock-bottom] (preferred-height layoutable))
 
   Object
-  (toString [_] (str "(->DockBottom " layoutable)))
+  (toString [_] (str "(->DockBottom " layoutable ")")))
