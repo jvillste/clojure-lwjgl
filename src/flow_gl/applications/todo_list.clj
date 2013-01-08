@@ -1,4 +1,4 @@
-(ns flow-gl.application.s.todo-list
+(ns flow-gl.applications.todo-list
   (:require (flow-gl.opengl [window :as window])
             (flow-gl.gui [input :as input]
                          [drawable :as drawable]
@@ -144,7 +144,7 @@
 (defn item-list-view []
   (let [item-list-view-path (dataflow/absolute-path [])]
     (dataflow/initialize
-     :selection 1
+     :selection 0
      :item-order (zipper-list/create)
      :selected-item-id #(nth (zipper-list/items (dataflow/property item-list-view-path :item-order))
                              (dataflow/property item-list-view-path :selection)
@@ -164,12 +164,12 @@
                                                                                       (concat item-list-view-path [:items item-id])
                                                                                       new-value)))
 
-                                                                          (view/add-mouse-clicked-handler (fn [application-state event]
-                                                                                                            (if (and (= (:type event)
-                                                                                                                        :left-mouse-button-up)
-                                                                                                                     (= (:event-handling-direction application-state) :up))
-                                                                                                              (dataflow/define-to application-state (concat item-list-view-path [:selection]) index)
-                                                                                                              application-state)))))))
+                                                                          (view/add-mouse-event-handler (fn [application-state event]
+                                                                                                          (if (and (= (:type event)
+                                                                                                                      :left-mouse-button-up)
+                                                                                                                   (= (:event-handling-direction application-state) :up))
+                                                                                                            (dataflow/define-to application-state (concat item-list-view-path [:selection]) index)
+                                                                                                            application-state)))))))
 
                                               (zipper-list/items (dataflow/property item-list-view-path :item-order)))))))
 
@@ -240,6 +240,9 @@
 
         application-state))))
 
+
+
+
 (defn initialize [application-state]
   (let [item-list-view [:elements :item-list-view]]
     (-> application-state
@@ -258,11 +261,49 @@
                      handle-item-view-event
                      item-view))
 
+
+;; Mouse over test
+
+(defn add-mouse-over [layoutable key]
+  (dataflow/initialize key false)
+  (view/add-mouse-event-handler layoutable
+                                (fn [application-state event]
+                                  (case (:type event)
+                                    :mouse-entered (dataflow/define key true)
+                                    :mouse-left (dataflow/define key true)
+                                    nil)
+                                  application-state)))
+
+(defn mouse-over-test []
+  (layout/->VerticalStack [(add-mouse-over (drawable/->Rectangle 100 100 (if (dataflow/get-value :upper)
+                                                                           [1 0 0 1]
+                                                                           [1 1 0 1]))
+                                           (dataflow/absolute-path :upper))
+
+                           (view/add-mouse-event-handler (drawable/->Rectangle 100 100 [1 0 1 1])
+                                                         (fn [application-state event]
+                                                           (case (:type event)
+                                                             :mouse-entered (println "mouse-entered lower")
+                                                             :mouse-left (println "mouse-left lower")
+                                                             nil)
+                                                           application-state))]))
+
+(defn start-mouse-over-test []
+  (application/start 700 500
+                     10
+                     identity
+                     (fn [application-state view event] application-state)
+                     mouse-over-test))
+
 (comment
 (start)
+(start-mouse-over-test)
 
-(debug/set-active-channels :view-definition
-                           :initialization
-                           :dataflow
-                           :events)
-(debug/set-active-channels))
+(debug/set-active-channels  ;; :view-definition
+                             ;; :initialization
+                             ;; :dataflow
+                             ;; :events
+                             ;; :view-update
+                             :default)
+
+  (debug/set-active-channels))

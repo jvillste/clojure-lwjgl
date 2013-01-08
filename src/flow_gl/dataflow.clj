@@ -61,9 +61,28 @@
 
 (defn height [dataflow dependencies]
   (+ 1
-     (apply max (-> (map #(get-in dataflow [::heights %])
+     (apply max (-> (map #(get-in dataflow [::heights %] 0)
                          dependencies)
                     (conj -1)))))
+
+(defn undefine [dataflow path]
+  (debug/debug :dataflow "undefining" path)
+  (-> (reduce (fn [dataflow child]
+                (undefine dataflow child))
+              dataflow
+              (get-in dataflow [::children path]))
+      (update-in [::functions] dissoc path)
+      (update-in [::dependencies] dissoc path)
+      (update-in [::children] dissoc path)
+      (update-in [::changed-paths] conj path)
+      (dissoc path)))
+
+(defn undefine-many [dataflow paths]
+  (reduce (fn [dataflow path]
+            (undefine dataflow path))
+          dataflow
+          paths))
+
 
 (defn update-value [dataflow path]
   (logged-access/with-access-logging
@@ -98,23 +117,6 @@
 (defn schedule-for-update [dataflow path]
   (assoc-in dataflow [::need-to-be-updated path] (get-in dataflow [::heights path])))
 
-(defn undefine [dataflow path]
-  (debug/debug :dataflow "undefining" path)
-  (-> (reduce (fn [dataflow child]
-                (undefine dataflow child))
-              dataflow
-              (get-in dataflow [::children path]))
-      (update-in [::functions] dissoc path)
-      (update-in [::dependencies] dissoc path)
-      (update-in [::children] dissoc path)
-      (update-in [::changed-paths] conj path)
-      (dissoc path)))
-
-(defn undefine-many [dataflow paths]
-  (reduce (fn [dataflow path]
-            (undefine dataflow path))
-          dataflow
-          paths))
 
 
 (defn dependants [dataflow path]
@@ -283,6 +285,9 @@
 (defn property-from [dataflow element-path key]
   (get-global-value-from dataflow (concat element-path (as-path key))))
 
+(defn define-property-to [dataflow element-path key value]
+  (define-to dataflow (concat element-path [key]) value))
+
 
 ;; DEBUG
 
@@ -365,7 +370,6 @@
          2)))
 
 
-
 (deftest dynamic-reconfiguration-test
   (let [dataflow (-> (create)
                      (define-to
@@ -392,7 +396,37 @@
          2 (get-in dataflow [::heights [:d]])
          3 (get-in dataflow [::heights [:e]]))))
 
+(deftest undefined-test
+  (let [dataflow (-> (create)
+                     (define-to
+                       :a #(+ (get-global-value :b)
+                              1))
+
+                     (debug-dataflow)
+
+                     (define-to
+                       :b #(+ (get-global-value :c)
+                              1))
+
+                     (define-to :c 1)
+                     
+                     (propagate-changes)
+                     (debug-dataflow))]
+    (are [x y] (= x y)
+         3 (get-value-from dataflow :a))))
+
 (comment
+
+(do
+    (debug/set-active-channels #_:view-definition
+                               #_:initialization
+                               :dataflow
+                               #_:events
+                               #_:view-update
+                               #_:default)
+    (debug/reset-log)
+    (undefined-test)
+    (debug/write-log))
 
   (do (debug/reset-log)
       (-> (create)

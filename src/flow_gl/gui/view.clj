@@ -63,7 +63,7 @@
     (if (instance? ViewPartCall command-runner)
       (draw-view-part gpu-state (:view-part-layout-path command-runner))
       (debug/debug-drop-last :render "running" (type command-runner)
-                                     (command/run command-runner)))))
+                             (command/run command-runner)))))
 
 (defn render [gpu-state]
   (opengl/clear 0 0 0 0)
@@ -86,15 +86,13 @@
 
 
 
-(defn call-handlers [view-state handler-key view-part-layout-paths]
-  (reduce (fn [view-state view-part-layout-path]
-            (if-let [handler (-> view-state
-                                 (get view-part-layout-path)
-                                 (get handler-key))]
-              (handler view-state)
+(defn call-mouse-event-handlers [view-state event layoutables]
+  (reduce (fn [view-state layoutable]
+            (if-let [handler (get layoutable :mouse-event-handler)]
+              (handler view-state event)
               view-state))
           view-state
-          view-part-layout-paths))
+          layoutables))
 
 (defn in-coordinates [layoutable x y]
   (and (>= x
@@ -146,56 +144,55 @@
            result))
        [layoutable])))
 
-(defn view-parts-in-coordinates [view-state x y]
-  (filter (partial instance? ViewPart)
-          (layoutables-in-coordinates view-state x y)))
+#_(defn view-parts-in-coordinates [view-state x y]
+    (filter (partial instance? ViewPart)
+            (layoutables-in-coordinates view-state x y)))
 
-(defn update-view-parts-under-mouse [view-state]
-  (let [current-view-parts-under-mouse (->> (view-parts-in-coordinates view-state
-                                                                       (get view-state [:mouse-x])
-                                                                       (get view-state [:mouse-y]))
-                                            (map (fn [view-part]
-                                                   (element-path-to-layout-path (:root-element-path view-part)))))
-        current-set (set current-view-parts-under-mouse)
-        old-set (set (:view-parts-under-mouse view-state))
+(defn update-layoutables-under-mouse [view-state]
+  (let [current-layoutables-under-mouse (layoutables-in-coordinates view-state
+                                                                    (get view-state [:mouse-x])
+                                                                    (get view-state [:mouse-y]))
+        current-set (set current-layoutables-under-mouse)
+        old-set (set (:layoutables-under-mouse view-state))
         mouse-left (clojure.set/difference (set old-set)
                                            (set current-set))
         mouse-entered (clojure.set/difference (set current-set)
                                               (set old-set))]
 
     (-> view-state
-        (call-handlers :mouse-entered-handler mouse-entered)
-        (call-handlers :mouse-left-handler mouse-left)
-        (assoc :view-parts-under-mouse current-view-parts-under-mouse))))
+        (call-mouse-event-handlers {:type :mouse-entered} mouse-entered)
+        (call-mouse-event-handlers {:type :mouse-lefet} mouse-left)
+        (assoc :layoutables-under-mouse current-layoutables-under-mouse))))
 
 (defn update-mouse-position [view-state event]
+  (println "mouse-y " (:mouse-y event) "height: " (get view-state [:height]))
   (-> view-state
       (dataflow/define-to
         :mouse-x (:mouse-x event)
         :mouse-y (:mouse-y event))
-      (update-view-parts-under-mouse)))
+      (update-layoutables-under-mouse)))
 
-(defn call-mouse-click-handlers [view-state event view-part-layout-paths]
-  (reduce (fn [view-state view-part-layout-path]
-            (if-let [handler (-> view-state
-                                 (get view-part-layout-path)
-                                 (get :mouse-click-handler))]
-              (handler view-state event)
-              view-state))
-          view-state
-          view-part-layout-paths))
+#_(defn call-mouse-click-handlers [view-state event layoutables]
+    (reduce (fn [view-state view-part-layout-path]
+              (if-let [handler (-> view-state
+                                   (get view-part-layout-path)
+                                   (get :mouse-click-handler))]
+                (handler view-state event)
+                view-state))
+            view-state
+            layoutables))
 
 (defn handle-mouse-click-event [view-state event]
   (-> view-state
       (assoc :event-handling-direction :down)
-      (call-mouse-click-handlers event (:view-parts-under-mouse view-state))
+      (call-mouse-event-handlers event (:layoutables-under-mouse view-state))
       (assoc :event-handling-direction :up)
-      (call-mouse-click-handlers event (reverse (:view-parts-under-mouse view-state)))))
+      (call-mouse-event-handlers event (reverse (:layoutables-under-mouse view-state)))))
 
-(defn add-mouse-clicked-handler [layoutable new-handler]
+(defn add-mouse-event-handler [layoutable new-handler]
   (assoc layoutable
-    :mouse-click-handler (fn [view-state event]
-                           (if-let [handler (:mouse-click-handler layoutable)]
+    :mouse-event-handler (fn [view-state event]
+                           (if-let [handler (:mouse-event-handler layoutable)]
                              (-> view-state
                                  (handler event)
                                  (new-handler event))
@@ -297,7 +294,6 @@
       (drawable/drawing-commands layoutable
                                  (:width layoutable)
                                  (:height layoutable))
-
       [])))
 
 (defn load-view-part [gpu-state view-state layout-path]
@@ -436,7 +432,7 @@
                        (assoc
                            :fpss []
                            :last-update-time (System/nanoTime)
-                           :view-parts-under-mouse []
+                           :layoutables-under-mouse []
                            :gpu-state gpu-state
                            :event-handler event-handler))]
 

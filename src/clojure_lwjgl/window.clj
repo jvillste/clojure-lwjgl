@@ -60,7 +60,9 @@
                                (println "Resizing")
                                (reset! width (-> canvas .getSize .getWidth))
                                (reset! height (-> canvas .getSize .getHeight))
-                               (reset! resize-requested true))))
+                               (reset! resize-requested true))
+                             (componentShown [e]
+                               (println "show"))))
 
     (doto frame
       (.add canvas)

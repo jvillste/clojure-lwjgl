@@ -1,4 +1,5 @@
 (ns flow-gl.opengl.window
+  (:require (flow-gl [debug :as debug]))
   (:import [org.lwjgl.opengl GLContext PixelFormat Display DisplayMode GL11 GL12  GL30 ARBVertexBufferObject]
            [org.lwjgl.input Mouse]
            [org.lwjgl BufferUtils]
@@ -12,26 +13,20 @@
                    width
                    height])
 
-(defn resize [window]
-  (let [{:keys [width height]} window]
-      (GL11/glViewport 0 0 width height)
-      (GL11/glMatrixMode GL11/GL_PROJECTION)
-      (GL11/glLoadIdentity)
-      (GL11/glOrtho 0, width, 0, height, -1, 1)
+(defn resize [width height]
+  (GL11/glViewport 0 0 width height)
+  (GL11/glMatrixMode GL11/GL_PROJECTION)
+  (GL11/glLoadIdentity)
+  (GL11/glOrtho 0, width, 0, height, -1, 1)
 
-      (GL11/glMatrixMode GL11/GL_MODELVIEW)
-      (GL11/glLoadIdentity)
-      (GL11/glScalef 1 -1 1)
-      (GL11/glTranslatef 0 (- height) 0)
-      (assoc window :resize-requested false)))
+  (GL11/glMatrixMode GL11/GL_MODELVIEW)
+  (GL11/glLoadIdentity)
+  (GL11/glScalef 1 -1 1)
+  (GL11/glTranslatef 0 (- height) 0))
 
-(defn update [window framerate]
-  (let [window (if (:resize-requested window)
-                 (resize window)
-                 window)]
-    (Display/update)
-    (Display/sync framerate)
-    window))
+(defn update [framerate]
+  (Display/update)
+  (Display/sync framerate))
 
 (defn initialize-gl []
   (GL11/glClearColor 0 0 0 0)
@@ -44,7 +39,7 @@
   (let [canvas (Canvas.)
         window-atom  (atom (map->Window {:frame (new Frame)
                                          :close-requested false
-                                         :resize-requested true
+                                         :resize-requested false
                                          :width 0
                                          :height 0}))]
 
@@ -61,7 +56,6 @@
       (.addWindowListener
        (proxy [WindowAdapter] []
          (windowClosing [e]
-           (println "Frame closed")
            (swap! window-atom assoc
                   :close-requested true))))
       (.setSize initial-width initial-height)
@@ -73,7 +67,8 @@
     (Display/create)
     (initialize-gl)
 
-    (swap! window-atom update 10)
+    (update 10)
+    
     window-atom))
 
 (defn request-close [window]

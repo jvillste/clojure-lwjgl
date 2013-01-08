@@ -8,6 +8,7 @@
 (defn start [width height framerate initialize event-handler root-layoutable-constructor]
   (debug/reset-log)
   (let [window-atom (window/create width height)]
+
     (try
       (let [state-atom (-> (view/create width height event-handler root-layoutable-constructor)
                            (assoc :window-atom window-atom)
@@ -23,8 +24,11 @@
             (if close-requested
               (do (view/send-close-event @state-atom)
                   (swap! window-atom window/close))
-              (do (swap! window-atom window/update framerate)
+              (do (window/update framerate)
                   (when resize-requested
+                    (swap! window-atom assoc
+                           :resize-requested false)
+                    (window/resize width height)
                     (view/handle-resize state-atom width height))
                   (view/update state-atom)
                   (recur))))))
