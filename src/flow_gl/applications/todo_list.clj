@@ -130,12 +130,11 @@
                                                 [(drawable/->Text text
                                                                   font
                                                                   [0 0 0 1])])))
-
-          (assoc :mouse-entered-handler (fn [application-state]
-                                          (dataflow/define-to application-state (concat editor-path [:mouse-over]) true))
-
-                 :mouse-left-handler (fn [application-state]
-                                       (dataflow/define-to application-state (concat editor-path [:mouse-over]) false)))))))
+          (view/add-mouse-event-handler editor-path (fn [application-state event]
+                                          (case (:type event)
+                                            :mouse-entered (dataflow/define-property-to application-state editor-path :mouse-over true)
+                                            :mouse-left (dataflow/define-property-to application-state editor-path :mouse-over false)
+                                            application-state)))))))
 
 (defn editor-id [item-id]
   [(keyword (str "editor-" item-id))])
@@ -164,7 +163,7 @@
                                                                                       (concat item-list-view-path [:items item-id])
                                                                                       new-value)))
 
-                                                                          (view/add-mouse-event-handler (fn [application-state event]
+                                                                          (view/add-mouse-event-handler item-id (fn [application-state event]
                                                                                                           (if (and (= (:type event)
                                                                                                                       :left-mouse-button-up)
                                                                                                                    (= (:event-handling-direction application-state) :up))
@@ -264,29 +263,36 @@
 
 ;; Mouse over test
 
-(defn add-mouse-over [layoutable key]
-  (dataflow/initialize key false)
-  (view/add-mouse-event-handler layoutable
-                                (fn [application-state event]
-                                  (case (:type event)
-                                    :mouse-entered (dataflow/define key true)
-                                    :mouse-left (dataflow/define key true)
-                                    nil)
-                                  application-state)))
+(defmacro add-mouse-over [key layoutable]
+  `(let [this# (dataflow/absolute-path [])]
+     (dataflow/initialize ~key false)
+     (view/add-mouse-event-handler  ~layoutable [this# ~key]
+                                   (fn [application-state# event#]
+                                     (println ~key event#)
+                                     (case (:type event#)
+                                       :mouse-entered (dataflow/define-property-to application-state# this# ~key true)
+                                       :mouse-left (dataflow/define-property-to application-state# this# ~key false)
+                                       application-state#)))))
 
 (defn mouse-over-test []
-  (layout/->VerticalStack [(add-mouse-over (drawable/->Rectangle 100 100 (if (dataflow/get-value :upper)
-                                                                           [1 0 0 1]
-                                                                           [1 1 0 1]))
-                                           (dataflow/absolute-path :upper))
+  (dataflow/initialize :upper false)
+  (let [root-path (dataflow/absolute-path [])]
+    (layout/->VerticalStack [(add-mouse-over :upper
+                                             (drawable/->Rectangle 100 100 (if (dataflow/get-value :upper)
+                                                                             [1 0 0 1]
+                                                                             [1 1 0 1])))
 
-                           (view/add-mouse-event-handler (drawable/->Rectangle 100 100 [1 0 1 1])
-                                                         (fn [application-state event]
-                                                           (case (:type event)
-                                                             :mouse-entered (println "mouse-entered lower")
-                                                             :mouse-left (println "mouse-left lower")
-                                                             nil)
-                                                           application-state))]))
+                             (add-mouse-over :middle
+                                             (drawable/->Rectangle 100 100 (if (dataflow/get-value :middle)
+                                                                             [1 1 0 1]
+                                                                             [1 0 0 1])))
+
+
+                             (view/add-mouse-event-handler (drawable/->Rectangle 100 100 [1 0 1 1])
+                                                           :lower
+                                                           (fn [application-state event]
+                                                             (println "lower:" event)
+                                                             application-state))])))
 
 (defn start-mouse-over-test []
   (application/start 700 500
@@ -296,14 +302,16 @@
                      mouse-over-test))
 
 (comment
-(start)
-(start-mouse-over-test)
+  (start)
+  (start-mouse-over-test)
 
-(debug/set-active-channels  ;; :view-definition
-                             ;; :initialization
-                             ;; :dataflow
-                             ;; :events
-                             ;; :view-update
-                             :default)
+  (debug/set-active-channels
+   ;; :view-definition
+   ;; :initialization
+   :dataflow
+   ;; :events
+   ;; :view-update
+   :default
+   )
 
   (debug/set-active-channels))

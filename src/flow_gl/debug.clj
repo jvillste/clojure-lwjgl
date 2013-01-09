@@ -37,3 +37,8 @@
     (doseq [line @log]
       (.write writer line)
       (.write writer "\n"))))
+
+
+(defn debug-println [& values]
+  (println (apply str values))
+  (last values))

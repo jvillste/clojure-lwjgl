@@ -8,7 +8,8 @@
                           [input :as input])
              (flow-gl [opengl :as opengl]
                       [dataflow :as dataflow]
-                      [debug :as debug])))
+                      [debug :as debug]))
+  (:use clojure.test))
 
 (defn describe-gpu-state [gpu-state]
   (for [key (keys (:view-part-command-runners gpu-state))]
@@ -86,13 +87,11 @@
 
 
 
-(defn call-mouse-event-handlers [view-state event layoutables]
-  (reduce (fn [view-state layoutable]
-            (if-let [handler (get layoutable :mouse-event-handler)]
-              (handler view-state event)
-              view-state))
+(defn call-mouse-event-handlers [view-state event mouse-event-handlers]
+  (reduce (fn [view-state mouse-event-handler]
+            ((:handler mouse-event-handler) view-state event))
           view-state
-          layoutables))
+          mouse-event-handlers))
 
 (defn in-coordinates [layoutable x y]
   (and (>= x
@@ -144,59 +143,72 @@
            result))
        [layoutable])))
 
-#_(defn view-parts-in-coordinates [view-state x y]
-    (filter (partial instance? ViewPart)
-            (layoutables-in-coordinates view-state x y)))
+(defn mouse-event-handlers-in-coordinates [view-state x y]
+  (->> (layoutables-in-coordinates view-state x y)
+       (filter #(not (= nil
+                        (:mouse-event-handler %))))
+       (map :mouse-event-handler)))
 
-(defn update-layoutables-under-mouse [view-state]
-  (let [current-layoutables-under-mouse (layoutables-in-coordinates view-state
-                                                                    (get view-state [:mouse-x])
-                                                                    (get view-state [:mouse-y]))
-        current-set (set current-layoutables-under-mouse)
-        old-set (set (:layoutables-under-mouse view-state))
-        mouse-left (clojure.set/difference (set old-set)
-                                           (set current-set))
-        mouse-entered (clojure.set/difference (set current-set)
-                                              (set old-set))]
+(defn call-mouse-enter-and-leave-handlers [view-state current-mouse-event-handlers-under-mouse old-mouse-event-handlers-under-mouse]
+  (let [id-comparator #(compare (:id %1) (:id %2))
+        current-set (apply sorted-set-by id-comparator current-mouse-event-handlers-under-mouse)
+        old-set (apply sorted-set-by id-comparator old-mouse-event-handlers-under-mouse)
 
+        mouse-left (filter #(not (contains? current-set %))
+                           old-mouse-event-handlers-under-mouse)
+
+        mouse-entered (filter #(not (contains? old-set %))
+                              current-mouse-event-handlers-under-mouse)]
     (-> view-state
         (call-mouse-event-handlers {:type :mouse-entered} mouse-entered)
-        (call-mouse-event-handlers {:type :mouse-lefet} mouse-left)
-        (assoc :layoutables-under-mouse current-layoutables-under-mouse))))
+        (call-mouse-event-handlers {:type :mouse-left} mouse-left))))
+
+
+(deftest call-mouse-enter-and-leave-handlers-test
+  (let [create-handler (fn [id]
+                          (fn [state event]
+                            (conj state [id event])))]
+    (is (= (call-mouse-enter-and-leave-handlers []
+                                              [{:id 1 :handler (create-handler 1)}]
+
+                                              [{:id 1 :handler (create-handler 2)}])
+         []))))
+
+(defn update-mouse-event-handlers-under-mouse [view-state]
+  (let [current-mouse-event-handlers-under-mouse (mouse-event-handlers-in-coordinates view-state
+                                                                                      (get view-state [:mouse-x])
+                                                                                      (get view-state [:mouse-y]))]
+
+
+    (-> view-state
+        (call-mouse-enter-and-leave-handlers current-mouse-event-handlers-under-mouse
+                                             (:mouse-event-handlers-under-mouse view-state))
+        (assoc :mouse-event-handlers-under-mouse current-mouse-event-handlers-under-mouse))))
 
 (defn update-mouse-position [view-state event]
-  (println "mouse-y " (:mouse-y event) "height: " (get view-state [:height]))
+  (debug/debug :default "update-mouse-position " (get view-state [:elements :upper]))
   (-> view-state
       (dataflow/define-to
         :mouse-x (:mouse-x event)
         :mouse-y (:mouse-y event))
-      (update-layoutables-under-mouse)))
-
-#_(defn call-mouse-click-handlers [view-state event layoutables]
-    (reduce (fn [view-state view-part-layout-path]
-              (if-let [handler (-> view-state
-                                   (get view-part-layout-path)
-                                   (get :mouse-click-handler))]
-                (handler view-state event)
-                view-state))
-            view-state
-            layoutables))
+      (update-mouse-event-handlers-under-mouse)))
 
 (defn handle-mouse-click-event [view-state event]
   (-> view-state
       (assoc :event-handling-direction :down)
-      (call-mouse-event-handlers event (:layoutables-under-mouse view-state))
+      (call-mouse-event-handlers event (:mouse-event-handlers-under-mouse view-state))
       (assoc :event-handling-direction :up)
-      (call-mouse-event-handlers event (reverse (:layoutables-under-mouse view-state)))))
+      (call-mouse-event-handlers event (reverse (:mouse-event-handlers-under-mouse view-state)))))
 
-(defn add-mouse-event-handler [layoutable new-handler]
+(defn add-mouse-event-handler [layoutable id new-handler]
   (assoc layoutable
-    :mouse-event-handler (fn [view-state event]
-                           (if-let [handler (:mouse-event-handler layoutable)]
-                             (-> view-state
-                                 (handler event)
-                                 (new-handler event))
-                             (new-handler view-state event)))))
+    :mouse-event-handler {:id id
+                          :handler (fn [view-state event]
+                                     (if-let [handler (:mouse-event-handler layoutable)]
+                                       (-> view-state
+                                           (handler event)
+                                           (new-handler event))
+                                       (new-handler view-state event)))}))
 
 (defn handle-mouse-event [view-state event]
   (if (= (:type event)
@@ -432,7 +444,7 @@
                        (assoc
                            :fpss []
                            :last-update-time (System/nanoTime)
-                           :layoutables-under-mouse []
+                           :mouse-event-handlers-under-mouse []
                            :gpu-state gpu-state
                            :event-handler event-handler))]
 
@@ -446,3 +458,5 @@
   (swap! view-atom dataflow/define-to
          :width width
          :height height))
+
+(run-tests)
