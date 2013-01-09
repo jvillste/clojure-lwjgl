@@ -25,7 +25,7 @@
 (defn element-path-to-layout-path [element-path]
   (vec (concat [:layout] (rest element-path))))
 
-(defrecord ViewPart [mouse-event-handler local-id root-element-path]
+(defrecord ViewPart [local-id root-element-path]
   drawable/Drawable
   (drawing-commands [view-part width height]
     [(->ViewPartCall (element-path-to-layout-path root-element-path))])
@@ -37,11 +37,8 @@
   Object
   (toString [_] (str "(->ViewPart " root-element-path)))
 
-(defn call-view-part
-  ([local-id]
-     (->ViewPart (fn [view-state event] view-state) local-id (dataflow/absolute-path local-id)))
-  ([local-id mouse-event-handler]
-     (->ViewPart mouse-event-handler local-id (dataflow/absolute-path local-id))))
+(defn call-view-part [local-id]
+  (->ViewPart local-id (dataflow/absolute-path local-id)))
 
 (defn initialize-view-part [view-part-id view-part-element-function]
   (debug/debug :view-definition "initializing " view-part-id)
@@ -89,6 +86,7 @@
 
 (defn call-mouse-event-handlers [view-state event mouse-event-handlers]
   (reduce (fn [view-state mouse-event-handler]
+
             ((:handler mouse-event-handler) view-state event))
           view-state
           mouse-event-handlers))
@@ -166,20 +164,18 @@
 
 (deftest call-mouse-enter-and-leave-handlers-test
   (let [create-handler (fn [id]
-                          (fn [state event]
-                            (conj state [id event])))]
+                         (fn [state event]
+                           (conj state [id event])))]
     (is (= (call-mouse-enter-and-leave-handlers []
-                                              [{:id 1 :handler (create-handler 1)}]
+                                                [{:id 1 :handler (create-handler 1)}]
 
-                                              [{:id 1 :handler (create-handler 2)}])
-         []))))
+                                                [{:id 1 :handler (create-handler 2)}])
+           []))))
 
 (defn update-mouse-event-handlers-under-mouse [view-state]
   (let [current-mouse-event-handlers-under-mouse (mouse-event-handlers-in-coordinates view-state
                                                                                       (get view-state [:mouse-x])
                                                                                       (get view-state [:mouse-y]))]
-
-
     (-> view-state
         (call-mouse-enter-and-leave-handlers current-mouse-event-handlers-under-mouse
                                              (:mouse-event-handlers-under-mouse view-state))
@@ -205,8 +201,7 @@
     :mouse-event-handler {:id id
                           :handler (fn [view-state event]
                                      (if-let [handler (:mouse-event-handler layoutable)]
-                                       (-> view-state
-                                           (handler event)
+                                       (-> ((:handler handler) view-state event)
                                            (new-handler event))
                                        (new-handler view-state event)))}))
 

@@ -124,17 +124,19 @@
                                                 (if (dataflow/get-value :selected)
                                                   [0 0 1 1]
                                                   [1 1 1 1])))
+
                         (layout/->Stack (concat (if (dataflow/get-value :editing)
                                                   [(view/call-view-part :cursor)]
                                                   [])
                                                 [(drawable/->Text text
                                                                   font
                                                                   [0 0 0 1])])))
+
           (view/add-mouse-event-handler editor-path (fn [application-state event]
-                                          (case (:type event)
-                                            :mouse-entered (dataflow/define-property-to application-state editor-path :mouse-over true)
-                                            :mouse-left (dataflow/define-property-to application-state editor-path :mouse-over false)
-                                            application-state)))))))
+                                                      (case (:type event)
+                                                        :mouse-entered (dataflow/define-property-to application-state editor-path :mouse-over true)
+                                                        :mouse-left (dataflow/define-property-to application-state editor-path :mouse-over false)
+                                                        application-state)))))))
 
 (defn editor-id [item-id]
   [(keyword (str "editor-" item-id))])
@@ -164,11 +166,11 @@
                                                                                       new-value)))
 
                                                                           (view/add-mouse-event-handler item-id (fn [application-state event]
-                                                                                                          (if (and (= (:type event)
-                                                                                                                      :left-mouse-button-up)
-                                                                                                                   (= (:event-handling-direction application-state) :up))
-                                                                                                            (dataflow/define-to application-state (concat item-list-view-path [:selection]) index)
-                                                                                                            application-state)))))))
+                                                                                                                  (if (and (= (:type event)
+                                                                                                                              :left-mouse-button-up)
+                                                                                                                           (= (:event-handling-direction application-state) :up))
+                                                                                                                    (dataflow/define-to application-state (concat item-list-view-path [:selection]) index)
+                                                                                                                    application-state)))))))
 
                                               (zipper-list/items (dataflow/property item-list-view-path :item-order)))))))
 
@@ -267,12 +269,12 @@
   `(let [this# (dataflow/absolute-path [])]
      (dataflow/initialize ~key false)
      (view/add-mouse-event-handler  ~layoutable [this# ~key]
-                                   (fn [application-state# event#]
-                                     (println ~key event#)
-                                     (case (:type event#)
-                                       :mouse-entered (dataflow/define-property-to application-state# this# ~key true)
-                                       :mouse-left (dataflow/define-property-to application-state# this# ~key false)
-                                       application-state#)))))
+                                    (fn [application-state# event#]
+                                      (println ~key event#)
+                                      (case (:type event#)
+                                        :mouse-entered (dataflow/define-property-to application-state# this# ~key true)
+                                        :mouse-left (dataflow/define-property-to application-state# this# ~key false)
+                                        application-state#)))))
 
 (defn mouse-over-test []
   (dataflow/initialize :upper false)
