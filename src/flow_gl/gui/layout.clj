@@ -90,6 +90,7 @@
   Object
   (toString [_] (str "(->Stack " (vec layoutables) ")")))
 
+
 (defrecord Translation [translate-x translate-y layoutable]
   Layout
   (layout [translation requested-width requested-height]

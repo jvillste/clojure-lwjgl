@@ -265,43 +265,7 @@
 
 ;; Mouse over test
 
-(defmacro add-mouse-over [key layoutable]
-  `(let [this# (dataflow/absolute-path [])]
-     (dataflow/initialize ~key false)
-     (view/add-mouse-event-handler  ~layoutable [this# ~key]
-                                    (fn [application-state# event#]
-                                      (println ~key event#)
-                                      (case (:type event#)
-                                        :mouse-entered (dataflow/define-property-to application-state# this# ~key true)
-                                        :mouse-left (dataflow/define-property-to application-state# this# ~key false)
-                                        application-state#)))))
 
-(defn mouse-over-test []
-  (dataflow/initialize :upper false)
-  (let [root-path (dataflow/absolute-path [])]
-    (layout/->VerticalStack [(add-mouse-over :upper
-                                             (drawable/->Rectangle 100 100 (if (dataflow/get-value :upper)
-                                                                             [1 0 0 1]
-                                                                             [1 1 0 1])))
-
-                             (add-mouse-over :middle
-                                             (drawable/->Rectangle 100 100 (if (dataflow/get-value :middle)
-                                                                             [1 1 0 1]
-                                                                             [1 0 0 1])))
-
-
-                             (view/add-mouse-event-handler (drawable/->Rectangle 100 100 [1 0 1 1])
-                                                           :lower
-                                                           (fn [application-state event]
-                                                             (println "lower:" event)
-                                                             application-state))])))
-
-(defn start-mouse-over-test []
-  (application/start 700 500
-                     10
-                     identity
-                     (fn [application-state view event] application-state)
-                     mouse-over-test))
 
 (comment
   (start)

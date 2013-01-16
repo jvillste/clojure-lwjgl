@@ -1,7 +1,7 @@
 (ns flow-gl.data.zipper-list
   (:refer-clojure :exclude (count))
   (:require [clojure.zip :as zip])
-  (:use midje.sweet))
+  (:use clojure.test))
 
 (defn create [] (zip/vector-zip [nil]))
 
@@ -67,57 +67,57 @@
       (clojure.core/count)
       (- 1)))
 
-(fact "item index grows when items are inserted before it"
-  (-> (create)
-      (insert :item-1 0)
-      (insert :item-2 0)
-      (index :item-1))
-  => 1)
+(deftest item-index-grows-when-items-are-inserted-before-it
+  (is (= (-> (create)
+             (insert :item-1 0)
+             (insert :item-2 0)
+             (index :item-1))
+         1)))
 
-(fact "add adds items as last items"
-  (-> (create)
-      (add :item-1)
-      (add :item-2)
-      (add :item-3)
-      (index :item-3))
-  => 2)
+(deftest add-adds-items-as-last-items
+  (is (= (-> (create)
+             (add :item-1)
+             (add :item-2)
+             (add :item-3)
+             (index :item-3))
+         2)))
 
-(fact "item index shrinks when items are removed before it"
-  (-> (create)
-      (insert :item-1 0)
-      (insert :item-2 1)
-      (insert :item-3 2)
-      (remove :item-2)
-      (index :item-3))
-  => 1)
+(deftest item-index-shrinks-when-items-are-removed-before-it
+  (is (= (-> (create)
+             (insert :item-1 0)
+             (insert :item-2 1)
+             (insert :item-3 2)
+             (remove :item-2)
+             (index :item-3))
+         1)))
 
-(fact "item index must not grow when items are inserted after it"
-  (-> (create)
-      (insert :item-1 0)
-      (insert :item-2 1)
-      (index :item-1))
-  => 0)
+(deftest item-index-must-not-grow-when-items-are-inserted-after-it
+  (is (=
+       (-> (create)
+           (insert :item-1 0)
+           (insert :item-2 1)
+           (index :item-1))
+       0)))
 
-(fact "count should return the number of items inserted"
-  (-> (create)
-      (insert :item-1 0)
-      (insert :item-2 0)
-      (count))
-  => 2)
+(deftest count-should-return-the-number-of-items-inserted
+  (is (= (-> (create)
+          (insert :item-1 0)
+          (insert :item-2 0)
+          (count))
+         2)))
 
-(fact "inte index should correspond to the insertion point"
-  (-> (create)
-      (add :item-1)
-      (add :item-2)
-      (insert-after :item-1 :item-3)
-      (index :item-3))
-  => 1)
+(deftest inte-index-should-correspond-to-the-insertion-point
+  (is (= (-> (create)
+          (add :item-1)
+          (add :item-2)
+          (insert-after :item-1 :item-3)
+          (index :item-3))
+         1)))
 
-(fact "items should return the inserted items"
-  (-> (create)
-      (add :item-1)
-      (add :item-2)
-      (items))
-  => [:item-1 :item-2])
-
+(deftest items-should-return-the-inserted-items
+  (is (= (-> (create)
+          (add :item-1)
+          (add :item-2)
+          (items))
+         [:item-1 :item-2])))
 

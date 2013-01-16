@@ -11,10 +11,11 @@
 
 (defrecord Text [contents font color]
   Drawable
-  (drawing-commands [text width height] [(text/create 0 0
-                                                      contents
-                                                      font
-                                                      color)])
+  (drawing-commands [text width height]
+    [(text/create 0 0
+                  contents
+                  font
+                  color)])
 
   layout/Layoutable
   (preferred-width [text] (font/width font contents))

@@ -148,14 +148,13 @@
        (map :mouse-event-handler)))
 
 (defn call-mouse-enter-and-leave-handlers [view-state current-mouse-event-handlers-under-mouse old-mouse-event-handlers-under-mouse]
-  (let [id-comparator #(compare (:id %1) (:id %2))
-        current-set (apply sorted-set-by id-comparator current-mouse-event-handlers-under-mouse)
-        old-set (apply sorted-set-by id-comparator old-mouse-event-handlers-under-mouse)
+  (let [current-set (set (map :id current-mouse-event-handlers-under-mouse))
+        old-set (set (map :id old-mouse-event-handlers-under-mouse))
 
-        mouse-left (filter #(not (contains? current-set %))
+        mouse-left (filter #(not (contains? current-set (:id %)))
                            old-mouse-event-handlers-under-mouse)
 
-        mouse-entered (filter #(not (contains? old-set %))
+        mouse-entered (filter #(not (contains? old-set (:id %)))
                               current-mouse-event-handlers-under-mouse)]
     (-> view-state
         (call-mouse-event-handlers {:type :mouse-entered} mouse-entered)
@@ -453,5 +452,18 @@
   (swap! view-atom dataflow/define-to
          :width width
          :height height))
+
+
+;; HELPERS
+
+(defn with-mouse-over [layoutable key]
+  (let [this (dataflow/absolute-path [])]
+    (dataflow/initialize key false)
+    (add-mouse-event-handler layoutable [this key]
+                                   (fn [application-state event]
+                                     (case (:type event)
+                                       :mouse-entered (dataflow/define-property-to application-state this key true)
+                                       :mouse-left (dataflow/define-property-to application-state this key false)
+                                       application-state)))))
 
 (run-tests)

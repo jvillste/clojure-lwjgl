@@ -257,6 +257,11 @@
 (defn get-value [path-or-key]
   (get-global-value (absolute-path path-or-key)))
 
+(defn get-value-or-initialize [path-or-key default]
+  (when (not (is-defined? @current-dataflow (absolute-path path-or-key)))
+    (initialize path-or-key default))
+  (get-value path-or-key))
+
 (defn get-value-from [dataflow path-or-key]
   (get-global-value-from dataflow (absolute-path path-or-key)))
 

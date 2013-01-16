@@ -5,7 +5,11 @@
             [flow-gl.dataflow :as dataflow]))
 
 
-(defn start [width height framerate initialize event-handler root-layoutable-constructor]
+(defn start [root-layoutable-constructor & {:keys [event-handler initialize width height framerate] :or {event-handler (fn [application-state view event] application-state)
+                                                                                                         initialize identity
+                                                                                                         width 700
+                                                                                                         height 500
+                                                                                                         framerate 30}} ]
   (debug/reset-log)
   (let [window-atom (window/create width height)]
 
