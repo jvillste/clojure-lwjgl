@@ -8,14 +8,16 @@
                           [input :as input])
              (flow-gl [opengl :as opengl]
                       [dataflow :as dataflow]
-                      [debug :as debug]))
+                      [debug :as debug])
+             [clojure.data.priority-map :as priority-map])
+
   (:use clojure.test))
 
 (defn describe-gpu-state [gpu-state]
   (for [key (keys (:view-part-command-runners gpu-state))]
     (str key " = " (vec (get-in gpu-state [:view-part-command-runners key])))))
 
-(defrecord ViewPartCall [view-part-layout-path]
+(defrecord ViewPartCall [view-part-layout-path layer]
   command/Command
   (create-runner [view-part-call] view-part-call)
   command/CommandRunner
@@ -28,7 +30,7 @@
 (defrecord ViewPart [local-id root-element-path]
   drawable/Drawable
   (drawing-commands [view-part width height]
-    [(->ViewPartCall (element-path-to-layout-path root-element-path))])
+    [(->ViewPartCall (element-path-to-layout-path root-element-path) 0)])
 
   layout/Layoutable
   (preferred-width [view-part] (dataflow/property root-element-path [:preferred-width]))
@@ -460,10 +462,10 @@
   (let [this (dataflow/absolute-path [])]
     (dataflow/initialize key false)
     (add-mouse-event-handler layoutable [this key]
-                                   (fn [application-state event]
-                                     (case (:type event)
-                                       :mouse-entered (dataflow/define-property-to application-state this key true)
-                                       :mouse-left (dataflow/define-property-to application-state this key false)
-                                       application-state)))))
+                             (fn [application-state event]
+                               (case (:type event)
+                                 :mouse-entered (dataflow/define-property-to application-state this key true)
+                                 :mouse-left (dataflow/define-property-to application-state this key false)
+                                 application-state)))))
 
 (run-tests)

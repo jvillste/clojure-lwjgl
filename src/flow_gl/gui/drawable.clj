@@ -19,7 +19,10 @@
 
   layout/Layoutable
   (preferred-width [text] (font/width font contents))
-  (preferred-height [text] (font/height font)))
+  (preferred-height [text] (font/height font))
+
+  Object
+  (toString [this] (layout/describe-layoutable this "Text" :contents :font :color)))
 
 (defrecord Rectangle [width height color]
   Drawable
@@ -34,4 +37,4 @@
   (preferred-height [rectangle] height)
 
   Object
-  (toString [_] (str "(->Rectangle " width " " height " " color ")")))
+  (toString [this] (layout/describe-layoutable this "Rectangle" :color)))

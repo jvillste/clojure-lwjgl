@@ -256,26 +256,18 @@
         (add-item item-list-view 0 "Bar5"))))
 
 (defn start []
-  (application/start 700 500
-                     60
-                     initialize
-                     handle-item-view-event
-                     item-view))
-
-
-;; Mouse over test
-
-
+  (application/start item-view
+                     :initialize initialize
+                     :handle-event handle-item-view-event))
 
 (comment
-  (start)
-  (start-mouse-over-test)
+(start)
 
-  (debug/set-active-channels
+(debug/set-active-channels
    ;; :view-definition
-   ;; :initialization
+   :initialization
    :dataflow
-   ;; :events
+   :events
    ;; :view-update
    :default
    )

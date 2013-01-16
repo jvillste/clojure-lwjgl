@@ -336,6 +336,47 @@
                               (sort (keys (::functions dataflow))))))
 
 
+(defn dependency-tree-for-path [dataflow path depth]
+  (into [(str (apply str (take depth (repeat "  ")))
+              (str path " = " (if (contains? dataflow path)
+                               (apply str (take 100 (str (get dataflow path))))
+                               #_(str (get dataflow path))
+                               "UNDEFINED!")))]
+        (mapcat #(dependency-tree-for-path dataflow % (inc depth))
+                (get-in dataflow [::dependencies path]))))
+
+(deftest dependency-tree-for-path-test
+  (is (= (-> (create)
+             (define-to :foo 2)
+             (define-to :foo2 #(+ (get-global-value :foo)
+                                  2))
+             (dependency-tree-for-path [:foo2] 0))
+         ["[:foo2] = 4"
+          "  [:foo] = 2"])))
+
+(defn dependency-tree [dataflow]
+  (mapcat #(dependency-tree-for-path dataflow % 0)
+          (filter #(empty? (dependants dataflow %))
+                  (sort (keys (::functions dataflow))))))
+
+(deftest dependency-tree-test
+  (is (= (-> (create)
+             (define-to :foo 2)
+             (define-to :foo2 #(+ (get-global-value :foo)
+                                  2))
+
+             (define-to :foo3 #(+ (get-global-value :foo)
+                                  2))
+
+             (define-to :foo4 #(+ (get-global-value :foo3)
+                                  2))
+             (dependency-tree))
+         '("[:foo2] = 4"
+           "  [:foo] = 2"
+           "[:foo4] = 6"
+           "  [:foo3] = 4"
+           "    [:foo] = 2"))))
+
 (defn debug-dataflow [dataflow]
   (debug/debug-all :dataflow (describe-dataflow dataflow))
   dataflow)
@@ -417,7 +458,7 @@
                               1))
 
                      (define-to :c 1)
-                     
+
                      (propagate-changes)
                      (debug-dataflow))]
     (are [x y] (= x y)
@@ -425,7 +466,7 @@
 
 (comment
 
-(do
+  (do
     (debug/set-active-channels #_:view-definition
                                #_:initialization
                                :dataflow

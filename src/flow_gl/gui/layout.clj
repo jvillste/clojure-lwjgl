@@ -5,14 +5,27 @@
                                        [pop-modelview :as pop-modelview])))
 
 (defprotocol Layout
-  (layout [layout requested-width requested-height]))
+  (layout [layout requested-width requested-height])
+  (children [layout]))
 
 (defprotocol Layoutable
   (preferred-width [element])
   (preferred-height [element]))
 
 
+
+
 ;; LAYOUTS
+
+(defn describe-property [layoutable property]
+  (str (name property) ": " (property layoutable)))
+
+(defn describe-properties [layoutable properties]
+  (apply str (interpose " " (map (partial describe-property layoutable)
+                                 properties))))
+
+(defn describe-layoutable [layoutable name & properties]
+  (str "(" name " " (describe-properties layoutable (concat [:x :y :width :height] properties)) ")"))
 
 (defrecord Box [margin outer inner]
   Layout
@@ -36,7 +49,7 @@
                              (preferred-height inner)))
 
   Object
-  (toString [_] (str "(->Box " margin " " outer " " inner ")")))
+  (toString [this] (describe-layoutable this "Box" :margin :children)))
 
 (defrecord VerticalStack [layoutables]
   Layout
@@ -65,7 +78,7 @@
 
 
   Object
-  (toString [_] (str "(->VerticalStack " layoutables ")")))
+  (toString [this] (describe-layoutable this "VerticalStack" :layoutables)))
 
 (defrecord Stack [layoutables]
   Layout
@@ -88,7 +101,7 @@
                      0)))
 
   Object
-  (toString [_] (str "(->Stack " (vec layoutables) ")")))
+  (toString [this] (describe-layoutable this "Stack" :layoutables)))
 
 
 (defrecord Translation [translate-x translate-y layoutable]
@@ -106,7 +119,7 @@
   (preferred-height [translation] (+ translate-y (preferred-height layoutable)))
 
   Object
-  (toString [_] (str "(->Transaltion " translate-x " " translate-y " " layoutable ")")))
+  (toString [this] (describe-layoutable this "Translation" :translate-x :translate-y :layoutable)))
 
 (defrecord DockBottom [layoutable]
   Layout
@@ -125,4 +138,4 @@
   (preferred-height [dock-bottom] (preferred-height layoutable))
 
   Object
-  (toString [_] (str "(->DockBottom " layoutable ")")))
+  (toString [this] (describe-layoutable this "DockBottom" :layoutable)))
