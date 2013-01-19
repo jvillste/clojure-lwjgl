@@ -241,19 +241,15 @@
 
         application-state))))
 
-
-
-
 (defn initialize [application-state]
   (let [item-list-view [:elements :item-list-view]]
     (-> application-state
         (dataflow/define-to [:status] [])
-        (add-item item-list-view 0 "Foo")
-        (add-item item-list-view 0 "Bar")
-        (add-item item-list-view 0 "Bar2")
-        (add-item item-list-view 0 "Bar3")
-        (add-item item-list-view 0 "Bar4")
-        (add-item item-list-view 0 "Bar5"))))
+        ((fn [application-state]
+           (reduce (fn [application-state index]
+                     (add-item application-state item-list-view 0 (str "Foo" index)))
+                   application-state
+                   (range 2)))))))
 
 (defn start []
   (application/start item-view
@@ -264,12 +260,13 @@
 (start)
 
 (debug/set-active-channels
-   ;; :view-definition
+   :view-definition
    :initialization
    :dataflow
    :events
-   ;; :view-update
+   :view-update
    :default
+   :render
    )
 
   (debug/set-active-channels))

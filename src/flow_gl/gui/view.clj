@@ -4,6 +4,7 @@
                                        [pop-modelview :as pop-modelview]
                                        [translate :as translate])
              (flow-gl.gui [layout :as layout]
+                          [layoutable :as layoutable]
                           [drawable :as drawable]
                           [input :as input])
              (flow-gl [opengl :as opengl]
@@ -12,6 +13,8 @@
              [clojure.data.priority-map :as priority-map])
 
   (:use clojure.test))
+
+#_(declare create-view-part-layout)
 
 (defn describe-gpu-state [gpu-state]
   (for [key (keys (:view-part-command-runners gpu-state))]
@@ -29,12 +32,24 @@
 
 (defrecord ViewPart [local-id root-element-path]
   drawable/Drawable
-  (drawing-commands [view-part width height]
+  (drawing-commands [view-part]
     [(->ViewPartCall (element-path-to-layout-path root-element-path) 0)])
 
-  layout/Layoutable
+  layoutable/Layoutable
   (preferred-width [view-part] (dataflow/property root-element-path [:preferred-width]))
   (preferred-height [view-part] (dataflow/property root-element-path [:preferred-height]))
+
+  layout/Layout
+  (layout [view-part requested-width requested-height]
+    (dataflow/initialize (:local-id view-part)
+                         #(layout/set-dimensions-and-layout (dataflow/get-global-value (:root-element-path view-part))
+                                                            0
+                                                            0
+                                                            requested-width
+                                                            requested-height))
+    view-part)
+
+  (children [view-part] [])
 
   Object
   (toString [_] (str "(->ViewPart " root-element-path)))
@@ -46,8 +61,8 @@
   (debug/debug :view-definition "initializing " view-part-id)
   (dataflow/initialize view-part-id view-part-element-function)
   (let [view-part-path (dataflow/absolute-path view-part-id)]
-    (dataflow/initialize (concat (dataflow/as-path view-part-id) [:preferred-width]) #(layout/preferred-width (dataflow/get-global-value view-part-path)))
-    (dataflow/initialize (concat (dataflow/as-path view-part-id) [:preferred-height]) #(layout/preferred-height (dataflow/get-global-value view-part-path)))))
+    (dataflow/initialize (concat (dataflow/as-path view-part-id) [:preferred-width]) #(layoutable/preferred-width (dataflow/get-global-value view-part-path)))
+    (dataflow/initialize (concat (dataflow/as-path view-part-id) [:preferred-height]) #(layoutable/preferred-height (dataflow/get-global-value view-part-path)))))
 
 (defn init-and-call [view-part-id view-part-element-function]
   (initialize-view-part view-part-id view-part-element-function)
@@ -115,31 +130,31 @@
        (loop [result [layoutable]
               x x
               y y
-              layoutables (:children layoutable)]
+              layoutables (layout/children layoutable)]
 
          (if (seq layoutables)
-           (let [layoutable (first layoutables)]
-             (if (in-coordinates layoutable x y)
-               (recur (concat (conj result
-                                    layoutable)
-                              (if (satisfies? layout/Layout layoutable)
-                                (layoutables-in-coordinates view-state
-                                                            (+ x (:x layoutable))
-                                                            (+ y (:y layoutable))
-                                                            layoutable)
-                                (if (instance? ViewPart layoutable)
-                                  (layoutables-in-coordinates view-state
-                                                              (+ x (:x layoutable))
-                                                              (+ y (:y layoutable))
-                                                              (get view-state (element-path-to-layout-path (:root-element-path layoutable))))
-                                  [])))
-                      x
-                      y
-                      (rest layoutables))
-               (recur result
-                      x
-                      y
-                      (rest layoutables))))
+           (let [layoutable (first layoutables)]>
+                (if (in-coordinates layoutable x y)
+                  (recur (concat (conj result
+                                       layoutable)
+                                 (if (satisfies? layout/Layout layoutable)
+                                   (layoutables-in-coordinates view-state
+                                                               (+ x (:x layoutable))
+                                                               (+ y (:y layoutable))
+                                                               layoutable)
+                                   (if (instance? ViewPart layoutable)
+                                     (layoutables-in-coordinates view-state
+                                                                 (+ x (:x layoutable))
+                                                                 (+ y (:y layoutable))
+                                                                 (get view-state (element-path-to-layout-path (:root-element-path layoutable))))
+                                     [])))
+                         x
+                         y
+                         (rest layoutables))
+                  (recur result
+                         x
+                         y
+                         (rest layoutables))))
            result))
        [layoutable])))
 
@@ -270,14 +285,15 @@
   (dorun (map command/delete (get-in gpu-state [:view-part-command-runners layout-path])))
   (update-in gpu-state [:view-part-command-runners] dissoc layout-path))
 
-(declare layoutable-drawing-commands)
+#_(declare layoutable-drawing-commands)
 
-(defn layout-drawing-commands [layout]
+#_(defn layout-drawing-commands [layout]
   (vec (concat [(push-modelview/->PushModelview)]
                (loop [commands []
                       x 0
                       y 0
-                      layoutables (:children layout)]
+                      layoutables (layout/children layout)]
+                 (flow-gl.debug/debug :default "layoutables: " layoutables)
                  (if (seq layoutables)
                    (let [layoutable (first layoutables)]
                      (recur (concat commands
@@ -295,13 +311,13 @@
                    commands))
                [(pop-modelview/->PopModelview)])))
 
-(defn layoutable-drawing-commands [layoutable]
+#_(defn layoutable-drawing-commands [layoutable]
   (if (satisfies? layout/Layout layoutable)
     (layout-drawing-commands layoutable)
     (if (satisfies? drawable/Drawable layoutable)
-      (drawable/drawing-commands layoutable
-                                 (:width layoutable)
-                                 (:height layoutable))
+      (flow-gl.debug/debug :default "drawing commands for " layoutable (drawable/drawing-commands layoutable
+                                                                                                  (:width layoutable)
+                                                                                                  (:height layoutable)))
       [])))
 
 (defn load-view-part [gpu-state view-state layout-path]
@@ -309,7 +325,7 @@
 
   (debug/debug :view-update "loading " layout-path)
 
-  (let [drawing-commands (layoutable-drawing-commands (get view-state layout-path))
+  (let [drawing-commands (drawable/drawing-commands (get view-state layout-path))
         gpu-state (reduce (fn [gpu-state layout-path]
                             (load-view-part gpu-state view-state layout-path))
                           gpu-state
@@ -388,33 +404,60 @@
 
 ;; LAYOUT
 
-(declare create-view-part-layout)
-
-(defn create-layout [parent-layoutable]
-  (if (satisfies? layout/Layout parent-layoutable)
-    (assoc parent-layoutable
-      :children (vec (map (fn [child-layoutable]
-                            (if (instance? ViewPart child-layoutable)
-                              (do (dataflow/initialize (:local-id child-layoutable)
-                                                       #(create-view-part-layout (dataflow/get-global-value (:root-element-path child-layoutable))
-                                                                                 (:width child-layoutable)
-                                                                                 (:height child-layoutable)))
-                                  child-layoutable)
-                              (create-layout child-layoutable)))
-
-                          (layout/layout parent-layoutable
-                                         (:width parent-layoutable)
-                                         (:height parent-layoutable)))))
-    parent-layoutable))
-
-(defn create-view-part-layout [root-layoutable width height]
-  (create-layout (assoc root-layoutable
-                   :x 0
-                   :y 0
-                   :width width
-                   :height height)))
 
 
+#_(defn create-layout [parent-layoutable]
+    (if (satisfies? layout/Layout parent-layoutable)
+      (assoc parent-layoutable
+        :children (vec (map (fn [child-layoutable]
+                              (if (instance? ViewPart child-layoutable)
+                                (do (dataflow/initialize (:local-id child-layoutable)
+                                                         #(create-view-part-layout (dataflow/get-global-value (:root-element-path child-layoutable))
+                                                                                   (:width child-layoutable)
+                                                                                   (:height child-layoutable)))
+                                    child-layoutable)
+                                (create-layout child-layoutable)))
+
+                            (layout/layout parent-layoutable
+                                           (:width parent-layoutable)
+                                           (:height parent-layoutable)))))
+      parent-layoutable))
+
+#_(defn create-layout [parent-layoutable]
+    (if (satisfies? layout/Layout parent-layoutable)
+      (let [layout (layout/layout parent-layoutable
+                                  (:width parent-layoutable)
+                                  (:height parent-layoutable))]
+        (doseq [child (layout/children layout)]
+          (when (instance? ViewPart child)
+            (dataflow/initialize (:local-id child-layoutable)
+                                 #(create-view-part-layout (dataflow/get-global-value (:root-element-path child-layoutable))
+                                                           (:width child-layoutable)
+                                                           (:height child-layoutable)))
+            (do
+              child-layoutable)
+            (create-layout child-layoutable))))
+      (assoc parent-layoutable
+        :children (vec (map (fn [child-layoutable]
+                              (if (instance? ViewPart child-layoutable)
+                                (do (dataflow/initialize (:local-id child-layoutable)
+                                                         #(create-view-part-layout (dataflow/get-global-value (:root-element-path child-layoutable))
+                                                                                   (:width child-layoutable)
+                                                                                   (:height child-layoutable)))
+                                    child-layoutable)
+                                (create-layout child-layoutable)))
+
+                            (layout/layout parent-layoutable
+                                           (:width parent-layoutable)
+                                           (:height parent-layoutable)))))
+      parent-layoutable))
+
+#_(defn create-view-part-layout [root-layoutable width height]
+    (create-layout (assoc root-layoutable
+                     :x 0
+                     :y 0
+                     :width width
+                     :height height)))
 
 
 ;; INITIALIZATION
@@ -428,9 +471,11 @@
         :mouse-y 0
         :fps 0
         :elements root-element-constructor
-        :layout #(create-view-part-layout (dataflow/get-global-value :elements)
-                                          (dataflow/get-global-value :width)
-                                          (dataflow/get-global-value :height)))))
+        :layout #(layout/set-dimensions-and-layout (dataflow/get-global-value :elements)
+                                                   0
+                                                   0
+                                                   (dataflow/get-global-value :width)
+                                                   (dataflow/get-global-value :height)))))
 
 (defn create [width height event-handler root-element-constructor]
   (let [gpu-state (atom {:view-part-command-runners {}})
