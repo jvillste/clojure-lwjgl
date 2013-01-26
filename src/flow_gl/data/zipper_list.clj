@@ -1,5 +1,5 @@
 (ns flow-gl.data.zipper-list
-  (:refer-clojure :exclude (count))
+  (:refer-clojure :exclude (count remove))
   (:require [clojure.zip :as zip])
   (:use clojure.test))
 
@@ -101,23 +101,22 @@
 
 (deftest count-should-return-the-number-of-items-inserted
   (is (= (-> (create)
-          (insert :item-1 0)
-          (insert :item-2 0)
-          (count))
+             (insert :item-1 0)
+             (insert :item-2 0)
+             (count))
          2)))
 
 (deftest inte-index-should-correspond-to-the-insertion-point
   (is (= (-> (create)
-          (add :item-1)
-          (add :item-2)
-          (insert-after :item-1 :item-3)
-          (index :item-3))
+             (add :item-1)
+             (add :item-2)
+             (insert-after :item-1 :item-3)
+             (index :item-3))
          1)))
 
 (deftest items-should-return-the-inserted-items
   (is (= (-> (create)
-          (add :item-1)
-          (add :item-2)
-          (items))
+             (add :item-1)
+             (add :item-2)
+             (items))
          [:item-1 :item-2])))
-

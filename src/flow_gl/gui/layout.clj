@@ -32,7 +32,6 @@
                       x 0
                       y 0
                       drawables (children layout)]
-                 (flow-gl.debug/debug :default "drawables: " drawables)
                  (if (seq drawables)
                    (let [drawable (first drawables)]
                      (recur (concat commands
@@ -63,16 +62,41 @@
 
   layoutable/Layoutable
   (layoutable/preferred-width [box] (+ (* 2 margin)
-                            (layoutable/preferred-width inner)))
+                                       (layoutable/preferred-width inner)))
 
   (layoutable/preferred-height [box] (+ (* 2 margin)
-                             (layoutable/preferred-height inner)))
+                                        (layoutable/preferred-height inner)))
 
   drawable/Drawable
   (drawing-commands [this] (layout-drawing-commands this))
 
   Object
-  (toString [this] (layoutable/describe-layoutable this "Box" :margin :children)))
+  (toString [this] (layoutable/describe-layoutable this "Box" :margin :outer :inner)))
+
+
+(defrecord Absolute [layoutables]
+  Layout
+  (layout [absolute requested-width requested-height]
+    (assoc absolute :layoutables
+           (vec (map #(set-dimensions-and-layout % (:x %) (:y %) (layoutable/preferred-width %) (layoutable/preferred-height %))
+                     layoutables))))
+
+  (children [box] layoutables)
+
+  layoutable/Layoutable
+  (layoutable/preferred-width [absolute] (apply max (map (fn [layoutable]
+                                                           (+ (:x layoutable)
+                                                              (layoutable/preferred-width layoutable))))))
+
+  (layoutable/preferred-height [box] (apply max (map (fn [layoutable]
+                                                       (+ (:y layoutable)
+                                                          (layoutable/preferred-height layoutable))))))
+
+  drawable/Drawable
+  (drawing-commands [this] (layout-drawing-commands this))
+
+  Object
+  (toString [this] (layoutable/describe-layoutable this "Absolute" :layoutables)))
 
 (defrecord VerticalStack [layoutables]
   Layout
@@ -96,7 +120,7 @@
   (layoutable/preferred-height [vertical-stack] (reduce + (map layoutable/preferred-height layoutables)))
 
   (layoutable/preferred-width [vertical-stack] (apply max (conj (map layoutable/preferred-width layoutables)
-                                                     0)))
+                                                                0)))
 
   drawable/Drawable
   (drawing-commands [this] (layout-drawing-commands this))

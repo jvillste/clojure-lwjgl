@@ -11,15 +11,24 @@
 
 (defn start []
   (application/start
-   (fn [] (layout/->Stack (concat [(layout/->VerticalStack (vec (for [i (range 10)]
+   (fn [] (layout/->Stack (concat [(layout/->VerticalStack (vec (for [i (range 1)]
                                                                   (-> (drawable/->Rectangle 100 10 (if (dataflow/get-value-or-initialize i false)
                                                                                                      [1 1 0 1]
                                                                                                      [(/ i 10) 1 0 1]))
-                                                                      (view/with-mouse-over i)
+                                                                      ;; (view/with-mouse-over i)
                                                                       (view/add-mouse-event-handler [:tooltip i]
-                                                                                                    (fn [view-state event]))))))
-                                   ]
-                                  [(drawable/->Text (str i) (font/create "LiberationSans-Regular.ttf" 15) [0 1 0 1]) ])))))
+                                                                                                    (fn [view-state event]
+                                                                                                      (println i event)
+                                                                                                      view-state))))))])))))
 
 (comment
-  (start))
+(start)
+(debug/set-active-channels
+   :view-definition
+   :initialization
+   :dataflow
+   :events
+   :view-update
+   :default
+   :render
+   ))

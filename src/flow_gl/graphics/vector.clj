@@ -12,3 +12,8 @@
 
                          (apply concat (repeat 6 color))))
 
+
+
+(defn triangle [color x1 y1 x2 y2 x3 y3]
+  (triangle-batch/create [x1 y1 x2 y2 x3 y3]
+                         (apply concat (repeat 3 color))))

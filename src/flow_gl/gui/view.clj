@@ -14,11 +14,14 @@
 
   (:use clojure.test))
 
-#_(declare create-view-part-layout)
+;; DEBUG
 
 (defn describe-gpu-state [gpu-state]
   (for [key (keys (:view-part-command-runners gpu-state))]
     (str key " = " (vec (get-in gpu-state [:view-part-command-runners key])))))
+
+
+;; VIEW PARTS
 
 (defrecord ViewPartCall [view-part-layout-path layer]
   command/Command
@@ -41,6 +44,7 @@
 
   layout/Layout
   (layout [view-part requested-width requested-height]
+    (flow-gl.debug/debug :default "view part layout" (:root-element-path view-part))
     (dataflow/initialize (:local-id view-part)
                          #(layout/set-dimensions-and-layout (dataflow/get-global-value (:root-element-path view-part))
                                                             0
@@ -53,6 +57,41 @@
 
   Object
   (toString [_] (str "(->ViewPart " root-element-path)))
+
+
+(defn loaded-view-parts [gpu-state]
+  (keys (:view-part-command-runners gpu-state)))
+
+(defn view-part-is-loaded? [gpu-state view-part-layout-path]
+  (contains? (:view-part-command-runners gpu-state) view-part-layout-path))
+
+(defn unload-view-part [gpu-state layout-path]
+  (dorun (map command/delete (get-in gpu-state [:view-part-command-runners layout-path])))
+  (update-in gpu-state [:view-part-command-runners] dissoc layout-path))
+
+(defn load-view-part [gpu-state view-state layout-path]
+  (unload-view-part gpu-state layout-path)
+
+  (debug/debug :view-update "loading " layout-path)
+
+  (if (contains? view-state layout-path)
+    (let [drawing-commands (drawable/drawing-commands (get view-state layout-path))
+          gpu-state (reduce (fn [gpu-state layout-path]
+                              (load-view-part gpu-state view-state layout-path))
+                            gpu-state
+                            (->> (filter #(and (instance? ViewPartCall %)
+                                               (not (view-part-is-loaded? gpu-state (:view-part-layout-path %))))
+                                         drawing-commands)
+                                 (map :view-part-layout-path)))]
+
+      (assoc-in gpu-state [:view-part-command-runners layout-path] (command/command-runners-for-commands drawing-commands)))
+    gpu-state))
+
+(defn update-view-part [gpu-state view-state layout-path]
+  (if (dataflow/is-defined? view-state layout-path)
+    (load-view-part gpu-state view-state layout-path)
+    (unload-view-part gpu-state layout-path)))
+
 
 (defn call-view-part [local-id]
   (->ViewPart local-id (dataflow/absolute-path local-id)))
@@ -85,13 +124,9 @@
   (draw-view-part gpu-state [:layout]))
 
 
-;; EVENT HANDLING
 
-(defn key-pressed [keyboard-event key]
-  (and (= (:key-code keyboard-event)
-          key)
-       (= (:type keyboard-event)
-          :key-pressed)))
+
+;; MOUSE
 
 (defn invert-mouse-y [window-height mouse-event]
   (if (contains? mouse-event :mouse-y)
@@ -103,7 +138,7 @@
 
 (defn call-mouse-event-handlers [view-state event mouse-event-handlers]
   (reduce (fn [view-state mouse-event-handler]
-
+            (flow-gl.debug/debug :default "calling " (:id mouse-event-handler))
             ((:handler mouse-event-handler) view-state event))
           view-state
           mouse-event-handlers))
@@ -120,45 +155,51 @@
 
 (defn layoutables-in-coordinates
   ([view-state x y]
-     (layoutables-in-coordinates view-state
-                                 x
-                                 y
-                                 (get view-state [:layout])))
+     (concat [(get view-state [:layout])]
+             (layoutables-in-coordinates view-state
+                                         x
+                                         y
+                                         (get view-state [:layout]))))
 
   ([view-state x y layoutable]
+     (flow-gl.debug/debug :default "layoutables-in-coordinates " (type layoutable))
      (if (satisfies? layout/Layout layoutable)
-       (loop [result [layoutable]
+       (loop [result []
               x x
               y y
-              layoutables (layout/children layoutable)]
+              children (layout/children layoutable)]
 
-         (if (seq layoutables)
-           (let [layoutable (first layoutables)]>
-                (if (in-coordinates layoutable x y)
-                  (recur (concat (conj result
-                                       layoutable)
-                                 (if (satisfies? layout/Layout layoutable)
-                                   (layoutables-in-coordinates view-state
-                                                               (+ x (:x layoutable))
-                                                               (+ y (:y layoutable))
-                                                               layoutable)
-                                   (if (instance? ViewPart layoutable)
-                                     (layoutables-in-coordinates view-state
-                                                                 (+ x (:x layoutable))
-                                                                 (+ y (:y layoutable))
-                                                                 (get view-state (element-path-to-layout-path (:root-element-path layoutable))))
-                                     [])))
-                         x
-                         y
-                         (rest layoutables))
-                  (recur result
-                         x
-                         y
-                         (rest layoutables))))
+         (if (seq children)
+           (let [child (first children)]
+             (if (in-coordinates child x y)
+               (recur (concat (conj result
+                                    child)
+                              (if (satisfies? layout/Layout child)
+                                (layoutables-in-coordinates view-state
+                                                            (+ x (:x child))
+                                                            (+ y (:y child))
+                                                            child)
+                                (if (instance? ViewPart child)
+                                  (layoutables-in-coordinates view-state
+                                                              (+ x (:x child))
+                                                              (+ y (:y child))
+                                                              (get view-state (element-path-to-layout-path (:root-element-path child))))
+                                  [])))
+                      x
+                      y
+                      (rest children))
+               (recur result
+                      x
+                      y
+                      (rest children))))
            result))
        [layoutable])))
 
 (defn mouse-event-handlers-in-coordinates [view-state x y]
+  (flow-gl.debug/debug :default "layoutables in " x " " y " " (->>  (layoutables-in-coordinates view-state x y)
+                                                                    (map (fn [layoutable] [(type layoutable)
+                                                                                           (:mouse-event-handler layoutable)]) )
+                                                                    (vec)))
   (->> (layoutables-in-coordinates view-state x y)
        (filter #(not (= nil
                         (:mouse-event-handler %))))
@@ -192,13 +233,13 @@
   (let [current-mouse-event-handlers-under-mouse (mouse-event-handlers-in-coordinates view-state
                                                                                       (get view-state [:mouse-x])
                                                                                       (get view-state [:mouse-y]))]
+    (flow-gl.debug/debug :events "current-mouse-event-handlers-under-mouse " (vec current-mouse-event-handlers-under-mouse))
     (-> view-state
         (call-mouse-enter-and-leave-handlers current-mouse-event-handlers-under-mouse
                                              (:mouse-event-handlers-under-mouse view-state))
         (assoc :mouse-event-handlers-under-mouse current-mouse-event-handlers-under-mouse))))
 
 (defn update-mouse-position [view-state event]
-  (debug/debug :default "update-mouse-position " (get view-state [:elements :upper]))
   (-> view-state
       (dataflow/define-to
         :mouse-x (:mouse-x event)
@@ -207,10 +248,12 @@
 
 (defn handle-mouse-click-event [view-state event]
   (-> view-state
-      (assoc :event-handling-direction :down)
-      (call-mouse-event-handlers event (:mouse-event-handlers-under-mouse view-state))
-      (assoc :event-handling-direction :up)
-      (call-mouse-event-handlers event (reverse (:mouse-event-handlers-under-mouse view-state)))))
+
+      (call-mouse-event-handlers (assoc event :event-handling-direction :down)
+                                 (:mouse-event-handlers-under-mouse view-state))
+
+      (call-mouse-event-handlers (assoc event :event-handling-direction :up)
+                                 (reverse (:mouse-event-handlers-under-mouse view-state)))))
 
 (defn add-mouse-event-handler [layoutable id new-handler]
   (assoc layoutable
@@ -233,19 +276,6 @@
    [:elements]
      event))
 
-(defn send-close-event [view-state]
-  ((:event-handler view-state)
-   view-state
-   [:elements]
-     {:type :close}))
-
-(defn handle-event [view-state event]
-  (debug/debug :events "handle event " event)
-  (let [view-state (assoc view-state :event-handled false)]
-    (case (:source event)
-      :keyboard (handle-keyboard-event view-state event)
-      :mouse (handle-mouse-event view-state event)
-      (throw (Exception. (str "unknown source " (:source event)))))))
 
 (defn trim-mouse-movements [events]
   (letfn [(is-mouse-move [event] (= :mouse-moved (:type event)))]
@@ -259,97 +289,45 @@
                  (conj trimmed-events event)))
         trimmed-events))))
 
+;; EVENT HANDLING
+
+(defn send-close-event [view-state]
+  ((:event-handler view-state)
+   view-state
+   [:elemengts]
+     {:type :close}))
+
+(defn handle-event [view-state event]
+  (debug/debug :events "handle event " event)
+  (let [view-state (assoc view-state :event-handled false)]
+    (case (:source event)
+      :keyboard (handle-keyboard-event view-state event)
+      :mouse (handle-mouse-event view-state event)
+      (throw (Exception. (str "unknown source " (:source event)))))))
+
 (defn handle-events [view]
   (let [unread-events (->> (concat (input/unread-keyboard-events)
                                    (->> (input/unread-mouse-events)
                                         (trim-mouse-movements)
                                         (map (partial invert-mouse-y (get view [:height])))))
                            (sort-by :time))]
-    (if (not (empty? unread-events))
-      (-> (reduce handle-event view unread-events)
-          (dataflow/propagate-changes)
-          ((fn [view-state]
-             (debug/debug :events "New view state:")
-             (dorun (map #(debug/debug :events %) (dataflow/describe-dataflow view-state)))
-             view-state)))
-      view)))
+    (reduce handle-event view unread-events)))
 
-
-
-;; VIEW PARTS
-
-(defn view-part-is-loaded? [gpu-state view-part-layout-path]
-  (contains? (:view-part-command-runners gpu-state) view-part-layout-path))
-
-(defn unload-view-part [gpu-state layout-path]
-  (dorun (map command/delete (get-in gpu-state [:view-part-command-runners layout-path])))
-  (update-in gpu-state [:view-part-command-runners] dissoc layout-path))
-
-#_(declare layoutable-drawing-commands)
-
-#_(defn layout-drawing-commands [layout]
-  (vec (concat [(push-modelview/->PushModelview)]
-               (loop [commands []
-                      x 0
-                      y 0
-                      layoutables (layout/children layout)]
-                 (flow-gl.debug/debug :default "layoutables: " layoutables)
-                 (if (seq layoutables)
-                   (let [layoutable (first layoutables)]
-                     (recur (concat commands
-                                    (concat (if (or (not (= (:x layoutable) x))
-                                                    (not (= (:y layoutable) y)))
-                                              [(translate/->Translate (- (:x layoutable)
-                                                                         x)
-                                                                      (- (:y layoutable)
-                                                                         y))]
-                                              [])
-                                            (layoutable-drawing-commands layoutable)))
-                            (:x layoutable)
-                            (:y layoutable)
-                            (rest layoutables)))
-                   commands))
-               [(pop-modelview/->PopModelview)])))
-
-#_(defn layoutable-drawing-commands [layoutable]
-  (if (satisfies? layout/Layout layoutable)
-    (layout-drawing-commands layoutable)
-    (if (satisfies? drawable/Drawable layoutable)
-      (flow-gl.debug/debug :default "drawing commands for " layoutable (drawable/drawing-commands layoutable
-                                                                                                  (:width layoutable)
-                                                                                                  (:height layoutable)))
-      [])))
-
-(defn load-view-part [gpu-state view-state layout-path]
-  (unload-view-part gpu-state layout-path)
-
-  (debug/debug :view-update "loading " layout-path)
-
-  (let [drawing-commands (drawable/drawing-commands (get view-state layout-path))
-        gpu-state (reduce (fn [gpu-state layout-path]
-                            (load-view-part gpu-state view-state layout-path))
-                          gpu-state
-                          (->> (filter #(and (instance? ViewPartCall %)
-                                             (not (view-part-is-loaded? gpu-state (:view-part-layout-path %))))
-                                       drawing-commands)
-                               (map :view-part-layout-path)))]
-
-    (assoc-in gpu-state [:view-part-command-runners layout-path] (command/command-runners-for-commands drawing-commands))))
-
-(defn update-view-part [gpu-state view-state layout-path]
-  (if (dataflow/is-defined? view-state layout-path)
-    (load-view-part gpu-state view-state layout-path)
-    (unload-view-part gpu-state layout-path)))
 
 (defn update-view [view-atom]
   (when (not (empty? (dataflow/changes @view-atom)))
-    (let [view-state (swap! view-atom #(-> %
-                                           (assoc :changes-to-be-processed (dataflow/changes %))
-                                           (dataflow/reset-changes)))
+    (let [view-state (swap! view-atom (fn [view-state]
+                                        (-> view-state
+                                            (assoc :changes-to-be-processed (dataflow/changes view-state))
+
+                                            (dataflow/reset-changes))))
 
           changed-view-part-layout-paths (filter #(view-part-is-loaded? @(:gpu-state view-state) %)
                                                  (:changes-to-be-processed view-state))]
 
+      (debug/debug :events "New view state:")
+      (dorun (map #(debug/debug :events %)
+                  (dataflow/describe-dataflow view-state)))
 
       (-> (swap! (:gpu-state view-state)
                  (fn [gpu-state]
@@ -362,6 +340,8 @@
                           (dorun (map #(debug/debug :view-update %) (describe-gpu-state gpu-state)))
                           gpu-state)))))
           (render)))))
+
+;; FPS
 
 (defn add-fps [view-state time-now]
   (update-in view-state [:fpss]
@@ -387,77 +367,25 @@
         (dataflow/define-to :fps (average-fps view))
         (assoc :last-update-time time-now))))
 
+;; TIME
+
 (defn update-time [view]
   (dataflow/define-to view :time (System/nanoTime)))
+
+
+;; UPDATE
 
 (defn update [view-atom]
   (swap! view-atom
          (fn [view]
            (-> view
                (handle-events)
+               (dataflow/propagate-changes)
                ;;(update-time)
                ;;(update-fps)
                )))
 
   (update-view view-atom))
-
-
-;; LAYOUT
-
-
-
-#_(defn create-layout [parent-layoutable]
-    (if (satisfies? layout/Layout parent-layoutable)
-      (assoc parent-layoutable
-        :children (vec (map (fn [child-layoutable]
-                              (if (instance? ViewPart child-layoutable)
-                                (do (dataflow/initialize (:local-id child-layoutable)
-                                                         #(create-view-part-layout (dataflow/get-global-value (:root-element-path child-layoutable))
-                                                                                   (:width child-layoutable)
-                                                                                   (:height child-layoutable)))
-                                    child-layoutable)
-                                (create-layout child-layoutable)))
-
-                            (layout/layout parent-layoutable
-                                           (:width parent-layoutable)
-                                           (:height parent-layoutable)))))
-      parent-layoutable))
-
-#_(defn create-layout [parent-layoutable]
-    (if (satisfies? layout/Layout parent-layoutable)
-      (let [layout (layout/layout parent-layoutable
-                                  (:width parent-layoutable)
-                                  (:height parent-layoutable))]
-        (doseq [child (layout/children layout)]
-          (when (instance? ViewPart child)
-            (dataflow/initialize (:local-id child-layoutable)
-                                 #(create-view-part-layout (dataflow/get-global-value (:root-element-path child-layoutable))
-                                                           (:width child-layoutable)
-                                                           (:height child-layoutable)))
-            (do
-              child-layoutable)
-            (create-layout child-layoutable))))
-      (assoc parent-layoutable
-        :children (vec (map (fn [child-layoutable]
-                              (if (instance? ViewPart child-layoutable)
-                                (do (dataflow/initialize (:local-id child-layoutable)
-                                                         #(create-view-part-layout (dataflow/get-global-value (:root-element-path child-layoutable))
-                                                                                   (:width child-layoutable)
-                                                                                   (:height child-layoutable)))
-                                    child-layoutable)
-                                (create-layout child-layoutable)))
-
-                            (layout/layout parent-layoutable
-                                           (:width parent-layoutable)
-                                           (:height parent-layoutable)))))
-      parent-layoutable))
-
-#_(defn create-view-part-layout [root-layoutable width height]
-    (create-layout (assoc root-layoutable
-                     :x 0
-                     :y 0
-                     :width width
-                     :height height)))
 
 
 ;; INITIALIZATION
@@ -503,6 +431,12 @@
 
 ;; HELPERS
 
+(defn key-pressed [keyboard-event key]
+  (and (= (:key-code keyboard-event)
+          key)
+       (= (:type keyboard-event)
+          :key-pressed)))
+
 (defn with-mouse-over [layoutable key]
   (let [this (dataflow/absolute-path [])]
     (dataflow/initialize key false)
@@ -512,5 +446,7 @@
                                  :mouse-entered (dataflow/define-property-to application-state this key true)
                                  :mouse-left (dataflow/define-property-to application-state this key false)
                                  application-state)))))
+
+
 
 (run-tests)

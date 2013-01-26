@@ -5,24 +5,31 @@
             [flow-gl.dataflow :as dataflow]))
 
 
-(defn start [root-layoutable-constructor & {:keys [handle-event initialize width height framerate] :or {handle-event (fn [application-state view event] application-state)
-                                                                                                         initialize identity
-                                                                                                         width 700
-                                                                                                         height 500
-                                                                                                         framerate 30}} ]
+(defn start [root-layoutable-constructor & {:keys [handle-event initialize width height framerate]
+                                            :or {handle-event (fn [state view event] state)
+                                                 initialize (fn [state state-atom] state)
+                                                 width 700
+                                                 height 500
+                                                 framerate 30}} ]
   (debug/reset-log)
   (let [window-atom (window/create width height)]
 
     (try
       (let [state-atom (-> (view/create width height handle-event root-layoutable-constructor)
                            (assoc :window-atom window-atom)
-                           (initialize)
-                           (dataflow/propagate-changes)
-                           ((fn [view-state]
-                              (flow-gl.debug/debug :initialization "Initial view state:")
-                              (flow-gl.debug/debug-all :initialization (dataflow/dependency-tree view-state))
-                              view-state))
                            (atom))]
+
+        (swap! state-atom
+               (fn [state]
+                 (-> state
+                     ;; (assoc :state-atom state-atom)
+                     (initialize state-atom)
+                     (dataflow/propagate-changes)
+                     ((fn [view-state]
+                        (flow-gl.debug/debug :initialization "Initial view state:")
+                        (flow-gl.debug/debug-all :initialization (dataflow/dependency-tree view-state))
+                        view-state)))))
+
         (loop []
           (let [{:keys [resize-requested close-requested width height]} @window-atom]
             (if close-requested

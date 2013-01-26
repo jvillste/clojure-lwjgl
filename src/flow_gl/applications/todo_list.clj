@@ -15,45 +15,46 @@
 
             (clojure.contrib [profile :as profile])))
 
-(defn add-item [application-state item-list index value]
+
+(defn add-item [state item-list index value]
   (let [new-id (rand-int 10000)]
-    (-> application-state
+    (-> state
         (dataflow/define-to (concat item-list [:items new-id]) value)
-        (dataflow/define-to (concat item-list [:item-order]) (zipper-list/insert (get application-state (concat item-list [:item-order]))
+        (dataflow/define-to (concat item-list [:item-order]) (zipper-list/insert (get state (concat item-list [:item-order]))
                                                                                  new-id
                                                                                  index)))))
 
-(defn remove-item [application-state item-list index]
-  (let [id (get (apply vector (zipper-list/items (get application-state (concat item-list [:item-order]))))
-                (get application-state (concat item-list [:selection])))]
-    (-> application-state
+(defn remove-item [state item-list index]
+  (let [id (get (apply vector (zipper-list/items (get state (concat item-list [:item-order]))))
+                (get state (concat item-list [:selection])))]
+    (-> state
         (dataflow/undefine (concat item-list [:items id]))
         (dataflow/apply-to-value  (concat item-list [:item-order])  #(zipper-list/remove % id)))))
 
-(defn items [application-state item-view]
-  (map (fn [item-id] (dataflow/property-from application-state item-view [:item-list-view :items item-id]))
-       (zipper-list/items (dataflow/property-from application-state item-view [:item-list-view :item-order]))))
+(defn items [state item-view]
+  (map (fn [item-id] (dataflow/property-from state item-view [:item-list-view :items item-id]))
+       (zipper-list/items (dataflow/property-from state item-view [:item-list-view :item-order]))))
 
-(defn handle-editing-event [application-state editor event]
+(defn handle-editing-event [state editor event]
   (cond
    (input/key-pressed? event input/escape)
-   (-> application-state
+   (-> state
        (dataflow/define-to (concat editor [:cursor-position]) 0)
        (dataflow/define-to (concat editor [:editing]) false)
-       (dataflow/define-to (concat editor [:edited-value]) (get application-state (concat editor [:value])))
+       (dataflow/define-to (concat editor [:edited-value]) (get state (concat editor [:value])))
        (assoc :event-handled true))
 
    (input/key-pressed? event input/left)
-   (dataflow/apply-to-value application-state (concat editor [:cursor-position]) dec)
+   (dataflow/apply-to-value state (concat editor [:cursor-position]) dec)
 
    (input/key-pressed? event input/right)
-   (dataflow/apply-to-value application-state (concat editor [:cursor-position]) inc)
+   (dataflow/apply-to-value state (concat editor [:cursor-position]) inc)
 
    (not (nil? (:character event)))
-   (-> application-state
+   (-> state
        (dataflow/apply-to-value (concat editor [:edited-value]) (fn [edited-value]
                                                                   (-> (StringBuffer. edited-value)
-                                                                      (.insert (get application-state (concat editor [:cursor-position])) (:character event))
+                                                                      (.insert (get state (concat editor [:cursor-position])) (:character event))
                                                                       (.toString))))
 
        (dataflow/apply-to-value  (concat editor [:cursor-position]) inc)
@@ -61,24 +62,24 @@
 
 
 
-   :default application-state))
+   :default state))
 
-(defn handle-editor-event [application-state editor event]
+(defn handle-editor-event [state editor event]
   (cond
 
    (input/key-pressed? event input/enter)
-   (if (dataflow/property-from application-state editor :editing)
-     ((dataflow/property-from application-state editor :change-listener)
-      (dataflow/define-to application-state
-        (concat editor [:value]) (dataflow/property-from application-state editor :edited-value)
+   (if (dataflow/property-from state editor :editing)
+     ((dataflow/property-from state editor :change-listener)
+      (dataflow/define-to state
+        (concat editor [:value]) (dataflow/property-from state editor :edited-value)
         (concat editor [:cursor-position]) 0
         (concat editor [:editing]) false)
-      (dataflow/property-from application-state editor :edited-value))
-     (dataflow/define-to application-state (concat editor [:editing]) true))
+      (dataflow/property-from state editor :edited-value))
+     (dataflow/define-to state (concat editor [:editing]) true))
 
-   :default (if (get application-state (concat editor [:editing]))
-              (handle-editing-event application-state editor event)
-              application-state)))
+   :default (if (get state (concat editor [:editing]))
+              (handle-editing-event state editor event)
+              state)))
 
 
 (defn cursor [editor font]
@@ -132,11 +133,11 @@
                                                                   font
                                                                   [0 0 0 1])])))
 
-          (view/add-mouse-event-handler editor-path (fn [application-state event]
+          (view/add-mouse-event-handler editor-path (fn [state event]
                                                       (case (:type event)
-                                                        :mouse-entered (dataflow/define-property-to application-state editor-path :mouse-over true)
-                                                        :mouse-left (dataflow/define-property-to application-state editor-path :mouse-over false)
-                                                        application-state)))))))
+                                                        :mouse-entered (dataflow/define-property-to state editor-path :mouse-over true)
+                                                        :mouse-left (dataflow/define-property-to state editor-path :mouse-over false)
+                                                        state)))))))
 
 (defn editor-id [item-id]
   [(keyword (str "editor-" item-id))])
@@ -159,45 +160,45 @@
                                                                                   #(= item-id
                                                                                       (dataflow/property item-list-view-path :selected-item-id))
 
-                                                                                  (fn [application-state new-value]
+                                                                                  (fn [state new-value]
                                                                                     (dataflow/define-to
-                                                                                      application-state
+                                                                                      state
                                                                                       (concat item-list-view-path [:items item-id])
                                                                                       new-value)))
 
-                                                                          (view/add-mouse-event-handler item-id (fn [application-state event]
+                                                                          (view/add-mouse-event-handler item-id (fn [state event]
                                                                                                                   (if (and (= (:type event)
                                                                                                                               :left-mouse-button-up)
-                                                                                                                           (= (:event-handling-direction application-state) :up))
-                                                                                                                    (dataflow/define-to application-state (concat item-list-view-path [:selection]) index)
-                                                                                                                    application-state)))))))
+                                                                                                                           (= (:event-handling-direction state) :up))
+                                                                                                                    (dataflow/define-to state (concat item-list-view-path [:selection]) index)
+                                                                                                                    state)))))))
 
                                               (zipper-list/items (dataflow/property item-list-view-path :item-order)))))))
 
 
-(defn handle-item-list-view-event [application-state item-list-view event]
+(defn handle-item-list-view-event [state item-list-view event]
   (cond
 
    (input/key-pressed? event input/down)
-   (dataflow/apply-to-value application-state (concat item-list-view [:selection]) inc)
+   (dataflow/apply-to-value state (concat item-list-view [:selection]) inc)
 
    (input/key-pressed? event input/up)
-   (dataflow/apply-to-value application-state (concat item-list-view [:selection]) dec)
+   (dataflow/apply-to-value state (concat item-list-view [:selection]) dec)
 
    (input/key-pressed? event input/backspace)
-   (remove-item application-state item-list-view  (get application-state (concat item-list-view [:selection])))
+   (remove-item state item-list-view  (get state (concat item-list-view [:selection])))
 
-   :default (let [application-state (handle-editor-event application-state
-                                                         (concat item-list-view (editor-id (dataflow/property-from application-state item-list-view :selected-item-id)))
+   :default (let [state (handle-editor-event state
+                                                         (concat item-list-view (editor-id (dataflow/property-from state item-list-view :selected-item-id)))
                                                          event)]
-              (if (not (:event-handled application-state))
+              (if (not (:event-handled state))
                 (cond
                  (input/key-pressed? event input/space)
-                 (add-item application-state item-list-view  (get application-state  (concat item-list-view [:selection])) "New item" )
+                 (add-item state item-list-view  (get state  (concat item-list-view [:selection])) "New item" )
 
-                 :default application-state)
+                 :default state)
 
-                application-state))))
+                state))))
 
 
 (defn background []
@@ -225,30 +226,30 @@
                    (view/init-and-call :item-list-view item-list-view)
                    #_(layout/->DockBottom (view/init-and-call :status2 status))]))
 
-(defn handle-item-view-event [application-state item-view event]
-  (let [application-state (if (= (:type event)
+(defn handle-item-view-event [state item-view event]
+  (let [state (if (= (:type event)
                                  :mouse-moved)
-                            (dataflow/define-to application-state [:status] (get application-state :view-parts-under-mouse))
-                            application-state)]
+                            (dataflow/define-to state [:status] (get state :view-parts-under-mouse))
+                            state)]
 
-    (let [application-state (handle-item-list-view-event application-state (concat item-view [:item-list-view]) event)]
-      (if (not (:event-handled application-state))
+    (let [state (handle-item-list-view-event state (concat item-view [:item-list-view]) event)]
+      (if (not (:event-handled state))
         (cond
          (input/key-pressed? event input/escape)
-         (application/close application-state)
+         (application/close state)
 
-         :default application-state)
+         :default state)
 
-        application-state))))
+        state))))
 
-(defn initialize [application-state]
+(defn initialize [state state-atom]
   (let [item-list-view [:elements :item-list-view]]
-    (-> application-state
+    (-> state
         (dataflow/define-to [:status] [])
-        ((fn [application-state]
-           (reduce (fn [application-state index]
-                     (add-item application-state item-list-view 0 (str "Foo" index)))
-                   application-state
+        ((fn [state]
+           (reduce (fn [state index]
+                     (add-item state item-list-view 0 (str "Foo" index)))
+                   state
                    (range 2)))))))
 
 (defn start []

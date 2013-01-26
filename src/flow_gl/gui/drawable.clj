@@ -24,6 +24,17 @@
   Object
   (toString [this] (layoutable/describe-layoutable this "Text" :contents :font :color)))
 
+(defrecord Empty []
+  Drawable
+  (drawing-commands [empty] [])
+
+  layoutable/Layoutable
+  (preferred-width [empty] 0)
+  (preferred-height [empty] 0)
+
+  Object
+  (toString [this] (layoutable/describe-layoutable this "Empty")))
+
 (defrecord Rectangle [width height color]
   Drawable
   (drawing-commands [rectangle]
@@ -38,3 +49,15 @@
 
   Object
   (toString [this] (layoutable/describe-layoutable this "Rectangle" :color)))
+
+(defrecord Triangle [color x1 y1 x2 y2 x3 y3]
+  Drawable
+  (drawing-commands [rectangle]
+    (vector/triangle color x1 y1 x2 y2 x3 y3))
+
+  layoutable/Layoutable
+  (preferred-width [rectangle] (max x1 x2 x3))
+  (preferred-height [rectangle] (max y1 y2 y3))
+
+  Object
+  (toString [this] (layoutable/describe-layoutable this "Triangle" :color :x1 :y1 :x2 :y2 :x3 :y3)))

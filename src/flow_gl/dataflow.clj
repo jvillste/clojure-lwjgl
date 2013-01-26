@@ -6,6 +6,76 @@
             [clojure.data.priority-map :as priority-map])
   (:use clojure.test))
 
+;; DEPENDANTS
+
+(defn dependants [dataflow path]
+  (filter #(contains? (get-in dataflow [::dependencies %])
+                      path)
+          (keys (::dependencies dataflow))))
+
+
+(deftest dependants-test
+  (is (= (dependants {::dependencies {[:a] #{[:b] [:c]}
+                                      [:b] #{[:d]}}}
+                     [:b])
+         '([:a])))
+
+  (is (= (dependants {::dependencies {[:a] #{[:b] [:c]}
+                                      [:b] #{[:d]}}}
+                     [:e])
+         '())))
+
+
+;; DEBUG
+
+(defn function-to-string [dataflow key]
+  (str key " (height: " (get-in dataflow [::heights key]) ") = " (if (contains? dataflow key)
+                                                                   #_(apply str (take 100 (str (get dataflow key))))
+                                                                   (str (get dataflow key))
+                                                                   "UNDEFINED!")
+       (if (empty? (get-in dataflow [::dependencies key]))
+         ""
+         (str " depends on " (reduce (fn [string key]
+                                       (str string " " key (if (contains? dataflow key)
+                                                             ""
+                                                             " = UNDEFINED! ")))
+                                     ""
+                                     (get-in dataflow [::dependencies key]))))))
+
+(defn describe-functions [dataflow functions]
+  (for [function functions]
+    (function-to-string dataflow function)))
+
+(defn describe-dataflow [dataflow]
+  (describe-functions dataflow
+                      (sort (keys (::functions dataflow)))))
+
+(defn describe-dataflow-undefined [dataflow]
+  (describe-functions dataflow
+                      (filter #(not (contains? dataflow %))
+                              (sort (keys (::functions dataflow))))))
+
+
+(defn dependency-tree-for-path [dataflow path depth]
+  (into [(str (apply str (take depth (repeat "  ")))
+              (str path " = " (if (contains? dataflow path)
+                                (apply str (take 100 (str (get dataflow path))))
+                                #_(str (get dataflow path))
+                                "UNDEFINED!")))]
+        (mapcat #(dependency-tree-for-path dataflow % (inc depth))
+                (get-in dataflow [::dependencies path]))))
+
+
+(defn dependency-tree [dataflow]
+  (mapcat #(dependency-tree-for-path dataflow % 0)
+          (filter #(empty? (dependants dataflow %))
+                  (sort (keys (::functions dataflow))))))
+
+
+(defn debug-dataflow [dataflow]
+  (debug/debug-all :dataflow (describe-dataflow dataflow))
+  dataflow)
+
 ;; UTILITIES
 
 (defmacro when-> [argument condition body]
@@ -83,6 +153,8 @@
           dataflow
           paths))
 
+(defn declare-changed [dataflow path]
+  (update-in dataflow [::changed-paths] conj path))
 
 (defn update-value [dataflow path]
   (logged-access/with-access-logging
@@ -100,7 +172,7 @@
           children-to-be-undefined (if (= new-value ::undefined)
                                      #{} #_new-children
                                      (clojure.set/difference old-children new-children))]
-      #_(flow-gl.debug/debug "Updating " path " = " (apply str (take 100 (str new-value))))
+
       (-> @new-dataflow
           (undefine-many children-to-be-undefined)
           (when-> (not (= new-value ::undefined))
@@ -108,7 +180,11 @@
           (assoc-in [::dependencies path] @logged-access/reads)
           ((fn [dataflow]
              (assoc-in dataflow [::heights path] (height dataflow @logged-access/reads))))
-          (when-> changed (update-in [::changed-paths] conj path))))))
+          (when-> changed (declare-changed path))
+          (when-> (= new-value ::undefined)
+                  ((fn [dataflow]
+                     (flow-gl.debug/debug :dataflow "Warning: " (function-to-string dataflow path))
+                     dataflow)))))))
 
 (defn is-defined? [dataflow path]
   (contains? (::functions dataflow)
@@ -119,22 +195,6 @@
 
 
 
-(defn dependants [dataflow path]
-  (filter #(contains? (get-in dataflow [::dependencies %])
-                      path)
-          (keys (::dependencies dataflow))))
-
-
-(deftest dependants-test
-  (is (= (dependants {::dependencies {[:a] #{[:b] [:c]}
-                                      [:b] #{[:d]}}}
-                     [:b])
-         '([:a])))
-
-  (is (= (dependants {::dependencies {[:a] #{[:b] [:c]}
-                                      [:b] #{[:d]}}}
-                     [:e])
-         '())))
 
 (defn define-to
   ([dataflow path function & paths-and-functions]
@@ -297,29 +357,7 @@
   (define (concat element-path [key]) value))
 
 
-;; DEBUG
-
-(defn function-to-string [dataflow key]
-  (str key " (height: " (get-in dataflow [::heights key]) ") = " (if (contains? dataflow key)
-                                                                   #_(apply str (take 100 (str (get dataflow key))))
-                                                                   (str (get dataflow key))
-                                                                   "UNDEFINED!")
-       (if (empty? (get-in dataflow [::dependencies key]))
-         ""
-         (str " depends on " (reduce (fn [string key]
-                                       (str string " " key (if (contains? dataflow key)
-                                                             ""
-                                                             " = UNDEFINED! ")))
-                                     ""
-                                     (get-in dataflow [::dependencies key]))))))
-
-(defn describe-functions [dataflow functions]
-  (for [function functions]
-    (function-to-string dataflow function)))
-
-(defn describe-dataflow [dataflow]
-  (describe-functions dataflow
-                      (sort (keys (::functions dataflow)))))
+;; TESTS
 
 (deftest describe-dataflow-test
   (is (= (-> (create)
@@ -330,20 +368,6 @@
          '("[:foo] (height: 0) = 2"
            "[:foo2] (height: 1) = 4 depends on  [:foo]"))))
 
-(defn describe-dataflow-undefined [dataflow]
-  (describe-functions dataflow
-                      (filter #(not (contains? dataflow %))
-                              (sort (keys (::functions dataflow))))))
-
-
-(defn dependency-tree-for-path [dataflow path depth]
-  (into [(str (apply str (take depth (repeat "  ")))
-              (str path " = " (if (contains? dataflow path)
-                               (apply str (take 100 (str (get dataflow path))))
-                               #_(str (get dataflow path))
-                               "UNDEFINED!")))]
-        (mapcat #(dependency-tree-for-path dataflow % (inc depth))
-                (get-in dataflow [::dependencies path]))))
 
 (deftest dependency-tree-for-path-test
   (is (= (-> (create)
@@ -354,10 +378,6 @@
          ["[:foo2] = 4"
           "  [:foo] = 2"])))
 
-(defn dependency-tree [dataflow]
-  (mapcat #(dependency-tree-for-path dataflow % 0)
-          (filter #(empty? (dependants dataflow %))
-                  (sort (keys (::functions dataflow))))))
 
 (deftest dependency-tree-test
   (is (= (-> (create)
@@ -377,9 +397,6 @@
            "  [:foo3] = 4"
            "    [:foo] = 2"))))
 
-(defn debug-dataflow [dataflow]
-  (debug/debug-all :dataflow (describe-dataflow dataflow))
-  dataflow)
 
 ;; TESTS
 
