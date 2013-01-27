@@ -11,6 +11,15 @@
             (flow-gl [dataflow :as dataflow]
                      [debug :as debug])))
 
+(defn single-color [coordinates color]
+  (apply concat (-> (count coordinates)
+                    (/ 2)
+                    (repeat color))))
+
+(defn single-color-triangle-batch [coordinates color]
+  (triangle-batch/create coordinates
+                         (single-color coordinates color)))
+
 
 (defn line-coordinates [width x1 y1 x2 y2]
   (let [line-angle (Math/atan2 (- x2 x1)
@@ -42,17 +51,11 @@
      v2x v2y
      v3x v3y]))
 
-(defn single-color [coordinates color]
-  (apply concat (-> (count coordinates)
-                    (/ 2)
-                    (repeat color))))
-
 (defrecord Line [color line-width x1 y1 x2 y2]
   drawable/Drawable
   (drawing-commands [this]
-    (let [coordinates (line-coordinates line-width x1 y1 x2 y2)]
-      [(triangle-batch/create coordinates
-                              (single-color coordinates color))]))
+    [(single-color-triangle-batch (line-coordinates line-width x1 y1 x2 y2)
+                                  color)])
 
   layoutable/Layoutable
   (preferred-width [this] (max x1 x2))
@@ -61,21 +64,129 @@
   Object
   (toString [this] (layoutable/describe-layoutable this "Line" :color :x1 :y1 :x2 :y2)))
 
-(defn view []
+(defn circle-coordinates [segment]
+  (let [n 20
+        multipliers (for [i (range n)]
+                      (let [angle (-> (* i 2 Math/PI)
+                                      (/ n))]
+                        [(Math/cos angle)
+                         (Math/sin angle)]))]
+    (apply concat
+
+           (let [[cos2 sin2] (first multipliers)
+                 [cos1 sin1] (last multipliers)]
+             (segment cos1 sin1 cos2 sin2))
+
+           (for [[[cos1 sin1] [cos2 sin2]] (partition 2 1 multipliers)]
+             (segment cos1 sin1 cos2 sin2)))))
+
+(defrecord FilledCircle [color radius]
+  drawable/Drawable
+  (drawing-commands [this]
+    [(single-color-triangle-batch (circle-coordinates (fn [cos1 sin1 cos2 sin2]
+                                                        [0 0
+                                                         (* radius cos2) (* radius sin2)
+                                                         (* radius cos1) (* radius sin1)]))
+                                  color)])
+
+  layoutable/Layoutable
+  (preferred-width [this] (* 2 radius))
+  (preferred-height [this] (* 2 radius))
+
+  Object
+  (toString [this] (layoutable/describe-layoutable this "FilledCircle" :color :radius)))
+
+(defrecord Circle [color radius line-width]
+  drawable/Drawable
+  (drawing-commands [this]
+    [(single-color-triangle-batch (circle-coordinates (fn [cos1 sin1 cos2 sin2]
+                                                        (let [inner-radius (- radius line-width)
+
+                                                              x1 (* inner-radius
+                                                                    cos1)
+                                                              y1 (* inner-radius
+                                                                    sin1)
+
+                                                              x2 (* radius
+                                                                    cos1)
+                                                              y2 (* radius
+                                                                    sin1)
+
+                                                              x3 (* radius
+                                                                    cos2)
+                                                              y3 (* radius
+                                                                    sin2)
+
+                                                              x4 (* inner-radius
+                                                                    cos2)
+                                                              y4 (* inner-radius
+                                                                    sin2)]
+                                                          [x1 y1
+                                                           x3 y3
+                                                           x2 y2
+
+                                                           x1 y1
+                                                           x4 y4
+                                                           x3 y3])))
+                                  color)])
+
+  layoutable/Layoutable
+  (preferred-width [this] (* 2 radius))
+  (preferred-height [this] (* 2 radius))
+
+  Object
+  (toString [this] (layoutable/describe-layoutable this "Circle" :color :radius :line-width)))
+
+
+(defn line-view []
   (layout/->Absolute (let [n 50
-                           l 100
+                           l 200
                            l2 30]
                        (for [i (range 1 n)]
                          (let [angle (-> (* 4 Math/PI)
                                          (* i)
                                          (/ n))]
                            (-> (->Line [1 0 0 1]
-                                       3
+                                       1
                                        (* l2 (Math/cos angle))
                                        (* l2 (Math/sin angle))
                                        (* l (Math/cos angle))
                                        (* l (Math/sin angle)))
                                (assoc :x l :y l)))))))
+
+
+(defn filled-circle-view []
+  (layout/->Absolute (for [i (range 15)]
+                       (let [r (* i 5)]
+                         (-> (->FilledCircle [1 0 0 1]
+                                             r)
+                             (assoc :x (+ (* i r) (+ r 50))
+                                    :y (+ r 50)))))))
+
+(defn circle-view []
+  (layout/->Absolute (for [i (range 15)]
+                       (let [r (* i 5)]
+                         (-> (->Circle [1 1 0 1]
+                                       r
+                                       5)
+                             (assoc :x (+ (* i r) (+ r 50))
+                                    :y (+ r 50)))))))
+
+(defn clock []
+  (layout/->Absolute [(let [n 50
+                            l 200
+                            l2 30]
+                        (let [angle (-> (dataflow/get-global-value :time)
+                                        (mod 1e9)
+                                        (/ 1e9)
+                                        (* (* 2 Math/PI)))]
+                          (-> (->Line [1 0 0 1]
+                                      1
+                                      (* l2 (Math/cos angle))
+                                      (* l2 (Math/sin angle))
+                                      (* l (Math/cos angle))
+                                      (* l (Math/sin angle)))
+                              (assoc :x l :y l))))]))
 
 (defonce sa (atom nil))
 
@@ -84,17 +195,16 @@
   state)
 
 (defn start []
-  (application/start view :initialize initialize))
+  (application/start circle-view
+                     :initialize initialize
+                     :framerate 10))
 
 (defn refresh []
   (when @sa
-    (swap! @sa (fn [state]
-                 (println "refresh")
-                 (-> state
-                     (dataflow/define-to [:elements] view)
-                     (dataflow/propagate-changes))))))
+    (swap! @sa view/set-view circle-view)))
 
 (refresh)
+
 (comment
 
   (start)

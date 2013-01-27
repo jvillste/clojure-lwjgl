@@ -381,7 +381,7 @@
            (-> view
                (handle-events)
                (dataflow/propagate-changes)
-               ;;(update-time)
+               (update-time)
                ;;(update-fps)
                )))
 
@@ -428,6 +428,11 @@
          :width width
          :height height))
 
+
+(defn set-view [state view]
+  (-> state
+      (dataflow/define-to [:elements] view)
+      (dataflow/propagate-changes)))
 
 ;; HELPERS
 
