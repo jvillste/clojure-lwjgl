@@ -64,20 +64,36 @@
   Object
   (toString [this] (layoutable/describe-layoutable this "Line" :color :x1 :y1 :x2 :y2)))
 
+(defn arc-vertices [from-angle to-angle radius]
+  (let [angle-difference (- to-angle from-angle)
+        n (int (* 20
+                  (/ angle-difference
+                     (* 2 Math/PI))))
+        cos-sin (for [i (range n)]
+                  (let [angle (-> (* i angle-difference)
+                                  (/ n)
+                                  (+ from-angle))]
+                    [(Math/cos angle)
+                     (Math/sin angle)]))]
+    (map (fn [[cos sin]]
+           [(* radius cos)
+            (* radius sin)] )
+         cos-sin)))
+
 (defn circle-coordinates [segment]
   (let [n 20
-        multipliers (for [i (range n)]
-                      (let [angle (-> (* i 2 Math/PI)
-                                      (/ n))]
-                        [(Math/cos angle)
-                         (Math/sin angle)]))]
+        cos-sin (for [i (range n)]
+                  (let [angle (-> (* i 2 Math/PI)
+                                  (/ n))]
+                    [(Math/cos angle)
+                     (Math/sin angle)]))]
     (apply concat
 
-           (let [[cos2 sin2] (first multipliers)
-                 [cos1 sin1] (last multipliers)]
+           (let [[cos2 sin2] (first cos-sin)
+                 [cos1 sin1] (last cos-sin)]
              (segment cos1 sin1 cos2 sin2))
 
-           (for [[[cos1 sin1] [cos2 sin2]] (partition 2 1 multipliers)]
+           (for [[[cos1 sin1] [cos2 sin2]] (partition 2 1 cos-sin)]
              (segment cos1 sin1 cos2 sin2)))))
 
 (defrecord FilledCircle [color radius]
@@ -137,6 +153,41 @@
   Object
   (toString [this] (layoutable/describe-layoutable this "Circle" :color :radius :line-width)))
 
+(defn rounded-rectangle-vertices [width height radius]
+  (apply concat (concat (map (fn [[x y]] [(+ x radius) (+ y radius)]) (arc-vertices Math/PI
+                                                                                    (* (/ 3 2) Math/PI)
+                                                                                    radius))
+                        (map (fn [[x y]] [(+ x (- width radius)) (+ y radius)]) (arc-vertices (* (/ 3 2) Math/PI)
+                                                                                              (* 2 Math/PI)
+                                                                                              radius))
+                        (map (fn [[x y]] [(+ x (- width radius)) (+ y (- height radius))]) (arc-vertices 0
+                                                                                                         (/ Math/PI 2)
+                                                                                                         radius))
+                        (map (fn [[x y]] [(+ x radius) (+ y (- height radius))]) (arc-vertices (/ Math/PI 2)
+                                                                                               Math/PI
+                                                                                               radius)))))
+
+(defn triangle-fan [vertices]
+  (let [root-x (first vertices)
+        root-y (second vertices)]
+    (apply concat (for [[x1 y1 x2 y2] (partition 4 2 (drop 2 vertices))]
+                    [root-x root-y
+                     x2 y2
+                     x1 y1]))))
+
+(defrecord FilledRoundedRectangle [width height radius color]
+  drawable/Drawable
+  (drawing-commands [this]
+    [(single-color-triangle-batch (triangle-fan (rounded-rectangle-vertices width height radius))
+                                  color)])
+
+  layoutable/Layoutable
+  (preferred-width [this] width)
+  (preferred-height [this] height)
+
+  Object
+  (toString [this] (layoutable/describe-layoutable this "FilledRoundedRectangle" :radius)))
+
 
 (defn line-view []
   (layout/->Absolute (let [n 50
@@ -168,9 +219,22 @@
                        (let [r (* i 5)]
                          (-> (->Circle [1 1 0 1]
                                        r
-                                       5)
+                                       (* 1.2 i))
                              (assoc :x (+ (* i r) (+ r 50))
                                     :y (+ r 50)))))))
+
+(defn rounded-rectangle-view []
+  (layout/->Absolute (concat (for [[x y] (->> (rounded-rectangle-vertices 200 100 30)
+                                              (partition 2))]
+                               (-> (->FilledCircle [1 1 0 1]
+                                                   2)
+                                   (assoc :x (+ 50 x)
+                                          :y (+ 50 y))))
+
+                             [(-> (->FilledRoundedRectangle 300 300 100 [1 1 0 1])
+                                  (assoc :x 500
+                                         :y 50))])))
+
 
 (defn clock []
   (layout/->Absolute [(let [n 50
@@ -195,19 +259,19 @@
   state)
 
 (defn start []
-  (application/start circle-view
+  (application/start rounded-rectangle-view
                      :initialize initialize
                      :framerate 10))
 
 (defn refresh []
   (when @sa
-    (swap! @sa view/set-view circle-view)))
+    (swap! @sa view/set-view rounded-rectangle-view)))
 
 (refresh)
 
 (comment
 
   (start)
-  (.start (Thread. start))
+(.start (Thread. start))
 
   )

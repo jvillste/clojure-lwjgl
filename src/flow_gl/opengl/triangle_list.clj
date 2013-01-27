@@ -95,7 +95,8 @@ void main() {
                                              (boolean GL11/GL_FALSE)
                                              (int 0)
                                              (long 0))
-  (GL11/glDrawArrays GL11/GL_TRIANGLES 0 (* 4 (:number-of-triangles triangle-list))))
+
+  (GL11/glDrawArrays GL11/GL_TRIANGLES 0 (* 3 (:number-of-triangles triangle-list))))
 
 
 

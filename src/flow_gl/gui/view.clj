@@ -124,8 +124,6 @@
   (draw-view-part gpu-state [:layout]))
 
 
-
-
 ;; MOUSE
 
 (defn invert-mouse-y [window-height mouse-event]
@@ -328,8 +326,8 @@
       (debug/debug :events "New view state:")
       (dorun (map #(debug/debug :events %)
                   (dataflow/describe-dataflow view-state)))
-
-      (-> (swap! (:gpu-state view-state)
+      (when (not (empty? changed-view-part-layout-paths))
+        (-> (swap! (:gpu-state view-state)
                  (fn [gpu-state]
                    (-> (reduce (fn [gpu-state layout-path]
                                  (update-view-part gpu-state view-state layout-path))
@@ -339,7 +337,7 @@
                           (debug/debug :view-update "New gpu state:")
                           (dorun (map #(debug/debug :view-update %) (describe-gpu-state gpu-state)))
                           gpu-state)))))
-          (render)))))
+          (render))))))
 
 ;; FPS
 
