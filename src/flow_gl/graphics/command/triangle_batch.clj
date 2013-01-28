@@ -20,7 +20,8 @@
      6))
 
 (defn create-triangle-list [triangle-batch]
-  (-> (triangle-list/create (number-of-triangles triangle-batch))
+  (-> (triangle-list/create :triangles
+                            (number-of-triangles triangle-batch))
       (triangle-list/update 0 (:coordinates triangle-batch) (:colors triangle-batch))))
 
 (defn update-triangle-list-from-triangle-batch [triangle-list triangle-batch]

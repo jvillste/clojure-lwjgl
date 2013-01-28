@@ -3,7 +3,8 @@
                            [buffer :as buffer]))
   (:import [org.lwjgl.opengl GL11 GL20 ARBVertexBufferObject ARBVertexProgram ARBVertexShader]))
 
-(defrecord TriangleList [number-of-triangles
+(defrecord TriangleList [mode
+                         number-of-triangles
                          shader-program
                          vertex-coordinate-attribute-index
                          ertex-color-attribute-index
@@ -55,10 +56,11 @@ void main() {
 
 
 
-(defn create [number-of-triangles]
+(defn create [mode number-of-triangles]
   (let [shader-program (shader/compile-program vertex-shader-source
                                                fragment-shader-source)]
-    (map->TriangleList {:number-of-triangles number-of-triangles
+    (map->TriangleList {:mode mode
+                        :number-of-triangles number-of-triangles
                         :shader-program shader-program
                         :vertex-coordinate-attribute-index (ARBVertexShader/glGetAttribLocationARB shader-program "vertex_coordinate_attribute")
                         :vertex-color-attribute-index (ARBVertexShader/glGetAttribLocationARB shader-program "vertex_color_attribute")
@@ -96,7 +98,7 @@ void main() {
                                              (int 0)
                                              (long 0))
 
-  (GL11/glDrawArrays GL11/GL_TRIANGLES 0 (* 3 (:number-of-triangles triangle-list))))
-
-
-
+  (case (:mode triangle-list)
+    :triangles (GL11/glDrawArrays GL11/GL_TRIANGLES 0 (* 3 (:number-of-triangles triangle-list)))
+    :triangle-strip (GL11/glDrawArrays GL11/GL_TRIANGLE_STRIP 0 (+ 2 (:number-of-triangles triangle-list)))
+    :triangle-fan (GL11/glDrawArrays GL11/GL_TRIANGLE_FAN 0 (:number-of-triangles triangle-list))))

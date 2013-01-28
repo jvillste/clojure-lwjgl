@@ -44,7 +44,6 @@
 
   layout/Layout
   (layout [view-part requested-width requested-height]
-    (flow-gl.debug/debug :default "view part layout" (:root-element-path view-part))
     (dataflow/initialize (:local-id view-part)
                          #(layout/set-dimensions-and-layout (dataflow/get-global-value (:root-element-path view-part))
                                                             0
@@ -136,7 +135,6 @@
 
 (defn call-mouse-event-handlers [view-state event mouse-event-handlers]
   (reduce (fn [view-state mouse-event-handler]
-            (flow-gl.debug/debug :default "calling " (:id mouse-event-handler))
             ((:handler mouse-event-handler) view-state event))
           view-state
           mouse-event-handlers))
@@ -160,7 +158,6 @@
                                          (get view-state [:layout]))))
 
   ([view-state x y layoutable]
-     (flow-gl.debug/debug :default "layoutables-in-coordinates " (type layoutable))
      (if (satisfies? layout/Layout layoutable)
        (loop [result []
               x x
@@ -194,10 +191,10 @@
        [layoutable])))
 
 (defn mouse-event-handlers-in-coordinates [view-state x y]
-  (flow-gl.debug/debug :default "layoutables in " x " " y " " (->>  (layoutables-in-coordinates view-state x y)
-                                                                    (map (fn [layoutable] [(type layoutable)
-                                                                                           (:mouse-event-handler layoutable)]) )
-                                                                    (vec)))
+  (->>  (layoutables-in-coordinates view-state x y)
+        (map (fn [layoutable] [(type layoutable)
+                               (:mouse-event-handler layoutable)]) )
+        (vec))
   (->> (layoutables-in-coordinates view-state x y)
        (filter #(not (= nil
                         (:mouse-event-handler %))))
@@ -328,16 +325,16 @@
                   (dataflow/describe-dataflow view-state)))
       (when (not (empty? changed-view-part-layout-paths))
         (-> (swap! (:gpu-state view-state)
-                 (fn [gpu-state]
-                   (-> (reduce (fn [gpu-state layout-path]
-                                 (update-view-part gpu-state view-state layout-path))
-                               gpu-state
-                               changed-view-part-layout-paths)
-                       ((fn [gpu-state]
-                          (debug/debug :view-update "New gpu state:")
-                          (dorun (map #(debug/debug :view-update %) (describe-gpu-state gpu-state)))
-                          gpu-state)))))
-          (render))))))
+                   (fn [gpu-state]
+                     (-> (reduce (fn [gpu-state layout-path]
+                                   (update-view-part gpu-state view-state layout-path))
+                                 gpu-state
+                                 changed-view-part-layout-paths)
+                         ((fn [gpu-state]
+                            (debug/debug :view-update "New gpu state:")
+                            (dorun (map #(debug/debug :view-update %) (describe-gpu-state gpu-state)))
+                            gpu-state)))))
+            (render))))))
 
 ;; FPS
 
