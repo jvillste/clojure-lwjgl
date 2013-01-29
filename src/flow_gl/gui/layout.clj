@@ -78,7 +78,7 @@
   Layout
   (layout [absolute requested-width requested-height]
     (assoc absolute :layoutables
-           (vec (map #(set-dimensions-and-layout % (:x %) (:y %) (layoutable/preferred-width %) (layoutable/preferred-height %))
+           (vec (map #(set-dimensions-and-layout % (or (:x %) 0) (or (:y %) 0) (layoutable/preferred-width %) (layoutable/preferred-height %))
                      layoutables))))
 
   (children [box] layoutables)

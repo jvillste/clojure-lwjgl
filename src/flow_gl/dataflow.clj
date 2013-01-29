@@ -351,7 +351,7 @@
   (get-global-value-from dataflow (concat element-path (as-path key))))
 
 (defn define-property-to [dataflow element-path key value]
-  (define-to dataflow (concat element-path [key]) value))
+  (define-to dataflow (concat element-path (as-path key)) value))
 
 (defn define-property [element-path key value]
   (define (concat element-path [key]) value))

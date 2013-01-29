@@ -73,8 +73,10 @@
 
   (debug/debug :view-update "loading " layout-path)
 
-  (if (contains? view-state layout-path)
-    (let [drawing-commands (drawable/drawing-commands (get view-state layout-path))
+  (if (dataflow/is-defined? view-state layout-path)
+    (let [drawing-commands (if-let [layout (get view-state layout-path)]
+                             (drawable/drawing-commands layout)
+                             []) 
           gpu-state (reduce (fn [gpu-state layout-path]
                               (load-view-part gpu-state view-state layout-path))
                             gpu-state
