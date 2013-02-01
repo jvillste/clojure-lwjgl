@@ -24,12 +24,12 @@
 
 (defn mouse-button-event-type [lwjgl-event]
   (case [(:mouse-button lwjgl-event) (:mouse-button-state lwjgl-event)]
-    [0 false] :left-mouse-button-down
-    [1 false] :right-mouse-button-down
-    [2 false] :middle-mouse-button-down
-    [0 true] :left-mouse-button-up
-    [1 true] :right-mouse-button-up
-    [2 true] :middle-mouse-button-up
+    [0 false] :left-mouse-button-up
+    [1 false] :right-mouse-button-up
+    [2 false] :middle-mouse-button-up
+    [0 true] :left-mouse-button-down
+    [1 true] :right-mouse-button-down
+    [2 true] :middle-mouse-button-down
     nil))
 
 (defn update-mouse-state [mouse-state event]
@@ -74,11 +74,11 @@
    :mouse-delta-y (Mouse/getEventDY)
    :time (Mouse/getEventNanoseconds)})
 
-(defn unread-mouse-input-exists? [] (Mouse/next))
-
 (defn unread-mouse-events []
-  (take-while (fn [_] (unread-mouse-input-exists?))
-              (repeatedly #(create-mouse-event (read-lwjgl-mouse-event)))))
+  (loop [events []]
+    (if (Mouse/next)
+      (recur (conj events (create-mouse-event (read-lwjgl-mouse-event))))
+      events)))
 
 (defn mouse-x []
   (Mouse/getX))

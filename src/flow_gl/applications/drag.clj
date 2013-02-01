@@ -12,50 +12,65 @@
                      [debug :as debug])))
 
 (defn end-point [x y mouse-over-id]
-  (-> (drawable/->FilledCircle (if (dataflow/get-value-or-initialize mouse-over-id false)
-                                 [0 1 0 1]
-                                 [0 0.6 0 1])
-                               10)
-      (assoc :x x :y y)
-      (view/with-mouse-over mouse-over-id)))
+  (let [radius 15]
+    (-> (drawable/->FilledCircle (if (dataflow/get-value-or-initialize mouse-over-id false)
+                                   [0 1 0 1]
+                                   [0 0.6 0 1])
+                                 15)
+        (assoc :x (- x radius) :y (- y radius))
+        (view/with-mouse-over mouse-over-id))))
 
 (defn view []
   (layout/->Absolute (apply concat (for [line-id (dataflow/get-global-value :lines)]
                                      (let [[x1 y1 x2 y2] (dataflow/get-global-value [:line line-id])]
                                        (flow-gl.debug/debug :default x1 y1 x2 y2)
                                        [(drawable/->Line [1 0 0 0.5]
-                                                         10
+                                                         2
                                                          x1 y1 x2 y2)
-                                        (end-point x1 y1 [:mouse-over line-id :from])
+                                        (-> (end-point x1 y1 [:mouse-over line-id :from])
+                                            (view/add-mouse-event-handler [:drag-handler line-id :from]
+                                                                          (fn [state event]
+                                                                            (println event)
+                                                                            state)))
                                         (end-point x2 y2 [:mouse-over line-id :to])])))))
 
+(defn view2 []
+  (layout/->Absolute [(-> (drawable/->Rectangle 100 100 [1 1 1 1])
+                          (assoc :x 50 :y 50)
+                          (view/add-mouse-event-handler [:handler]
+                                                        (fn [state event]
+                                                          (println event)
+                                                          state)))]))
 
-(defonce state-atom-atom (atom nil))
 
 (defn initialize [state state-atom]
-  (reset! state-atom-atom state-atom)
   (dataflow/define-to state
     :lines [1 2]
-    [:line 1] [10 50 100 100]
+    [:line 1] [10 200 100 100]
     [:line 2] [10 50 10 100]))
 
 (defn start []
-  (application/start view
+  (application/start view2
                      :initialize initialize
                      :framerate 30))
 
 (defn refresh []
-  (when @state-atom-atom
-    (swap! @state-atom-atom view/set-view view)))
+  (when @application/state-atom-atom
+    (swap! @application/state-atom-atom view/set-view view)))
 
 (refresh)
 
-(comment
 
+(comment
 (start)
 
-  (.start (Thread. start))
+(defn generate []
+  (println "generated")
+  1)
 
+(println (take 2 (repeatedly generate))) 
+
+(.start (Thread. start))
   (debug/set-active-channels
    ;; :view-definition
    ;; :initialization

@@ -221,9 +221,9 @@
   Drawable
   (drawing-commands [this]
     [(single-color-triangle-batch (circle-coordinates (fn [cos1 sin1 cos2 sin2]
-                                                        [0 0
-                                                         (* radius cos2) (* radius sin2)
-                                                         (* radius cos1) (* radius sin1)]))
+                                                        [radius radius
+                                                         (+ radius (* radius cos2)) (+ radius (* radius sin2))
+                                                         (+ radius (* radius cos1)) (+ radius (* radius sin1))]))
                                   color)])
 
   layoutable/Layoutable

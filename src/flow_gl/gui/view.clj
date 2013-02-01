@@ -12,7 +12,8 @@
                       [debug :as debug])
              [clojure.data.priority-map :as priority-map])
 
-  (:use clojure.test))
+  (:use clojure.test
+        flow-gl.threading))
 
 ;; DEBUG
 
@@ -76,7 +77,7 @@
   (if (dataflow/is-defined? view-state layout-path)
     (let [drawing-commands (if-let [layout (get view-state layout-path)]
                              (drawable/drawing-commands layout)
-                             []) 
+                             [])
           gpu-state (reduce (fn [gpu-state layout-path]
                               (load-view-part gpu-state view-state layout-path))
                             gpu-state
@@ -193,10 +194,6 @@
        [layoutable])))
 
 (defn mouse-event-handlers-in-coordinates [view-state x y]
-  (->>  (layoutables-in-coordinates view-state x y)
-        (map (fn [layoutable] [(type layoutable)
-                               (:mouse-event-handler layoutable)]) )
-        (vec))
   (->> (layoutables-in-coordinates view-state x y)
        (filter #(not (= nil
                         (:mouse-event-handler %))))
@@ -230,7 +227,9 @@
   (let [current-mouse-event-handlers-under-mouse (mouse-event-handlers-in-coordinates view-state
                                                                                       (get view-state [:mouse-x])
                                                                                       (get view-state [:mouse-y]))]
+
     (flow-gl.debug/debug :events "current-mouse-event-handlers-under-mouse " (vec current-mouse-event-handlers-under-mouse))
+
     (-> view-state
         (call-mouse-enter-and-leave-handlers current-mouse-event-handlers-under-mouse
                                              (:mouse-event-handlers-under-mouse view-state))
@@ -243,7 +242,7 @@
         :mouse-y (:mouse-y event))
       (update-mouse-event-handlers-under-mouse)))
 
-(defn handle-mouse-click-event [view-state event]
+(defn send-mouse-event [view-state event]
   (-> view-state
 
       (call-mouse-event-handlers (assoc event :event-handling-direction :down)
@@ -262,17 +261,16 @@
                                        (new-handler view-state event)))}))
 
 (defn handle-mouse-event [view-state event]
-  (if (= (:type event)
-         :mouse-moved)
-    (update-mouse-position view-state event)
-    (handle-mouse-click-event view-state event)))
+  (-> view-state
+      (when-> (= (:type event) :mouse-moved)
+              (update-mouse-position event))
+      (send-mouse-event event)))
 
 (defn handle-keyboard-event [view-state event]
   ((:event-handler view-state)
    view-state
    [:elements]
      event))
-
 
 (defn trim-mouse-movements [events]
   (letfn [(is-mouse-move [event] (= :mouse-moved (:type event)))]
@@ -308,6 +306,7 @@
                                         (trim-mouse-movements)
                                         (map (partial invert-mouse-y (get view [:height])))))
                            (sort-by :time))]
+    
     (reduce handle-event view unread-events)))
 
 

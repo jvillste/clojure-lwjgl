@@ -4,7 +4,8 @@
             clojure.set
             [slingshot.slingshot :as slingshot]
             [clojure.data.priority-map :as priority-map])
-  (:use clojure.test))
+  (:use clojure.test
+        flow-gl.threading))
 
 ;; DEPENDANTS
 
@@ -77,11 +78,6 @@
   dataflow)
 
 ;; UTILITIES
-
-(defmacro when-> [argument condition body]
-  `(if ~condition
-     (-> ~argument ~body)
-     ~argument))
 
 (defn multimap-add
   "Adds key-value pairs to the multimap."

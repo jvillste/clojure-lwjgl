@@ -4,6 +4,7 @@
             [flow-gl.debug :as debug]
             [flow-gl.dataflow :as dataflow]))
 
+(defonce state-atom-atom (atom nil))
 
 (defn start [root-layoutable-constructor & {:keys [handle-event initialize width height framerate]
                                             :or {handle-event (fn [state view event] state)
@@ -18,6 +19,8 @@
       (let [state-atom (-> (view/create width height handle-event root-layoutable-constructor)
                            (assoc :window-atom window-atom)
                            (atom))]
+
+        (reset! state-atom-atom state-atom)
 
         (swap! state-atom
                (fn [state]
