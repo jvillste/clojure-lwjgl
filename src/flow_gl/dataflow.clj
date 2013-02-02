@@ -132,16 +132,17 @@
                     (conj -1)))))
 
 (defn undefine [dataflow path]
-  (debug/debug :dataflow "undefining" path)
-  (-> (reduce (fn [dataflow child]
-                (undefine dataflow child))
-              dataflow
-              (get-in dataflow [::children path]))
-      (update-in [::functions] dissoc path)
-      (update-in [::dependencies] dissoc path)
-      (update-in [::children] dissoc path)
-      (update-in [::changed-paths] conj path)
-      (dissoc path)))
+  (let [path (as-path path)]
+    (debug/debug :dataflow "undefining" path)
+    (-> (reduce (fn [dataflow child]
+                  (undefine dataflow child))
+                dataflow
+                (get-in dataflow [::children path]))
+        (update-in [::functions] dissoc path)
+        (update-in [::dependencies] dissoc path)
+        (update-in [::children] dissoc path)
+        (update-in [::changed-paths] conj path)
+        (dissoc path))))
 
 (defn undefine-many [dataflow paths]
   (reduce (fn [dataflow path]
@@ -301,14 +302,14 @@
 ;; ACCESS
 
 (defn get-global-value-from [dataflow path]
-  (let [path (as-path path)]
-    (if (contains? dataflow path)
-      (logged-access/get dataflow path)
-      (do (logged-access/add-read path)
-          (slingshot/throw+ {:type ::undefined-value} (str "Undefined value: " path))))))
+  (logged-access/get dataflow (as-path path)))
 
 (defn get-global-value [path]
-  (get-global-value-from @current-dataflow path))
+  (let [path (as-path path)]
+    (if (contains? @current-dataflow path)
+      (get-global-value-from @current-dataflow path)
+      (do (logged-access/add-read path)
+          (slingshot/throw+ {:type ::undefined-value} (str "Undefined value: " path))))))
 
 (defn get-value [path-or-key]
   (get-global-value (absolute-path path-or-key)))

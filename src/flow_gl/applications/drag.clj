@@ -30,8 +30,28 @@
                                         (-> (end-point x1 y1 [:mouse-over line-id :from])
                                             (view/add-mouse-event-handler [:drag-handler line-id :from]
                                                                           (fn [state event]
-                                                                            (println event)
-                                                                            state)))
+                                                                            (if (= (:type event)
+                                                                                   :left-mouse-button-down)
+                                                                              (-> state
+                                                                                  (dataflow/define-to :drag-start [(dataflow/get-global-value-from state :mouse-x)
+                                                                                                                   (dataflow/get-global-value-from state :mouse-y)
+                                                                                                                   x1 y1])
+                                                                                  (view/capture-mouse (fn [state event]
+                                                                                                        (case (:type event)
+                                                                                                          :left-mouse-button-up (-> state
+                                                                                                                                    (dataflow/undefine :drag-start)
+                                                                                                                                    (view/release-mouse))
+                                                                                                          :mouse-moved (if-let [[drag-start-x drag-start-y original-x1 original-y1] (dataflow/get-global-value-from state :drag-start)]
+                                                                                                                         (let [delta-x (- (:mouse-x event) drag-start-x)
+                                                                                                                               delta-y (- (:mouse-y event) drag-start-y)]
+                                                                                                                           (dataflow/define-to state [:line line-id] [(+ delta-x original-x1)
+                                                                                                                                                                      (+ delta-y original-y1)
+                                                                                                                                                                      x2 y2]))
+
+
+                                                                                                                         state)
+                                                                                                          state))))
+                                                                              state))))
                                         (end-point x2 y2 [:mouse-over line-id :to])])))))
 
 (defn view2 []
@@ -50,7 +70,7 @@
     [:line 2] [10 50 10 100]))
 
 (defn start []
-  (application/start view2
+  (application/start view
                      :initialize initialize
                      :framerate 30))
 
@@ -62,15 +82,15 @@
 
 
 (comment
-(start)
+  (start)
 
-(defn generate []
-  (println "generated")
-  1)
+  (defn generate []
+    (println "generated")
+    1)
 
-(println (take 2 (repeatedly generate))) 
+  (println (take 2 (repeatedly generate)))
 
-(.start (Thread. start))
+  (.start (Thread. start))
   (debug/set-active-channels
    ;; :view-definition
    ;; :initialization

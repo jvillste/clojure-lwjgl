@@ -202,14 +202,23 @@
         :mouse-y (:mouse-y event))
       (update-mouse-event-handlers-under-mouse)))
 
+(defn capture-mouse [view-state capturer]
+  (assoc view-state :mouse-capturer capturer))
+
+(defn release-mouse [view-state]
+  (dissoc view-state :mouse-capturer))
+
 (defn send-mouse-event [view-state event]
-  (-> view-state
+  (let [handlers (if-let [mouse-capturer (:mouse-capturer view-state)]
+                   [{:handler mouse-capturer}]
+                   (:mouse-event-handlers-under-mouse view-state))]
+    (-> view-state
 
-      (call-mouse-event-handlers (assoc event :event-handling-direction :down)
-                                 (:mouse-event-handlers-under-mouse view-state))
+        (call-mouse-event-handlers (assoc event :event-handling-direction :down)
+                                   handlers)
 
-      (call-mouse-event-handlers (assoc event :event-handling-direction :up)
-                                 (reverse (:mouse-event-handlers-under-mouse view-state)))))
+        #_(call-mouse-event-handlers (assoc event :event-handling-direction :up)
+                                     (reverse handlers)))))
 
 (defn add-mouse-event-handler [layoutable id new-handler]
   (assoc layoutable
