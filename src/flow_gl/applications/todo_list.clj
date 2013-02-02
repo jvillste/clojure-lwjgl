@@ -151,7 +151,7 @@
      :selected-item-id #(nth (zipper-list/items (dataflow/property item-list-view-path :item-order))
                              (dataflow/property item-list-view-path :selection)
                              nil))
-
+    
     (layout/->VerticalStack (vec (map-indexed (fn [index item-id]
                                                 (view/init-and-call (editor-id item-id)
                                                                     (fn []
@@ -169,8 +169,8 @@
                                                                           (view/add-mouse-event-handler item-id (fn [state event]
                                                                                                                   (if (and (= (:type event)
                                                                                                                               :left-mouse-button-up)
-                                                                                                                           (= (:event-handling-direction state) :up))
-                                                                                                                    (dataflow/define-to state (concat item-list-view-path [:selection]) index)
+                                                                                                                           (= (:event-handling-direction event) :up))
+                                                                                                                    (dataflow/define-property-to state item-list-view-path :selection index)
                                                                                                                     state)))))))
 
                                               (zipper-list/items (dataflow/property item-list-view-path :item-order)))))))
@@ -189,8 +189,8 @@
    (remove-item state item-list-view  (get state (concat item-list-view [:selection])))
 
    :default (let [state (handle-editor-event state
-                                                         (concat item-list-view (editor-id (dataflow/property-from state item-list-view :selected-item-id)))
-                                                         event)]
+                                             (concat item-list-view (editor-id (dataflow/property-from state item-list-view :selected-item-id)))
+                                             event)]
               (if (not (:event-handled state))
                 (cond
                  (input/key-pressed? event input/space)
@@ -228,9 +228,9 @@
 
 (defn handle-item-view-event [state item-view event]
   (let [state (if (= (:type event)
-                                 :mouse-moved)
-                            (dataflow/define-to state [:status] (get state :view-parts-under-mouse))
-                            state)]
+                     :mouse-moved)
+                (dataflow/define-to state [:status] (get state :view-parts-under-mouse))
+                state)]
 
     (let [state (handle-item-list-view-event state (concat item-view [:item-list-view]) event)]
       (if (not (:event-handled state))
@@ -260,7 +260,7 @@
 (comment
 (start)
 
-(debug/set-active-channels
+  (debug/set-active-channels
    :view-definition
    :initialization
    :dataflow

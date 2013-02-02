@@ -53,7 +53,9 @@
                                                             requested-height))
     view-part)
 
-  (children [view-part] [])
+  (children-in-coordinates [this view-state x y]
+    (let [layout (get view-state (element-path-to-layout-path (:root-element-path this)))]
+      (concat [layout] (layout/children-in-coordinates layout view-state x y))))
 
   Object
   (toString [_] (str "(->ViewPart " root-element-path)))
@@ -142,59 +144,17 @@
           view-state
           mouse-event-handlers))
 
-(defn in-coordinates [layoutable x y]
-  (and (>= x
-           (:x layoutable))
-       (<= x
-           (+ (:x layoutable) (:width layoutable)))
-       (>= y
-           (:y layoutable))
-       (<= y
-           (+ (:y layoutable) (:height layoutable)))))
 
-(defn layoutables-in-coordinates
-  ([view-state x y]
-     (concat [(get view-state [:layout])]
-             (layoutables-in-coordinates view-state
-                                         x
-                                         y
-                                         (get view-state [:layout]))))
-
-  ([view-state x y layoutable]
-     (if (satisfies? layout/Layout layoutable)
-       (loop [result []
-              x x
-              y y
-              children (layout/children layoutable)]
-
-         (if (seq children)
-           (let [child (first children)]
-             (if (in-coordinates child x y)
-               (recur (concat (conj result
-                                    child)
-                              (if (satisfies? layout/Layout child)
-                                (layoutables-in-coordinates view-state
-                                                            (+ x (:x child))
-                                                            (+ y (:y child))
-                                                            child)
-                                (if (instance? ViewPart child)
-                                  (layoutables-in-coordinates view-state
-                                                              (+ x (:x child))
-                                                              (+ y (:y child))
-                                                              (get view-state (element-path-to-layout-path (:root-element-path child))))
-                                  [])))
-                      x
-                      y
-                      (rest children))
-               (recur result
-                      x
-                      y
-                      (rest children))))
-           result))
-       [layoutable])))
+(defn layoutables-in-coordinates [view-state x y]
+  (let [layout (get view-state [:layout])]
+    (concat [layout]
+            (layout/children-in-coordinates layout
+                                            view-state
+                                            x
+                                            y))))
 
 (defn mouse-event-handlers-in-coordinates [view-state x y]
-  (->> (layoutables-in-coordinates view-state x y)
+  (->> (flow-gl.debug/debug :default "layoutables-in-coordinates: " (vec (layoutables-in-coordinates view-state x y)))
        (filter #(not (= nil
                         (:mouse-event-handler %))))
        (map :mouse-event-handler)))
@@ -289,7 +249,7 @@
 (defn send-close-event [view-state]
   ((:event-handler view-state)
    view-state
-   [:elemengts]
+   [:elements]
      {:type :close}))
 
 (defn handle-event [view-state event]
@@ -306,7 +266,7 @@
                                         (trim-mouse-movements)
                                         (map (partial invert-mouse-y (get view [:height])))))
                            (sort-by :time))]
-    
+
     (reduce handle-event view unread-events)))
 
 

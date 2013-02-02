@@ -8,11 +8,11 @@
 
 (defprotocol Layout
   (layout [layout requested-width requested-height])
-  (children [layout]))
+  (children-in-coordinates [layout view-state x y]))
 
 (extend Object
   Layout {:layout (fn [layout requested-width requested-height] layout)
-          :children (fn [layout] [])})
+          :children-in-coordinates (fn [layout view-state x y] [])})
 
 
 ;; UTILITIES
@@ -26,12 +26,12 @@
       (layout width
               height)))
 
-(defn layout-drawing-commands [layout]
+(defn layout-drawing-commands [drawables]
   (vec (concat [(push-modelview/->PushModelview)]
                (loop [commands []
                       x 0
                       y 0
-                      drawables (children layout)]
+                      drawables drawables]
                  (if (seq drawables)
                    (let [drawable (first drawables)]
                      (recur (concat commands
@@ -49,6 +49,31 @@
                    commands))
                [(pop-modelview/->PopModelview)])))
 
+(defn in-coordinates [x y layoutable]
+  (and (>= x
+           (:x layoutable))
+       (<= x
+           (+ (:x layoutable) (:width layoutable)))
+       (>= y
+           (:y layoutable))
+       (<= y
+           (+ (:y layoutable) (:height layoutable)))))
+
+(defn filter-by-coordinates [x y layoutables]
+  (filter (partial in-coordinates x y) layoutables))
+
+(defn all-children-in-coordinates [children view-state x y]
+  (let [children (filter-by-coordinates x y children)]
+    (concat children (mapcat (fn [child] [] (children-in-coordinates child
+                                                                     view-state
+                                                                     (+ x (:x child))
+                                                                     (+ y (:y child))))
+                             children))))
+
+(comment
+  (mapcat (fn [child]  [child child])
+          [1 2 3]))
+
 ;; LAYOUTS
 
 (defrecord Box [margin outer inner]
@@ -58,7 +83,7 @@
         (update-in [:outer] set-dimensions-and-layout 0 0 requested-width requested-height)
         (update-in [:inner] set-dimensions-and-layout margin margin (layoutable/preferred-width inner) (layoutable/preferred-height inner))))
 
-  (children [box] [outer inner])
+  (children-in-coordinates [this view-state x y] (all-children-in-coordinates [outer inner] view-state x y ))
 
   layoutable/Layoutable
   (layoutable/preferred-width [box] (+ (* 2 margin)
@@ -68,7 +93,7 @@
                                         (layoutable/preferred-height inner)))
 
   drawable/Drawable
-  (drawing-commands [this] (layout-drawing-commands this))
+  (drawing-commands [this] (layout-drawing-commands [outer inner]))
 
   Object
   (toString [this] (layoutable/describe-layoutable this "Box" :margin :outer :inner)))
@@ -81,7 +106,7 @@
            (vec (map #(set-dimensions-and-layout % (or (:x %) 0) (or (:y %) 0) (layoutable/preferred-width %) (layoutable/preferred-height %))
                      layoutables))))
 
-  (children [box] layoutables)
+  (children-in-coordinates [this view-state x y] (all-children-in-coordinates layoutables view-state x y))
 
   layoutable/Layoutable
   (layoutable/preferred-width [absolute] (apply max (map (fn [layoutable]
@@ -93,7 +118,7 @@
                                                           (layoutable/preferred-height layoutable))))))
 
   drawable/Drawable
-  (drawing-commands [this] (layout-drawing-commands this))
+  (drawing-commands [this] (layout-drawing-commands layoutables))
 
   Object
   (toString [this] (layoutable/describe-layoutable this "Absolute" :layoutables)))
@@ -114,7 +139,7 @@
                           (rest layoutables)))
                  layouted-layoutables)))))
 
-  (children [vertical-stack] layoutables)
+  (children-in-coordinates [this view-state x y] (all-children-in-coordinates layoutables view-state x y))
 
   layoutable/Layoutable
   (layoutable/preferred-height [vertical-stack] (reduce + (map layoutable/preferred-height layoutables)))
@@ -123,7 +148,7 @@
                                                                 0)))
 
   drawable/Drawable
-  (drawing-commands [this] (layout-drawing-commands this))
+  (drawing-commands [this] (layout-drawing-commands layoutables))
 
   Object
   (toString [this] (layoutable/describe-layoutable this "VerticalStack" :layoutables)))
@@ -135,7 +160,7 @@
            (vec (map #(set-dimensions-and-layout % 0 0 requested-width requested-height)
                      layoutables))))
 
-  (children [stack] layoutables)
+  (children-in-coordinates [this view-state x y] (all-children-in-coordinates layoutables view-state x y))
 
   layoutable/Layoutable
   (layoutable/preferred-width [stack]
@@ -147,7 +172,7 @@
                      0)))
 
   drawable/Drawable
-  (drawing-commands [this] (layout-drawing-commands this))
+  (drawing-commands [this] (layout-drawing-commands layoutables))
 
   Object
   (toString [this] (layoutable/describe-layoutable this "Stack" :layoutables)))
@@ -163,7 +188,7 @@
                                       (layoutable/preferred-width layoutable)
                                       (layoutable/preferred-height layoutable))))
 
-  (children [translation] [layoutable])
+  (children-in-coordinates [this view-state x y] (all-children-in-coordinates [layoutable] view-state x y))
 
   layoutable/Layoutable
   (layoutable/preferred-width [translation] (+ translate-x (layoutable/preferred-width layoutable)))
@@ -171,7 +196,7 @@
   (layoutable/preferred-height [translation] (+ translate-y (layoutable/preferred-height layoutable)))
 
   drawable/Drawable
-  (drawing-commands [this] (layout-drawing-commands this))
+  (drawing-commands [this] (layout-drawing-commands [layoutable]))
 
   Object
   (toString [this] (layoutable/describe-layoutable this "Translation" :translate-x :translate-y :layoutable)))
@@ -188,7 +213,8 @@
 
                                         (layoutable/preferred-width layoutable)
                                         height))))
-  (children [dock-bottom] [layoutable])
+
+  (children-in-coordinates [this view-state x y] (all-children-in-coordinates [layoutable] view-state x y))
 
   layoutable/Layoutable
   (layoutable/preferred-width [dock-bottom] (layoutable/preferred-width layoutable))
@@ -196,7 +222,7 @@
   (layoutable/preferred-height [dock-bottom] (layoutable/preferred-height layoutable))
 
   drawable/Drawable
-  (drawing-commands [this] (layout-drawing-commands this))
+  (drawing-commands [this] (layout-drawing-commands [layoutable]))
 
   Object
   (toString [this] (layoutable/describe-layoutable this "DockBottom" :layoutable)))

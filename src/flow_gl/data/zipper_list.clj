@@ -1,5 +1,5 @@
 (ns flow-gl.data.zipper-list
-  (:refer-clojure :exclude (count remove))
+  (:refer-clojure :exclude (count remove find))
   (:require [clojure.zip :as zip])
   (:use clojure.test))
 
