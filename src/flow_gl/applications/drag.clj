@@ -20,6 +20,33 @@
         (assoc :x (- x radius) :y (- y radius))
         (view/with-mouse-over mouse-over-id))))
 
+(defn handle-drag [layoutable handler-id handler]
+  (view/add-mouse-event-handler layoutable handler-id
+                                (fn [state event]
+                                  (if (= (:type event)
+                                         :left-mouse-button-down)
+                                    (-> state
+                                        (dataflow/define-to :drag-start [(dataflow/get-global-value-from state :mouse-x)
+                                                                         (dataflow/get-global-value-from state :mouse-y)
+                                                                         x1 y1])
+                                        (view/capture-mouse (fn [state event]
+                                                              (case (:type event)
+                                                                :left-mouse-button-up (-> state
+                                                                                          (dataflow/undefine :drag-start)
+                                                                                          (view/release-mouse))
+                                                                :mouse-moved (if-let [[drag-start-x drag-start-y original-x1 original-y1] (dataflow/get-global-value-from state :drag-start)]
+                                                                               (let [delta-x (- (:mouse-x event) drag-start-x)
+                                                                                     delta-y (- (:mouse-y event) drag-start-y)]
+                                                                                 (dataflow/define-to state [:line line-id] [(+ delta-x original-x1)
+                                                                                                                            (+ delta-y original-y1)
+                                                                                                                            x2 y2]))
+
+
+                                                                               state)
+                                                                state))))
+                                    state)))
+  )
+
 (defn view []
   (layout/->Absolute (apply concat (for [line-id (dataflow/get-global-value :lines)]
                                      (let [[x1 y1 x2 y2] (dataflow/get-global-value [:line line-id])]

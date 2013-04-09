@@ -48,7 +48,7 @@
                                     :y (+ r 50)))))))
 
 (defn rounded-rectangle-view []
-  (layout/->Absolute (concat (for [[x y] (->> (rounded-rectangle-vertices 200 100 30)
+  (layout/->Absolute (concat (for [[x y] (->> (drawable/rounded-rectangle-vertices 200 100 30)
                                               (partition 2))]
                                (-> (drawable/->FilledCircle [1 1 0 1]
                                                    2)
@@ -68,7 +68,7 @@
                        (concat [(-> (drawable/->Polyline [1 1 0 1] width coordinates)
                                     (assoc :x 50
                                            :y 50))]
-                               (for [[x y] (->> (polyline-coordinates width coordinates)
+                               (for [[x y] (->> (drawable/polyline-coordinates width coordinates)
                                                 (partition 2))]
                                  (-> (drawable/->FilledCircle [1 1 0 1]
                                                      2)
@@ -107,17 +107,17 @@
 (defn start []
   (application/start filled-circle-view
                      :initialize initialize
-                     :framerate 10))
+                     :framerate 60))
 
 (defn refresh []
   (when @sa
     (swap! @sa view/set-view
            ;;filled-circle-view
            ;;circle-view
-           line-view
+           ;;line-view
            ;;rounded-rectangle-view
            ;;polyline-view
-           ;;clock
+           clock
            )))
 
 (refresh)

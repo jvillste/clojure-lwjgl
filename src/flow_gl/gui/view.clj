@@ -222,7 +222,7 @@
 
 (defn add-mouse-event-handler [layoutable id new-handler]
   (assoc layoutable
-    :mouse-event-handler {:id id
+    :mouse-event-handler {:id (dataflow/absolute-path id)
                           :handler (fn [view-state event]
                                      (if-let [handler (:mouse-event-handler layoutable)]
                                        (-> ((:handler handler) view-state event)
