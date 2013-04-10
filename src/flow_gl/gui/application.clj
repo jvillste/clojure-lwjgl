@@ -39,6 +39,7 @@
               (do (view/send-close-event @state-atom)
                   (swap! window-atom window/close))
               (do (window/update framerate)
+                  (swap! window-atom window/show-fps)
                   (when resize-requested
                     (swap! window-atom assoc
                            :resize-requested false)

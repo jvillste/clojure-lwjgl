@@ -28,6 +28,29 @@
   (Display/update)
   (Display/sync framerate))
 
+(defn initialize-fps [window]
+  (assoc window
+           :last-fps-time (System/nanoTime)
+           :frames-since-last-update 1))
+
+(defn show-fps [window]
+  (let [last-time (:last-fps-time window)
+        frames-since-last-update (:frames-since-last-update window)
+        time-now (System/nanoTime)
+        difference (/ (- time-now
+                         last-time)
+                      1E9)]
+    (if (> difference 1)
+      (do (.setTitle (:frame window)
+                     (str (/ 1
+                             (/ difference
+                                frames-since-last-update))))
+          (assoc window
+            :last-fps-time time-now
+            :frames-since-last-update 1))
+      (assoc window
+              :frames-since-last-update (inc frames-since-last-update)))))
+
 (defn initialize-gl []
   (GL11/glClearColor 0 0 0 0)
   (GL11/glEnable GL11/GL_BLEND)
@@ -42,6 +65,8 @@
                                          :resize-requested false
                                          :width 0
                                          :height 0}))]
+
+    (swap! window-atom initialize-fps)
 
     (.addComponentListener canvas
                            (proxy [ComponentAdapter] []
@@ -68,7 +93,7 @@
     (initialize-gl)
 
     (update 10)
-    
+
     window-atom))
 
 (defn request-close [window]

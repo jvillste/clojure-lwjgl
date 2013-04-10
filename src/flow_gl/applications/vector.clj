@@ -107,7 +107,7 @@
 (defn start []
   (application/start filled-circle-view
                      :initialize initialize
-                     :framerate 60))
+                     :framerate 160))
 
 (defn refresh []
   (when @sa
@@ -126,5 +126,6 @@
 
   (start)
 (.start (Thread. start))
+
 
   )
