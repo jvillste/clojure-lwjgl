@@ -3,8 +3,8 @@
            [org.lwjgl BufferUtils]
            [java.nio FloatBuffer IntBuffer]))
 
-(defn create-gl-buffer [] (ARBVertexBufferObject/glGenBuffersARB))
 
+(defn create-gl-buffer [] (ARBVertexBufferObject/glGenBuffersARB))
 
 (defn bind-buffer [id]
   (ARBVertexBufferObject/glBindBufferARB ARBVertexBufferObject/GL_ARRAY_BUFFER_ARB id))

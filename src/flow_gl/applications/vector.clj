@@ -22,11 +22,11 @@
                                          (* i)
                                          (/ n))]
                            (-> (drawable/->Line [1 0 0 1]
-                                       1
-                                       (* l2 (Math/cos angle))
-                                       (* l2 (Math/sin angle))
-                                       (* l (Math/cos angle))
-                                       (* l (Math/sin angle)))
+                                                1
+                                                (* l2 (Math/cos angle))
+                                                (* l2 (Math/sin angle))
+                                                (* l (Math/cos angle))
+                                                (* l (Math/sin angle)))
                                (assoc :x l :y l)))))))
 
 
@@ -34,7 +34,7 @@
   (layout/->Absolute (for [i (range 15)]
                        (let [r (* i 5)]
                          (-> (drawable/->FilledCircle [1 0 0 1]
-                                             r)
+                                                      r)
                              (assoc :x (+ (* i r) (+ r 50))
                                     :y (+ r 50)))))))
 
@@ -42,8 +42,8 @@
   (layout/->Absolute (for [i (range 15)]
                        (let [r (* i 5)]
                          (-> (drawable/->Circle [1 1 0 1]
-                                       r
-                                       (* 1.2 i))
+                                                r
+                                                (* 1.2 i))
                              (assoc :x (+ (* i r) (+ r 50))
                                     :y (+ r 50)))))))
 
@@ -51,7 +51,7 @@
   (layout/->Absolute (concat (for [[x y] (->> (drawable/rounded-rectangle-vertices 200 100 30)
                                               (partition 2))]
                                (-> (drawable/->FilledCircle [1 1 0 1]
-                                                   2)
+                                                            2)
                                    (assoc :x (+ 50 x)
                                           :y (+ 50 y))))
 
@@ -71,13 +71,13 @@
                                (for [[x y] (->> (drawable/polyline-coordinates width coordinates)
                                                 (partition 2))]
                                  (-> (drawable/->FilledCircle [1 1 0 1]
-                                                     2)
+                                                              2)
                                      (assoc :x (+ 200 x)
                                             :y (+ 50 y))))
                                (for [[x y] (->> coordinates
                                                 (partition 2))]
                                  (-> (drawable/->FilledCircle [1 0 0 1]
-                                                     2)
+                                                              2)
                                      (assoc :x (+ 200 x)
                                             :y (+ 50 y))))))))
 
@@ -89,13 +89,14 @@
                         (let [angle (-> (dataflow/get-global-value :time)
                                         (mod 1e9)
                                         (/ 1e9)
-                                        (* (* 2 Math/PI)))]
-                          (-> (drawable/->Line [1 0 0 1]
-                                      1
-                                      (* l2 (Math/cos angle))
-                                      (* l2 (Math/sin angle))
-                                      (* l (Math/cos angle))
-                                      (* l (Math/sin angle)))
+                                        (* 1.0)
+                                        (* 2 Math/PI))]
+                          (-> (drawable/->Line (map float [1 0 0 1])
+                                               1
+                                               (* l2 (Math/cos angle))
+                                               (* l2 (Math/sin angle))
+                                               (* l (Math/cos angle))
+                                               (* l (Math/sin angle)))
                               (assoc :x l :y l))))]))
 
 (defonce sa (atom nil))
@@ -104,8 +105,9 @@
   (reset! sa state-atom)
   state)
 
+
 (defn start []
-  (application/start filled-circle-view
+  (application/start clock
                      :initialize initialize
                      :framerate 160))
 

@@ -1,6 +1,6 @@
 (ns flow-gl.opengl.triangle-list
-  (:require (clojure-lwjgl [shader :as shader]
-                           [buffer :as buffer]))
+  (:require (flow-gl.opengl [shader :as shader]
+                            [buffer :as buffer]))
   (:import [org.lwjgl.opengl GL11 GL20 ARBVertexBufferObject ARBVertexProgram ARBVertexShader]))
 
 (defrecord TriangleList [mode
@@ -38,47 +38,52 @@ void main() {
 }
 ")
 
-(defn update [triangle-list index coordinates colors]
-  (buffer/update-buffer (:vertex-coordinate-buffer triangle-list)
-                        (* index 2 3)
-                        coordinates
-                        float)
-  (buffer/load-buffer (:vertex-coordinate-buffer-id triangle-list)
-                      (:vertex-coordinate-buffer triangle-list))
+(defn update [triangle-list coordinates colors]
 
-  (buffer/update-buffer (:vertex-color-buffer triangle-list)
-                        (* index 4 3)
-                        colors
-                        float)
+  (buffer/load-buffer (:vertex-coordinate-buffer-id triangle-list)
+                      :float
+                      coordinates)
+
   (buffer/load-buffer (:vertex-color-buffer-id triangle-list)
-                      (:vertex-color-buffer triangle-list))
+                      :float
+                      colors)
+
+  (assoc triangle-list
+    :number-of-triangles (/ (count coordinates)
+                            2
+                            3)))
+
+(def shader-program-atom (atom nil))
+
+(defn create-shared-resources []
+  (reset! shader-program-atom (shader/compile-program vertex-shader-source
+                                                 fragment-shader-source)))
+
+(defn delete-shared-resources []
+  (shader/delete-program @shader-program-atom)
+  (reset! shader-program-atom nil))
+
+(defn create [mode]
+  (map->TriangleList {:mode mode
+                      :vertex-coordinate-attribute-index (ARBVertexShader/glGetAttribLocationARB @shader-program-atom "vertex_coordinate_attribute")
+                      :vertex-color-attribute-index (ARBVertexShader/glGetAttribLocationARB @shader-program-atom "vertex_color_attribute")
+                      :vertex-coordinate-buffer-id (buffer/create-gl-buffer)
+                      :vertex-color-buffer-id (buffer/create-gl-buffer)}))
+
+(defn create-for-coordinates [mode coordinates colors]
+  (-> (create mode)
+      (update coordinates
+              colors)))
+
+(defn delete [triangle-list]
+  (println "deleting triangle list")
+  (buffer/delete (:vertex-coordinate-buffer-id triangle-list))
+  (buffer/delete (:vertex-color-buffer-id triangle-list))
   triangle-list)
 
 
-
-(defn create [mode number-of-triangles]
-  (let [shader-program (shader/compile-program vertex-shader-source
-                                               fragment-shader-source)]
-    (map->TriangleList {:mode mode
-                        :number-of-triangles number-of-triangles
-                        :shader-program shader-program
-                        :vertex-coordinate-attribute-index (ARBVertexShader/glGetAttribLocationARB shader-program "vertex_coordinate_attribute")
-                        :vertex-color-attribute-index (ARBVertexShader/glGetAttribLocationARB shader-program "vertex_color_attribute")
-                        :vertex-coordinate-buffer-id (buffer/create-gl-buffer)
-                        :vertex-coordinate-buffer (buffer/create-float-buffer (* 3 2 number-of-triangles))
-                        :vertex-color-buffer-id (buffer/create-gl-buffer)
-                        :vertex-color-buffer (buffer/create-float-buffer (* 3 4 number-of-triangles))})))
-
-
-
-(defn delete [triangle-list]
-  (buffer/delete (:vertex-coordinate-buffer-id triangle-list))
-  (buffer/delete (:vertex-color-buffer-id triangle-list))
-  (shader/delete-program (:shader-program triangle-list)))
-
-
 (defn render [triangle-list]
-  (shader/enable-program (:shader-program triangle-list))
+  (shader/enable-program @shader-program-atom)
 
   (buffer/bind-buffer (:vertex-coordinate-buffer-id triangle-list))
   (ARBVertexProgram/glEnableVertexAttribArrayARB (:vertex-coordinate-attribute-index triangle-list))
@@ -101,4 +106,6 @@ void main() {
   (case (:mode triangle-list)
     :triangles (GL11/glDrawArrays GL11/GL_TRIANGLES 0 (* 3 (:number-of-triangles triangle-list)))
     :triangle-strip (GL11/glDrawArrays GL11/GL_TRIANGLE_STRIP 0 (+ 2 (:number-of-triangles triangle-list)))
-    :triangle-fan (GL11/glDrawArrays GL11/GL_TRIANGLE_FAN 0 (:number-of-triangles triangle-list))))
+    :triangle-fan (GL11/glDrawArrays GL11/GL_TRIANGLE_FAN 0 (:number-of-triangles triangle-list)))
+
+  triangle-list)
