@@ -86,7 +86,8 @@
             (if close-requested
               (do (close state-atom)
                   (opengl/dispose)
-                  (swap! window-atom window/close))
+                  (swap! window-atom window/close)
+                  (reset! state-atom-atom nil))
               (do (window/update framerate)
                   (swap! window-atom window/show-fps)
                   (when resize-requested

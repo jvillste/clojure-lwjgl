@@ -30,8 +30,8 @@
 
 (defn initialize-fps [window]
   (assoc window
-           :last-fps-time (System/nanoTime)
-           :frames-since-last-update 1))
+    :last-fps-time (System/nanoTime)
+    :frames-since-last-update 1))
 
 (defn show-fps [window]
   (let [last-time (:last-fps-time window)
@@ -49,7 +49,7 @@
             :last-fps-time time-now
             :frames-since-last-update 1))
       (assoc window
-              :frames-since-last-update (inc frames-since-last-update)))))
+        :frames-since-last-update (inc frames-since-last-update)))))
 
 (defn initialize-gl []
   (GL11/glClearColor 0 0 0 0)

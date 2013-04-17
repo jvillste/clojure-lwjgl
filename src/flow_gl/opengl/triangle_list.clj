@@ -76,7 +76,6 @@ void main() {
               colors)))
 
 (defn delete [triangle-list]
-  (println "deleting triangle list")
   (buffer/delete (:vertex-coordinate-buffer-id triangle-list))
   (buffer/delete (:vertex-color-buffer-id triangle-list))
   triangle-list)
